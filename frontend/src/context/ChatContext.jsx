@@ -21,6 +21,19 @@ export function ChatProvider({ children }) {
   const [replyingTo, setReplyingTo] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [masterIdentities, setMasterIdentities] = useState(new Map()); // convId -> profileObject
+
+  const setMasterIdentityForConv = (convId, profileObj) => {
+    setMasterIdentities(prev => new Map(prev).set(convId, profileObj));
+  };
+
+  const clearMasterIdentityForConv = (convId) => {
+    setMasterIdentities(prev => {
+      const nextMap = new Map(prev);
+      nextMap.delete(convId);
+      return nextMap;
+    });
+  };
 
   const activeConversation = activeConversationId
     ? conversations.find(c => c.id === activeConversationId) || null
@@ -157,12 +170,16 @@ export function ChatProvider({ children }) {
   const sendMessage = async ({ content, attachments = [], type = 'text', replyToId = null }) => {
     if (!user || (!content.trim() && attachments.length === 0)) return;
 
+    const activeMasterUser = masterIdentities.get(activeConversationId);
+    const effectiveSender = activeMasterUser || user;
+    const effectiveSenderId = effectiveSender.id;
+
     const tempId = `temp-${Date.now()}`;
     const optimisticMessage = {
       id: tempId,
       tempId,
       conversation_id: activeConversationId,
-      sender_id: user.id,
+      sender_id: effectiveSenderId,
       content,
       type,
       reply_to_id: replyToId || replyingTo?.id || null,
@@ -178,14 +195,14 @@ export function ChatProvider({ children }) {
       is_deleted: false,
       created_at: new Date().toISOString(),
       sender: {
-        id: user.id,
-        display_name: user.display_name,
-        username: user.username,
-        avatar_url: user.avatar_url,
-        equipped_frame: user.equipped_frame,
-        equipped_bubble: user.equipped_bubble,
-        equipped_badge: user.equipped_badge,
-        equipped_name_color: user.equipped_name_color
+        id: effectiveSender.id,
+        display_name: effectiveSender.display_name || effectiveSender.username,
+        username: effectiveSender.username,
+        avatar_url: effectiveSender.avatar_url,
+        equipped_frame: effectiveSender.equipped_frame,
+        equipped_bubble: effectiveSender.equipped_bubble,
+        equipped_badge: effectiveSender.equipped_badge,
+        equipped_name_color: effectiveSender.equipped_name_color
       },
       status: 'sending'
     };
@@ -199,7 +216,7 @@ export function ChatProvider({ children }) {
       try {
         const { data: insertedMsg, error: insertErr } = await supabase.from('messages').insert({
           conversation_id: activeConversationId,
-          sender_id: user.id,
+          sender_id: effectiveSenderId,
           content: content || '',
           type,
           reply_to_id: optimisticMessage.reply_to_id
@@ -371,7 +388,10 @@ export function ChatProvider({ children }) {
         setReplyingTo,
         setEditingMessage,
         emitTyping,
-        toggleSound
+        toggleSound,
+        masterIdentities,
+        setMasterIdentityForConv,
+        clearMasterIdentityForConv
       }}
     >
       {children}

@@ -15,15 +15,21 @@ export function ChatArea({ onBack, onOpenProfile }) {
   const { user } = useAuth();
   const {
     activeConversation,
+    activeConversationId,
     messages,
     loadingMessages,
+    sendMessage,
     editMessage,
     deleteMessage,
     pinMessage,
     reactToMessage,
     setReplyingTo,
-    setEditingMessage
+    setEditingMessage,
+    masterIdentities,
+    clearMasterIdentityForConv
   } = useChat();
+
+  const activeMasterUser = masterIdentities?.get(activeConversationId);
 
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -98,6 +104,29 @@ export function ChatArea({ onBack, onOpenProfile }) {
         }}
         isSearching={isSearching}
       />
+
+      {/* Banner de Super DM Ativa (Modo Master Secreto) */}
+      {activeMasterUser && (
+        <div className="px-4 py-2 bg-gradient-to-r from-rose-950/90 via-slate-900 to-purple-950/80 border-b border-rose-500/40 flex items-center justify-between z-20 select-none animate-fadeIn">
+          <div className="flex items-center gap-2.5">
+            <span className="text-lg">🎭</span>
+            <div className="text-xs">
+              <span className="text-rose-300 font-extrabold uppercase text-[10px] tracking-wide block">
+                Super DM Ativa • Modo Master
+              </span>
+              <span className="text-slate-200">
+                Você está respondendo como: <strong className="text-amber-300 font-bold">{activeMasterUser.display_name || activeMasterUser.username}</strong>
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => clearMasterIdentityForConv(activeConversationId)}
+            className="px-2.5 py-1 rounded-xl bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/40 text-[11px] font-bold transition-all"
+          >
+            Sair do Modo Master
+          </button>
+        </div>
+      )}
 
       {/* Barra de Pesquisa de Mensagens Interna */}
       {isSearching && (
