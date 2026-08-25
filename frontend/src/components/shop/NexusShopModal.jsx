@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
-import { SHOP_CATALOG } from '../../lib/shopCatalog';
+import { SHOP_CATALOG, WALLPAPER_STYLES } from '../../lib/shopCatalog';
 import { sounds } from '../../lib/sound';
 import confetti from 'canvas-confetti';
 import {
@@ -39,11 +39,12 @@ export function NexusShopModal({ isOpen, onClose }) {
   const [equippedBadge, setEquippedBadge] = useState(user?.equipped_badge || 'none');
   const [equippedNameColor, setEquippedNameColor] = useState(user?.equipped_name_color || 'default');
 
-  // Preview Temporário no Provador Virtual
-  const [previewFrame, setPreviewFrame] = useState(user?.equipped_frame || 'default');
-  const [previewBubble, setPreviewBubble] = useState(user?.equipped_bubble || 'default');
-  const [previewBadge, setPreviewBadge] = useState(user?.equipped_badge || 'none');
-  const [previewNameColor, setPreviewNameColor] = useState(user?.equipped_name_color || 'default');
+  // Preview Temporário de Itens no Provador Virtual
+  const [previewFrameItem, setPreviewFrameItem] = useState(null);
+  const [previewWallpaperItem, setPreviewWallpaperItem] = useState(null);
+  const [previewBubbleItem, setPreviewBubbleItem] = useState(null);
+  const [previewBadgeItem, setPreviewBadgeItem] = useState(null);
+  const [previewNameColorItem, setPreviewNameColorItem] = useState(null);
 
   const [claiming, setClaiming] = useState(false);
   const [purchasingId, setPurchasingId] = useState(null);
@@ -61,13 +62,23 @@ export function NexusShopModal({ isOpen, onClose }) {
     setEquippedBadge(user.equipped_badge || 'none');
     setEquippedNameColor(user.equipped_name_color || 'default');
 
-    setPreviewFrame(user.equipped_frame || 'default');
-    setPreviewBubble(user.equipped_bubble || 'default');
-    setPreviewBadge(user.equipped_badge || 'none');
-    setPreviewNameColor(user.equipped_name_color || 'default');
-
     loadRemoteData();
   }, [isOpen, user?.id]);
+
+  // Sincronizar itens iniciais de preview com os itens equipados
+  useEffect(() => {
+    const frameObj = catalog.find(i => i.id === equippedFrame || i.id === `frame_${equippedFrame}`);
+    const wallObj = catalog.find(i => i.id === equippedWallpaper || i.id === `wallpaper_${equippedWallpaper}`);
+    const bubbleObj = catalog.find(i => i.id === equippedBubble || i.id === `bubble_${equippedBubble}`);
+    const badgeObj = catalog.find(i => i.id === equippedBadge || i.id === `badge_${equippedBadge}`);
+    const nameColorObj = catalog.find(i => i.id === equippedNameColor || i.id === `name_color_${equippedNameColor}` || i.id === `name_${equippedNameColor}`);
+
+    setPreviewFrameItem(frameObj || null);
+    setPreviewWallpaperItem(wallObj || null);
+    setPreviewBubbleItem(bubbleObj || null);
+    setPreviewBadgeItem(badgeObj || null);
+    setPreviewNameColorItem(nameColorObj || null);
+  }, [equippedFrame, equippedWallpaper, equippedBubble, equippedBadge, equippedNameColor, catalog]);
 
   const loadRemoteData = async () => {
     if (isSupabaseConfigured && supabase && user) {
@@ -165,10 +176,26 @@ export function NexusShopModal({ isOpen, onClose }) {
   };
 
   const handlePreviewItem = (item) => {
-    if (item.category === 'frames') setPreviewFrame(item.id.replace('frame_', ''));
-    if (item.category === 'bubbles') setPreviewBubble(item.id.replace('bubble_', ''));
-    if (item.category === 'badges') setPreviewBadge(item.id.replace('badge_', ''));
-    if (item.category === 'name_colors') setPreviewNameColor(item.id.replace('name_color_', ''));
+    if (item.category === 'frames') setPreviewFrameItem(item);
+    if (item.category === 'wallpapers') setPreviewWallpaperItem(item);
+    if (item.category === 'bubbles') setPreviewBubbleItem(item);
+    if (item.category === 'badges') setPreviewBadgeItem(item);
+    if (item.category === 'name_colors') setPreviewNameColorItem(item);
+    sounds.playPop();
+  };
+
+  const handleResetPreview = () => {
+    const frameObj = catalog.find(i => i.id === equippedFrame || i.id === `frame_${equippedFrame}`);
+    const wallObj = catalog.find(i => i.id === equippedWallpaper || i.id === `wallpaper_${equippedWallpaper}`);
+    const bubbleObj = catalog.find(i => i.id === equippedBubble || i.id === `bubble_${equippedBubble}`);
+    const badgeObj = catalog.find(i => i.id === equippedBadge || i.id === `badge_${equippedBadge}`);
+    const nameColorObj = catalog.find(i => i.id === equippedNameColor || i.id === `name_color_${equippedNameColor}` || i.id === `name_${equippedNameColor}`);
+
+    setPreviewFrameItem(frameObj || null);
+    setPreviewWallpaperItem(wallObj || null);
+    setPreviewBubbleItem(bubbleObj || null);
+    setPreviewBadgeItem(badgeObj || null);
+    setPreviewNameColorItem(nameColorObj || null);
     sounds.playPop();
   };
 
@@ -230,22 +257,23 @@ export function NexusShopModal({ isOpen, onClose }) {
     const targetField = fieldMap[item.category];
     if (!targetField) return;
 
-    const valueToSet = item.id.replace(`${item.category.slice(0, -1)}_`, '').replace('name_color_', '');
+    const valueToSet = item.id;
 
     if (item.category === 'frames') {
       setEquippedFrame(valueToSet);
-      setPreviewFrame(valueToSet);
+      setPreviewFrameItem(item);
     } else if (item.category === 'wallpapers') {
       setEquippedWallpaper(valueToSet);
+      setPreviewWallpaperItem(item);
     } else if (item.category === 'bubbles') {
       setEquippedBubble(valueToSet);
-      setPreviewBubble(valueToSet);
+      setPreviewBubbleItem(item);
     } else if (item.category === 'badges') {
       setEquippedBadge(valueToSet);
-      setPreviewBadge(valueToSet);
+      setPreviewBadgeItem(item);
     } else if (item.category === 'name_colors') {
       setEquippedNameColor(valueToSet);
-      setPreviewNameColor(valueToSet);
+      setPreviewNameColorItem(item);
     }
 
     if (isSupabaseConfigured && supabase && user) {
@@ -276,11 +304,11 @@ export function NexusShopModal({ isOpen, onClose }) {
     const target = fieldMap[category];
     if (!target) return;
 
-    if (category === 'frames') { setEquippedFrame('default'); setPreviewFrame('default'); }
-    if (category === 'wallpapers') setEquippedWallpaper('default');
-    if (category === 'bubbles') { setEquippedBubble('default'); setPreviewBubble('default'); }
-    if (category === 'badges') { setEquippedBadge('none'); setPreviewBadge('none'); }
-    if (category === 'name_colors') { setEquippedNameColor('default'); setPreviewNameColor('default'); }
+    if (category === 'frames') { setEquippedFrame('default'); setPreviewFrameItem(null); }
+    if (category === 'wallpapers') { setEquippedWallpaper('default'); setPreviewWallpaperItem(null); }
+    if (category === 'bubbles') { setEquippedBubble('default'); setPreviewBubbleItem(null); }
+    if (category === 'badges') { setEquippedBadge('none'); setPreviewBadgeItem(null); }
+    if (category === 'name_colors') { setEquippedNameColor('default'); setPreviewNameColorItem(null); }
 
     if (isSupabaseConfigured && supabase && user) {
       await supabase.from('profiles').update({
@@ -397,76 +425,77 @@ export function NexusShopModal({ isOpen, onClose }) {
           </button>
         </div>
 
-        {/* PROVADOR VIRTUAL INTERATIVO / LIVE PREVIEW */}
-        <div className="mt-3.5 p-3.5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-amber-950/30 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
-          <div className="flex items-center gap-4 min-w-0">
-            <div className="relative flex-shrink-0">
-              <img
-                src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
-                alt="Avatar Preview"
-                className={`w-14 h-14 rounded-2xl object-cover transition-all duration-300 ${
-                  previewFrame === 'neon' ? 'ring-4 ring-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.8)]' :
-                  previewFrame === 'gold' ? 'ring-4 ring-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.8)]' :
-                  previewFrame === 'cyber' ? 'ring-4 ring-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.8)]' :
-                  previewFrame === 'royal' ? 'ring-4 ring-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.8)]' :
-                  previewFrame === 'fire' ? 'ring-4 ring-red-500 shadow-[0_0_15px_rgba(239,68,68,0.8)]' :
-                  'border-2 border-slate-700'
-                }`}
-              />
-              <span className="absolute -bottom-1 -right-1 p-1 bg-amber-500 rounded-full text-black shadow">
-                <Sparkles className="w-3 h-3" />
-              </span>
-            </div>
+        {/* PROVADOR VIRTUAL INTERATIVO / LIVE PREVIEW EM TEMPO REAL */}
+        <div
+          className={`mt-3.5 p-4 rounded-3xl border border-amber-500/40 shadow-2xl relative overflow-hidden transition-all duration-500 ${
+            previewWallpaperItem?.cssClass || 'bg-gradient-to-r from-slate-900 via-slate-900/90 to-amber-950/30'
+          }`}
+        >
+          {/* Overlay suave para legibilidade */}
+          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px] pointer-events-none" />
 
-            <div className="min-w-0 space-y-1">
-              <div className="flex items-center gap-2">
-                <span className={`text-xs font-bold truncate ${
-                  previewNameColor === 'gold' ? 'text-amber-300 drop-shadow-[0_0_8px_rgba(251,191,36,0.8)] font-extrabold' :
-                  previewNameColor === 'neon' ? 'text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)] font-extrabold' :
-                  previewNameColor === 'ruby' ? 'text-rose-400 drop-shadow-[0_0_8px_rgba(244,63,94,0.8)] font-extrabold' :
-                  previewNameColor === 'emerald' ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.8)] font-extrabold' :
-                  'text-white'
-                }`}>
-                  {user?.display_name || 'Seu Nickname'}
+          <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
+              {/* Avatar com a Moldura do Preview */}
+              <div className="relative flex-shrink-0">
+                <img
+                  src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
+                  alt="Avatar Preview"
+                  className={`w-16 h-16 rounded-2xl object-cover transition-all duration-300 ${
+                    previewFrameItem?.cssClass || 'border-2 border-slate-700 shadow-md'
+                  }`}
+                />
+                <span className="absolute -bottom-1 -right-1 p-1 bg-amber-500 rounded-full text-black shadow-md animate-bounce">
+                  <Sparkles className="w-3.5 h-3.5" />
                 </span>
-
-                {previewBadge && previewBadge !== 'none' && (
-                  <span className="text-[9px] px-2 py-0.2 rounded-full font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase">
-                    {previewBadge === 'king' ? '👑 REI DO CHAT' :
-                     previewBadge === 'vip' ? '🔥 VIP' :
-                     previewBadge === 'cypher' ? '⚡ CYPHER' :
-                     previewBadge === 'diamond' ? '💎 DIAMANTE' : previewBadge}
-                  </span>
-                )}
               </div>
 
-              {/* Balão de Mensagem de Demonstração */}
-              <div className={`px-3 py-1.5 rounded-xl text-xs max-w-xs transition-all border ${
-                previewBubble === 'neon' ? 'bg-cyan-950/70 border-cyan-400/60 text-cyan-100 shadow-[0_0_12px_rgba(34,211,238,0.3)]' :
-                previewBubble === 'gold' ? 'bg-amber-950/70 border-amber-400/60 text-amber-100 shadow-[0_0_12px_rgba(251,191,36,0.3)]' :
-                previewBubble === 'cyber' ? 'bg-pink-950/70 border-pink-500/60 text-pink-100 shadow-[0_0_12px_rgba(236,72,153,0.3)]' :
-                previewBubble === 'dark' ? 'bg-slate-900 border-slate-700 text-slate-200' :
-                'bg-brand-600/30 border-brand-500/40 text-slate-200'
-              }`}>
-                Preview ao vivo do seu visual no chat ✨
+              {/* Informações do Perfil com Aura de Nome e Badge */}
+              <div className="min-w-0 space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`text-sm font-extrabold transition-all duration-300 ${
+                      previewNameColorItem?.cssClass || 'text-white'
+                    }`}
+                  >
+                    {user?.display_name || user?.username || 'Damon'}
+                  </span>
+
+                  {previewBadgeItem && (
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/50 uppercase shadow-sm flex items-center gap-1">
+                      <span>{previewBadgeItem.icon || '👑'}</span>
+                      <span>{previewBadgeItem.label || previewBadgeItem.name}</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Balão de Mensagem ao Vivo do Preview */}
+                <div
+                  className={`px-3.5 py-2 rounded-2xl text-xs max-w-sm transition-all duration-300 shadow-lg ${
+                    previewBubbleItem?.cssClass || 'bg-brand-600/30 border border-brand-500/40 text-slate-100'
+                  }`}
+                >
+                  <p className="font-medium leading-relaxed">
+                    Preview ao vivo: Seu avatar, aura e balão no chat! ✨
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={() => {
-                setPreviewFrame(equippedFrame);
-                setPreviewBubble(equippedBubble);
-                setPreviewBadge(equippedBadge);
-                setPreviewNameColor(equippedNameColor);
-                sounds.playPop();
-              }}
-              className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-colors flex items-center gap-1"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Resetar Preview</span>
-            </button>
+            {/* Ações do Provador */}
+            <div className="flex flex-col sm:flex-row items-center gap-2 flex-shrink-0">
+              <span className="text-[10px] text-amber-300 font-extrabold uppercase bg-amber-500/20 px-2.5 py-1 rounded-xl border border-amber-500/40">
+                Provador Ativo
+              </span>
+              <button
+                type="button"
+                onClick={handleResetPreview}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-all flex items-center gap-1.5 shadow-sm"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Resetar Look</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -539,11 +568,11 @@ export function NexusShopModal({ isOpen, onClose }) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
                   {userInventoryItems.map((item) => {
                     const isEquipped =
-                      (item.category === 'frames' && equippedFrame === item.id.replace('frame_', '')) ||
-                      (item.category === 'wallpapers' && equippedWallpaper === item.id.replace('wallpaper_', '')) ||
-                      (item.category === 'bubbles' && equippedBubble === item.id.replace('bubble_', '')) ||
-                      (item.category === 'badges' && equippedBadge === item.id.replace('badge_', '')) ||
-                      (item.category === 'name_colors' && equippedNameColor === item.id.replace('name_color_', ''));
+                      equippedFrame === item.id ||
+                      equippedWallpaper === item.id ||
+                      equippedBubble === item.id ||
+                      equippedBadge === item.id ||
+                      equippedNameColor === item.id;
 
                     return (
                       <div
@@ -554,12 +583,43 @@ export function NexusShopModal({ isOpen, onClose }) {
                             : 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
                         }`}
                       >
-                        <div className="space-y-2">
+                        <div className="space-y-2.5">
                           <div className="flex items-center justify-between">
                             <span className="text-2xl">{item.icon}</span>
                             <span className="text-[10px] px-2 py-0.2 rounded-full bg-slate-800 text-slate-400 font-semibold uppercase">
                               {item.category}
                             </span>
+                          </div>
+
+                          {/* Mini Visual Preview do Item no Card */}
+                          <div className="p-2.5 rounded-2xl bg-background-dark/80 border border-slate-800/80 flex items-center justify-center min-h-[55px]">
+                            {item.category === 'frames' && (
+                              <img
+                                src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
+                                alt="preview"
+                                className={`w-10 h-10 rounded-xl object-cover ${item.cssClass}`}
+                              />
+                            )}
+                            {item.category === 'bubbles' && (
+                              <div className={`px-2.5 py-1 rounded-xl text-[10px] font-medium ${item.cssClass}`}>
+                                Exemplo de Balão
+                              </div>
+                            )}
+                            {item.category === 'badges' && (
+                              <span className="text-[10px] px-2.5 py-0.5 rounded-full font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/50 uppercase">
+                                {item.label || item.name}
+                              </span>
+                            )}
+                            {item.category === 'name_colors' && (
+                              <span className={`text-xs font-extrabold ${item.cssClass}`}>
+                                {user?.display_name || 'Damon'}
+                              </span>
+                            )}
+                            {item.category === 'wallpapers' && (
+                              <div className={`w-full h-8 rounded-lg ${item.cssClass} border border-slate-700 flex items-center justify-center text-[10px] text-slate-300 font-bold`}>
+                                Fundo do Chat
+                              </div>
+                            )}
                           </div>
 
                           <div>
@@ -603,11 +663,11 @@ export function NexusShopModal({ isOpen, onClose }) {
               {filteredItems.map((item) => {
                 const isUnlocked = unlockedItems.includes(item.id);
                 const isEquipped =
-                  (item.category === 'frames' && equippedFrame === item.id.replace('frame_', '')) ||
-                  (item.category === 'wallpapers' && equippedWallpaper === item.id.replace('wallpaper_', '')) ||
-                  (item.category === 'bubbles' && equippedBubble === item.id.replace('bubble_', '')) ||
-                  (item.category === 'badges' && equippedBadge === item.id.replace('badge_', '')) ||
-                  (item.category === 'name_colors' && equippedNameColor === item.id.replace('name_color_', ''));
+                  equippedFrame === item.id ||
+                  equippedWallpaper === item.id ||
+                  equippedBubble === item.id ||
+                  equippedBadge === item.id ||
+                  equippedNameColor === item.id;
 
                 const canAfford = userCoins >= item.price;
 
@@ -641,6 +701,41 @@ export function NexusShopModal({ isOpen, onClose }) {
                         )}
                       </div>
 
+                      {/* Mini Visual Preview do Item no Card */}
+                      <div
+                        onClick={() => handlePreviewItem(item)}
+                        className="p-2.5 rounded-2xl bg-background-dark/80 border border-slate-800/80 flex items-center justify-center min-h-[55px] cursor-pointer hover:border-amber-500/50 transition-all group/box"
+                        title="Clique para testar no provador"
+                      >
+                        {item.category === 'frames' && (
+                          <img
+                            src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
+                            alt="preview"
+                            className={`w-10 h-10 rounded-xl object-cover ${item.cssClass}`}
+                          />
+                        )}
+                        {item.category === 'bubbles' && (
+                          <div className={`px-2.5 py-1 rounded-xl text-[10px] font-medium ${item.cssClass}`}>
+                            Exemplo de Balão
+                          </div>
+                        )}
+                        {item.category === 'badges' && (
+                          <span className="text-[10px] px-2.5 py-0.5 rounded-full font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/50 uppercase shadow">
+                            {item.label || item.name}
+                          </span>
+                        )}
+                        {item.category === 'name_colors' && (
+                          <span className={`text-xs font-extrabold ${item.cssClass}`}>
+                            {user?.display_name || 'Damon'}
+                          </span>
+                        )}
+                        {item.category === 'wallpapers' && (
+                          <div className={`w-full h-8 rounded-lg ${item.cssClass} border border-slate-700 flex items-center justify-center text-[10px] text-slate-300 font-bold`}>
+                            Fundo do Chat
+                          </div>
+                        )}
+                      </div>
+
                       <div>
                         <h4 className="text-xs font-extrabold text-white group-hover:text-amber-300 transition-colors">
                           {item.name}
@@ -652,10 +747,11 @@ export function NexusShopModal({ isOpen, onClose }) {
                     <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center gap-2">
                       <button
                         onClick={() => handlePreviewItem(item)}
-                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold"
+                        className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center gap-1 transition-colors"
                         title="Testar no provador"
                       >
-                        <Eye className="w-4 h-4" />
+                        <Eye className="w-4 h-4 text-amber-400" />
+                        <span>Testar</span>
                       </button>
 
                       {isEquipped ? (
