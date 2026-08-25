@@ -1,94 +1,107 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
+import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 const SocketContext = createContext(null);
 
-const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
-
-const SOCKET_URL = 
-  import.meta.env.VITE_SOCKET_URL || 
-  import.meta.env.NEXT_PUBLIC_SOCKET_URL || 
-  (isHttps ? '/' : 'http://187.127.40.228:5000');
+const customSocketUrl = import.meta.env.VITE_SOCKET_URL || import.meta.env.NEXT_PUBLIC_SOCKET_URL;
 
 export function SocketProvider({ children }) {
   const { user, session } = useAuth();
   const [socket, setSocket] = useState(null);
-  const [connected, setConnected] = useState(false);
+  const [connected, setConnected] = useState(true);
   const [onlineUsers, setOnlineUsers] = useState(new Set());
   const [coinsAlert, setCoinsAlert] = useState(null);
 
+  // --- 1. SUPABASE REALTIME PRESENCE (Status Online Nativo da Nuvem) ---
   useEffect(() => {
-    if (!user) {
-      if (socket) {
-        socket.disconnect();
-        setSocket(null);
-        setConnected(false);
+    if (!isSupabaseConfigured || !supabase || !user) return;
+
+    const presenceChannel = supabase.channel('online_users', {
+      config: {
+        presence: {
+          key: user.id
+        }
       }
-      return;
-    }
+    });
+
+    presenceChannel
+      .on('presence', { event: 'sync' }, () => {
+        const state = presenceChannel.presenceState();
+        const userIds = Object.keys(state);
+        setOnlineUsers(new Set(userIds));
+      })
+      .on('presence', { event: 'join' }, ({ key }) => {
+        setOnlineUsers(prev => new Set([...prev, key]));
+      })
+      .on('presence', { event: 'leave' }, ({ key }) => {
+        setOnlineUsers(prev => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await presenceChannel.track({
+            user_id: user.id,
+            username: user.username,
+            online_at: new Date().toISOString()
+          });
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(presenceChannel);
+    };
+  }, [user?.id]);
+
+  // --- 2. SOCKET.IO (Opcional quando explicitamente configurado ou em localhost) ---
+  useEffect(() => {
+    if (!user || !customSocketUrl) return;
 
     const token = session?.access_token || localStorage.getItem('demo_auth_token') || 'demo-token';
 
-    const newSocket = io(SOCKET_URL, {
-      auth: {
-        token,
-        userId: user.id,
-        username: user.username,
-        displayName: user.display_name,
-        avatarUrl: user.avatar_url
-      },
-      reconnectionAttempts: 10,
-      reconnectionDelay: 2000,
-      transports: ['websocket', 'polling'],
-      timeout: 10000
-    });
-
-    newSocket.on('connect', () => {
-      console.log('⚡ Conectado ao servidor WebSocket:', newSocket.id);
-      setConnected(true);
-      newSocket.emit('get_online_users');
-    });
-
-    newSocket.on('disconnect', (reason) => {
-      console.log('💤 Desconectado do WebSocket:', reason);
-      setConnected(false);
-    });
-
-    newSocket.on('online_users_list', (userIds) => {
-      setOnlineUsers(new Set(userIds));
-    });
-
-    newSocket.on('user_status_change', ({ userId, isOnline }) => {
-      setOnlineUsers(prev => {
-        const next = new Set(prev);
-        if (isOnline) {
-          next.add(userId);
-        } else {
-          next.delete(userId);
-        }
-        return next;
+    try {
+      const newSocket = io(customSocketUrl, {
+        auth: {
+          token,
+          userId: user.id,
+          username: user.username,
+          displayName: user.display_name,
+          avatarUrl: user.avatar_url
+        },
+        reconnectionAttempts: 3,
+        reconnectionDelay: 5000,
+        transports: ['websocket', 'polling'],
+        timeout: 8000
       });
-    });
 
-    // Evento de Moedas Recebidas por Mensagem
-    newSocket.on('coins_earned', ({ amount, newBalance, reason }) => {
-      setCoinsAlert({ amount, newBalance, reason, id: Date.now() });
-      setTimeout(() => setCoinsAlert(null), 3500);
-    });
+      newSocket.on('connect', () => {
+        setConnected(true);
+      });
 
-    setSocket(newSocket);
+      newSocket.on('coins_earned', ({ amount, newBalance, reason }) => {
+        setCoinsAlert({ amount, newBalance, reason, id: Date.now() });
+        setTimeout(() => setCoinsAlert(null), 3500);
+      });
 
-    return () => {
-      newSocket.disconnect();
-    };
+      setSocket(newSocket);
+
+      return () => {
+        newSocket.disconnect();
+      };
+    } catch (e) {
+      console.warn('Socket.IO desativado em favor do Supabase Realtime.');
+    }
   }, [user?.id, session?.access_token]);
 
-  function isUserOnline(userId) {
+  const isUserOnline = (userId) => {
     if (!userId) return false;
-    if (userId === user?.id) return true;
+    if (user && userId === user.id) return true;
     return onlineUsers.has(userId);
-  }
+  };
 
   return (
     <SocketContext.Provider
