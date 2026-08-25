@@ -19,6 +19,7 @@ export function ChatProvider({ children }) {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [typingUsers, setTypingUsers] = useState(new Map()); // userId -> userObj
   const [replyingTo, setReplyingTo] = useState(null);
+  const [editingMessage, setEditingMessage] = useState(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
 
   const activeConversation = conversations.find(c => c.id === activeConversationId) || {
@@ -29,7 +30,6 @@ export function ChatProvider({ children }) {
     avatar_url: '/belmont-logo.jpg'
   };
 
-  // Atualizar configuração de som
   const toggleSound = () => {
     setSoundEnabled(prev => {
       const next = !prev;
@@ -84,9 +84,9 @@ export function ChatProvider({ children }) {
 
     loadMessages();
     setReplyingTo(null);
+    setEditingMessage(null);
     setTypingUsers(new Map());
 
-    // Entrar na sala do WebSocket da conversa
     if (socket && connected) {
       socket.emit('join_conversation', activeConversationId);
       socket.emit('mark_as_read', { conversationId: activeConversationId });
@@ -99,7 +99,7 @@ export function ChatProvider({ children }) {
     };
   }, [activeConversationId, socket, connected]);
 
-  // --- SUPABASE REALTIME (Canal de Mensagens em Tempo Real Nativo da Nuvem) ---
+  // --- SUPABASE REALTIME (INSERTs e UPDATEs de Edição/Exclusão em Tempo Real) ---
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase || !activeConversationId) return;
 
@@ -137,6 +137,19 @@ export function ChatProvider({ children }) {
           }
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${activeConversationId}`
+        },
+        (payload) => {
+          const updated = payload.new;
+          setMessages(prev => prev.map(m => m.id === updated.id ? { ...m, ...updated } : m));
+        }
+      )
       .subscribe();
 
     return () => {
@@ -144,53 +157,7 @@ export function ChatProvider({ children }) {
     };
   }, [activeConversationId, user?.id]);
 
-  // Escutar eventos em tempo real do Socket (quando conectado)
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleNewMessage = (msg) => {
-      if (msg.conversation_id === activeConversationId) {
-        setMessages(prev => {
-          const exists = prev.some(m => m.id === msg.id || (msg.tempId && m.tempId === msg.tempId));
-          if (exists) {
-            return prev.map(m => (m.id === msg.id || (msg.tempId && m.tempId === msg.tempId) ? msg : m));
-          }
-          return [...prev, msg];
-        });
-
-        if (msg.sender_id !== user?.id) {
-          sounds.playReceive();
-        }
-
-        socket.emit('mark_as_read', { conversationId: activeConversationId, lastMessageId: msg.id });
-      } else {
-        if (msg.sender_id !== user?.id) {
-          sounds.playPop();
-        }
-      }
-
-      setConversations(prev => {
-        return prev.map(conv => {
-          if (conv.id === msg.conversation_id) {
-            return {
-              ...conv,
-              last_message: msg,
-              updated_at: msg.created_at,
-              unread_count: conv.id === activeConversationId ? 0 : (conv.unread_count || 0) + 1
-            };
-          }
-          return conv;
-        }).sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
-      });
-    };
-
-    socket.on('new_message', handleNewMessage);
-    return () => {
-      socket.off('new_message', handleNewMessage);
-    };
-  }, [socket, activeConversationId, user?.id]);
-
-  // Enviar Mensagem (com suporte a Supabase direto + Socket.IO)
+  // Enviar Mensagem
   const sendMessage = async ({ content, attachments = [], type = 'text', replyToId = null }) => {
     if (!user || (!content.trim() && attachments.length === 0)) return;
 
@@ -231,7 +198,7 @@ export function ChatProvider({ children }) {
     setReplyingTo(null);
     sounds.playSend();
 
-    // 1. Envio via Supabase Direto
+    // 1. Inserir no Supabase
     if (isSupabaseConfigured && supabase) {
       try {
         const { data: insertedMsg, error: insertErr } = await supabase.from('messages').insert({
@@ -245,7 +212,7 @@ export function ChatProvider({ children }) {
         if (insertedMsg && !insertErr) {
           setMessages(prev => prev.map(m => m.tempId === tempId ? { ...optimisticMessage, id: insertedMsg.id, status: 'sent' } : m));
 
-          // Atualizar Nexus Coins (+5 moedas por envio)
+          // +5 moedas por envio
           const newBalance = (user.nexus_coins || 100) + 5;
           await supabase.from('profiles').update({ nexus_coins: newBalance }).eq('id', user.id);
         }
@@ -254,7 +221,7 @@ export function ChatProvider({ children }) {
       }
     }
 
-    // 2. Envio via WebSocket (se conectado)
+    // 2. Enviar via Socket.IO se conectado
     if (socket && connected) {
       socket.emit('send_message', {
         conversationId: activeConversationId,
@@ -265,6 +232,71 @@ export function ChatProvider({ children }) {
         attachments,
         sender: optimisticMessage.sender,
         tempId
+      });
+    }
+  };
+
+  // Editar Mensagem
+  const editMessage = async (messageId, newContent) => {
+    if (!messageId || !newContent.trim()) return;
+
+    // Atualização otimista local
+    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, content: newContent, is_edited: true, updated_at: new Date().toISOString() } : m));
+    setEditingMessage(null);
+    sounds.playPop();
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase
+          .from('messages')
+          .update({
+            content: newContent,
+            is_edited: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', messageId);
+      } catch (err) {
+        console.error('Erro ao editar mensagem no Supabase:', err);
+      }
+    }
+
+    if (socket && connected) {
+      socket.emit('edit_message', {
+        messageId,
+        conversationId: activeConversationId,
+        content: newContent
+      });
+    }
+  };
+
+  // Excluir Mensagem (com estado 'Esta mensagem foi excluída')
+  const deleteMessage = async (messageId) => {
+    if (!messageId) return;
+
+    const placeholder = '🚫 Esta mensagem foi excluída';
+
+    // Atualização otimista local
+    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, is_deleted: true, content: placeholder } : m));
+    sounds.playPop();
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase
+          .from('messages')
+          .update({
+            is_deleted: true,
+            content: placeholder
+          })
+          .eq('id', messageId);
+      } catch (err) {
+        console.error('Erro ao excluir mensagem no Supabase:', err);
+      }
+    }
+
+    if (socket && connected) {
+      socket.emit('delete_message', {
+        messageId,
+        conversationId: activeConversationId
       });
     }
   };
@@ -289,19 +321,13 @@ export function ChatProvider({ children }) {
     }
   };
 
-  const editMessage = (messageId, content) => {
-    if (socket && connected) {
-      socket.emit('edit_message', { messageId, conversationId: activeConversationId, content });
-    }
-  };
+  const pinMessage = async (messageId, isPinned) => {
+    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, is_pinned: isPinned } : m));
 
-  const deleteMessage = (messageId) => {
-    if (socket && connected) {
-      socket.emit('delete_message', { messageId, conversationId: activeConversationId });
+    if (isSupabaseConfigured && supabase) {
+      await supabase.from('messages').update({ is_pinned: isPinned }).eq('id', messageId);
     }
-  };
 
-  const pinMessage = (messageId, isPinned) => {
     if (socket && connected) {
       socket.emit('pin_message', { messageId, conversationId: activeConversationId, isPinned });
     }
@@ -337,16 +363,18 @@ export function ChatProvider({ children }) {
         loadingMessages,
         typingUsers,
         replyingTo,
+        editingMessage,
         soundEnabled,
         setActiveConversationId,
         loadConversations,
         sendMessage,
-        emitTyping,
         editMessage,
         deleteMessage,
         pinMessage,
         reactToMessage,
         setReplyingTo,
+        setEditingMessage,
+        emitTyping,
         toggleSound
       }}
     >

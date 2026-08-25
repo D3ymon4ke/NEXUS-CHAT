@@ -19,8 +19,9 @@ export function ChatArea({ onBack }) {
     editMessage,
     deleteMessage,
     pinMessage,
-    reactMessage,
-    setReplyingTo
+    reactToMessage,
+    setReplyingTo,
+    setEditingMessage
   } = useChat();
 
   const [isSearching, setIsSearching] = useState(false);
@@ -167,15 +168,10 @@ export function ChatArea({ onBack }) {
                     message={msg}
                     isOwn={isOwn}
                     onReply={(m) => setReplyingTo(m)}
-                    onEdit={(m) => {
-                      const newContent = prompt('Editar mensagem:', m.content);
-                      if (newContent && newContent !== m.content) {
-                        editMessage(m.id, newContent);
-                      }
-                    }}
+                    onEdit={(m) => setEditingMessage(m)}
                     onDelete={(id) => deleteMessage(id)}
                     onPin={(id, isPinned) => pinMessage(id, isPinned)}
-                    onReact={(id, emoji) => reactMessage(id, emoji)}
+                    onReact={(id, emoji) => reactToMessage(id, emoji)}
                     onImageClick={(url) => setSelectedImage(url)}
                   />
                 </div>

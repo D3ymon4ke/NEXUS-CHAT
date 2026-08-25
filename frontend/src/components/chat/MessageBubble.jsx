@@ -14,7 +14,8 @@ import {
   FileText,
   Download,
   Play,
-  Pause
+  Pause,
+  Ban
 } from 'lucide-react';
 import { FormattedText } from './FormattedText';
 
@@ -62,16 +63,22 @@ export function MessageBubble({
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
   const sender = message.sender || {};
+  const isDeleted = Boolean(message.is_deleted);
   const badgeInfo = BADGE_LABELS[sender.equipped_badge];
   const nameStyle = NAME_STYLES[sender.equipped_name_color] || 'text-brand-400';
-  const customBubble = isOwn ? (BUBBLE_STYLES[sender.equipped_bubble] || 'bubble-sent text-white') : 'bubble-received text-slate-100';
+  
+  const customBubble = isDeleted
+    ? 'bg-slate-900/60 border border-slate-800 text-slate-400'
+    : isOwn
+    ? (BUBBLE_STYLES[sender.equipped_bubble] || 'bubble-sent text-white')
+    : 'bubble-received text-slate-100';
 
   const formattedTime = message.created_at
     ? format(new Date(message.created_at), 'HH:mm', { locale: ptBR })
     : '';
 
   const handleCopy = () => {
-    if (message.content) {
+    if (message.content && !isDeleted) {
       navigator.clipboard.writeText(message.content);
       setShowMenu(false);
     }
@@ -93,8 +100,8 @@ export function MessageBubble({
         setShowEmojiPicker(false);
       }}
     >
-      {/* Nome do Remetente em Grupos com Badge e Efeito de Cor */}
-      {!isOwn && sender && (
+      {/* Nome do Remetente em Grupos */}
+      {!isOwn && sender && !isDeleted && (
         <div className="flex items-center gap-1.5 mb-0.5 ml-2">
           <span className={`text-[11px] font-semibold ${nameStyle}`}>
             {sender.display_name || sender.username}
@@ -109,114 +116,112 @@ export function MessageBubble({
       )}
 
       <div className="relative flex items-center max-w-[85%] sm:max-w-[70%]">
-        {/* Menu Flutuante de Ações no Hover */}
-        <div
-          className={`absolute top-0 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex items-center bg-background-surface/95 border border-slate-700/80 rounded-full px-1.5 py-0.5 shadow-lg backdrop-blur ${
-            isOwn ? 'right-0 -translate-x-full mr-2' : 'left-0 translate-x-full ml-2'
-          }`}
-        >
-          {/* Reação Rápida */}
-          <div className="relative">
-            <button
-              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              title="Reagir"
-              className="p-1 text-slate-400 hover:text-yellow-400 rounded-full hover:bg-slate-700/60 transition-colors"
-            >
-              <Smile className="w-3.5 h-3.5" />
-            </button>
-
-            {showEmojiPicker && (
-              <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-background-dark/95 border border-slate-700 px-2 py-1 rounded-full shadow-xl z-30 animate-fadeIn">
-                {POPULAR_REACTIONS.map((emoji) => (
-                  <button
-                    key={emoji}
-                    onClick={() => {
-                      onReact(message.id, emoji);
-                      setShowEmojiPicker(false);
-                    }}
-                    className="hover:scale-125 transition-transform text-sm p-0.5"
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <button
-            onClick={() => onReply(message)}
-            title="Responder"
-            className="p-1 text-slate-400 hover:text-slate-200 rounded-full hover:bg-slate-700/60 transition-colors"
+        {/* Menu Flutuante de Ações no Hover (Desabilitado se mensagem excluída) */}
+        {!isDeleted && (
+          <div
+            className={`absolute top-0 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex items-center bg-background-surface/95 border border-slate-700/80 rounded-full px-1.5 py-0.5 shadow-lg backdrop-blur ${
+              isOwn ? 'right-0 -translate-x-full mr-2' : 'left-0 translate-x-full ml-2'
+            }`}
           >
-            <Reply className="w-3.5 h-3.5" />
-          </button>
+            {/* Reação Rápida */}
+            <div className="relative">
+              <button
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                title="Reagir"
+                className="p-1 text-slate-400 hover:text-yellow-400 rounded-full hover:bg-slate-700/60 transition-colors"
+              >
+                <Smile className="w-3.5 h-3.5" />
+              </button>
 
-          <div className="relative">
+              {showEmojiPicker && (
+                <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-background-dark/95 border border-slate-700 px-2 py-1 rounded-full shadow-xl z-30 animate-fadeIn">
+                  {POPULAR_REACTIONS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      onClick={() => {
+                        onReact(message.id, emoji);
+                        setShowEmojiPicker(false);
+                      }}
+                      className="hover:scale-125 transition-transform text-sm p-0.5"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <button
-              onClick={() => setShowMenu(!showMenu)}
-              title="Mais opções"
+              onClick={() => onReply(message)}
+              title="Responder"
               className="p-1 text-slate-400 hover:text-slate-200 rounded-full hover:bg-slate-700/60 transition-colors"
             >
-              <MoreVertical className="w-3.5 h-3.5" />
+              <Reply className="w-3.5 h-3.5" />
             </button>
 
-            {showMenu && (
-              <div
-                className={`absolute bottom-full mb-1 ${
-                  isOwn ? 'right-0' : 'left-0'
-                } w-36 bg-background-surface border border-slate-700 rounded-xl shadow-2xl py-1 z-30 text-xs animate-fadeIn`}
+            <div className="relative">
+              <button
+                onClick={() => setShowMenu(!showMenu)}
+                title="Mais opções"
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-full hover:bg-slate-700/60 transition-colors"
               >
-                <button
-                  onClick={handleCopy}
-                  className="w-full px-3 py-1.5 text-left text-slate-200 hover:bg-background-hover flex items-center gap-2"
+                <MoreVertical className="w-3.5 h-3.5" />
+              </button>
+
+              {showMenu && (
+                <div
+                  className={`absolute bottom-full mb-2 w-36 bg-background-surface/95 border border-slate-700 rounded-xl shadow-2xl py-1 text-xs z-30 backdrop-blur ${
+                    isOwn ? 'right-0' : 'left-0'
+                  }`}
                 >
-                  <Copy className="w-3.5 h-3.5 text-slate-400" /> Copiar Texto
-                </button>
-                <button
-                  onClick={() => {
-                    onPin(message.id, !message.is_pinned);
-                    setShowMenu(false);
-                  }}
-                  className="w-full px-3 py-1.5 text-left text-slate-200 hover:bg-background-hover flex items-center gap-2"
-                >
-                  <Pin className="w-3.5 h-3.5 text-slate-400" />
-                  {message.is_pinned ? 'Desafixar' : 'Fixar'}
-                </button>
-                {isOwn && (
-                  <>
-                    <button
-                      onClick={() => {
-                        onEdit(message);
-                        setShowMenu(false);
-                      }}
-                      className="w-full px-3 py-1.5 text-left text-slate-200 hover:bg-background-hover flex items-center gap-2"
-                    >
-                      <Edit2 className="w-3.5 h-3.5 text-slate-400" /> Editar
-                    </button>
-                    <button
-                      onClick={() => {
-                        onDelete(message.id);
-                        setShowMenu(false);
-                      }}
-                      className="w-full px-3 py-1.5 text-left text-red-400 hover:bg-red-500/10 flex items-center gap-2"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" /> Excluir
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
+                  <button
+                    onClick={handleCopy}
+                    className="w-full px-3 py-1.5 text-left text-slate-200 hover:bg-background-hover flex items-center gap-2"
+                  >
+                    <Copy className="w-3.5 h-3.5 text-slate-400" /> Copiar Texto
+                  </button>
+                  <button
+                    onClick={() => {
+                      onPin(message.id, !message.is_pinned);
+                      setShowMenu(false);
+                    }}
+                    className="w-full px-3 py-1.5 text-left text-slate-200 hover:bg-background-hover flex items-center gap-2"
+                  >
+                    <Pin className="w-3.5 h-3.5 text-slate-400" />
+                    {message.is_pinned ? 'Desafixar' : 'Fixar'}
+                  </button>
+                  {isOwn && (
+                    <>
+                      <button
+                        onClick={() => {
+                          onEdit(message);
+                          setShowMenu(false);
+                        }}
+                        className="w-full px-3 py-1.5 text-left text-slate-200 hover:bg-background-hover flex items-center gap-2"
+                      >
+                        <Edit2 className="w-3.5 h-3.5 text-slate-400" /> Editar
+                      </button>
+                      <button
+                        onClick={() => {
+                          onDelete(message.id);
+                          setShowMenu(false);
+                        }}
+                        className="w-full px-3 py-1.5 text-left text-red-400 hover:bg-red-500/10 flex items-center gap-2"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Excluir
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Corpo do Balão da Mensagem */}
-        <div
-          className={`relative px-3.5 py-2 rounded-2xl shadow-sm transition-all ${customBubble} ${
-            message.is_deleted ? 'italic opacity-60' : ''
-          }`}
-        >
+        <div className={`relative px-3.5 py-2 rounded-2xl shadow-sm transition-all ${customBubble}`}>
           {/* Citação da Resposta (Reply Quote) */}
-          {message.reply_to && (
+          {!isDeleted && message.reply_to && (
             <div
               className={`mb-1.5 p-2 rounded-lg border-l-2 text-xs flex flex-col ${
                 isOwn
@@ -233,8 +238,8 @@ export function MessageBubble({
             </div>
           )}
 
-          {/* Anexos de Imagem */}
-          {message.attachments && message.attachments.length > 0 && (
+          {/* Anexos de Mídia (Ocultados se mensagem excluída) */}
+          {!isDeleted && message.attachments && message.attachments.length > 0 && (
             <div className="space-y-1.5 mb-1.5">
               {message.attachments.map((att, idx) => {
                 if (att.file_type === 'image' || att.file_url?.match(/\.(jpeg|jpg|gif|png|webp|svg)/i) || att.file_url?.startsWith('data:image')) {
@@ -263,7 +268,6 @@ export function MessageBubble({
                   );
                 }
 
-                // Arquivos genéricos
                 return (
                   <a
                     key={idx}
@@ -289,25 +293,32 @@ export function MessageBubble({
             </div>
           )}
 
-          {/* Conteúdo de Texto com suporte a Markdown */}
-          {message.content && (
-            <div className="text-sm">
-              <FormattedText text={message.content} isOwn={isOwn} />
+          {/* Conteúdo de Texto ou Estado Excluído */}
+          {isDeleted ? (
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 italic py-0.5">
+              <Ban className="w-3.5 h-3.5 opacity-70" />
+              <span>Esta mensagem foi excluída</span>
             </div>
+          ) : (
+            message.content && (
+              <div className="text-sm">
+                <FormattedText text={message.content} isOwn={isOwn} />
+              </div>
+            )
           )}
 
-          {/* Rodapé do Balão: Timestamp + Status + Editada */}
+          {/* Rodapé do Balão: Timestamp + Status + Indicador de Editada */}
           <div className="flex items-center justify-end gap-1 mt-1 text-[10px] opacity-75 select-none float-right ml-2 -mb-0.5">
-            {message.is_pinned && (
+            {!isDeleted && message.is_pinned && (
               <Pin className="w-2.5 h-2.5 fill-current rotate-45 mr-0.5" />
             )}
-            {message.is_edited && (
-              <span className="italic mr-0.5">(editada)</span>
+            {!isDeleted && message.is_edited && (
+              <span className="italic mr-0.5 text-amber-300/90 font-medium">(editada)</span>
             )}
             <span>{formattedTime}</span>
 
             {/* Ícone de status de leitura para mensagens enviadas */}
-            {isOwn && (
+            {isOwn && !isDeleted && (
               <span className="ml-0.5">
                 {message.status === 'read' ? (
                   <CheckCheck className="w-3.5 h-3.5 text-sky-300" />
@@ -322,17 +333,21 @@ export function MessageBubble({
         </div>
       </div>
 
-      {/* Badges de Reações com Emojis */}
-      {Object.keys(reactionsMap).length > 0 && (
-        <div className={`flex flex-wrap gap-1 mt-1 z-10 ${isOwn ? 'mr-1' : 'ml-1'}`}>
+      {/* Reações com Emojis */}
+      {!isDeleted && Object.keys(reactionsMap).length > 0 && (
+        <div
+          className={`flex flex-wrap gap-1 mt-1 z-10 ${
+            isOwn ? 'justify-end mr-1' : 'justify-start ml-1'
+          }`}
+        >
           {Object.entries(reactionsMap).map(([emoji, count]) => (
             <button
               key={emoji}
               onClick={() => onReact(message.id, emoji)}
-              className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-background-surface/90 border border-slate-700/80 hover:border-brand-500 shadow-sm transition-all animate-fadeIn"
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-background-surface/90 border border-slate-700/80 text-xs hover:border-brand-500 hover:scale-105 transition-all shadow"
             >
               <span>{emoji}</span>
-              {count > 1 && <span className="text-[10px] font-semibold text-slate-300">{count}</span>}
+              <span className="text-[10px] font-semibold text-slate-300">{count}</span>
             </button>
           ))}
         </div>

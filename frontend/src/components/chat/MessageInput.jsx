@@ -10,7 +10,9 @@ import {
   FileText,
   Mic,
   Reply,
-  Loader2
+  Loader2,
+  Edit2,
+  Check
 } from 'lucide-react';
 
 const EMOJI_CATEGORIES = [
@@ -20,7 +22,7 @@ const EMOJI_CATEGORIES = [
 ];
 
 export function MessageInput() {
-  const { sendMessage, emitTyping, replyingTo, setReplyingTo } = useChat();
+  const { sendMessage, editMessage, emitTyping, replyingTo, setReplyingTo, editingMessage, setEditingMessage } = useChat();
   const [content, setContent] = useState('');
   const [attachments, setAttachments] = useState([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -31,6 +33,17 @@ export function MessageInput() {
   const textareaRef = useRef(null);
   const typingTimerRef = useRef(null);
 
+  // Preencher conteúdo ao entrar em modo de edição
+  useEffect(() => {
+    if (editingMessage) {
+      setContent(editingMessage.content || '');
+      setReplyingTo(null);
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }
+  }, [editingMessage]);
+
   // Ajuste automático de altura do textarea
   useEffect(() => {
     if (textareaRef.current) {
@@ -39,7 +52,6 @@ export function MessageInput() {
     }
   }, [content]);
 
-  // Digitação em tempo real
   const handleInputChange = (e) => {
     setContent(e.target.value);
     emitTyping(true);
@@ -70,7 +82,6 @@ export function MessageInput() {
   };
 
   const handleKeyDown = (e) => {
-    // Atalhos de formatação Markdown
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
       e.preventDefault();
       wrapSelectedText('**');
@@ -108,6 +119,13 @@ export function MessageInput() {
       textareaRef.current.style.height = 'auto';
     }
 
+    // Se estiver em modo de edição
+    if (editingMessage) {
+      await editMessage(editingMessage.id, messageContent);
+      return;
+    }
+
+    // Envio padrão de nova mensagem
     await sendMessage({
       content: messageContent,
       type: messageAttachments.length > 0 ? (messageAttachments[0].type || 'file') : 'text',
@@ -116,7 +134,6 @@ export function MessageInput() {
     });
   };
 
-  // Upload de arquivos
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -150,28 +167,46 @@ export function MessageInput() {
 
   const addEmoji = (emoji) => {
     setContent(prev => prev + emoji);
-    if (textareaRef.current) textareaRef.current.focus();
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
   };
 
   return (
-    <div className="relative border-t border-slate-800 bg-background-card/90 backdrop-blur p-3 sm:p-4">
-      {/* Banner de Resposta Ativa */}
-      {replyingTo && (
-        <div className="mb-2 p-2 rounded-xl bg-background-surface/80 border border-brand-500/40 flex items-center justify-between animate-fadeIn">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="p-1 rounded-md bg-brand-500/20 text-brand-400">
-              <Reply className="w-4 h-4" />
-            </div>
-            <div className="min-w-0 text-xs">
-              <span className="font-semibold text-brand-300 block">
-                Respondendo a {replyingTo.sender?.display_name || 'Usuário'}
-              </span>
-              <span className="text-slate-400 truncate block">{replyingTo.content || 'Anexo'}</span>
-            </div>
+    <div className="relative border-t border-slate-800 bg-background-surface/90 backdrop-blur-md p-3">
+      {/* Banner de Edição de Mensagem */}
+      {editingMessage && (
+        <div className="mb-2 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-between text-xs animate-fadeIn">
+          <div className="flex items-center gap-2 min-w-0">
+            <Edit2 className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            <span className="font-bold text-amber-300">Editando mensagem:</span>
+            <span className="text-slate-300 truncate">{editingMessage.content}</span>
+          </div>
+          <button
+            onClick={() => {
+              setEditingMessage(null);
+              setContent('');
+            }}
+            className="p-1 text-slate-400 hover:text-white rounded-lg"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Banner de Resposta (Reply Quote) */}
+      {!editingMessage && replyingTo && (
+        <div className="mb-2 px-3 py-1.5 rounded-xl bg-brand-500/10 border border-brand-500/30 flex items-center justify-between text-xs animate-fadeIn">
+          <div className="flex items-center gap-2 min-w-0">
+            <Reply className="w-3.5 h-3.5 text-brand-400 flex-shrink-0" />
+            <span className="font-semibold text-brand-300">
+              Respondendo a {replyingTo.sender?.display_name || 'Usuário'}:
+            </span>
+            <span className="text-slate-400 truncate">{replyingTo.content || 'Anexo'}</span>
           </div>
           <button
             onClick={() => setReplyingTo(null)}
-            className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-700/50 transition-colors"
+            className="p-1 text-slate-400 hover:text-white rounded-lg"
           >
             <X className="w-4 h-4" />
           </button>
@@ -180,117 +215,125 @@ export function MessageInput() {
 
       {/* Pré-visualização de Anexos */}
       {attachments.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-2 p-2 bg-background-surface/50 rounded-xl border border-slate-700/50">
+        <div className="flex flex-wrap gap-2 mb-2">
           {attachments.map((att, idx) => (
-            <div key={idx} className="relative group flex items-center gap-2 p-1.5 bg-background-dark rounded-lg border border-slate-700 text-xs">
-              {att.type === 'image' ? (
-                <img src={att.url} alt="anexo" className="w-10 h-10 object-cover rounded" />
+            <div
+              key={idx}
+              className="relative group p-1.5 rounded-xl bg-background-dark border border-slate-700 flex items-center gap-2 text-xs"
+            >
+              {att.file_type === 'image' ? (
+                <img src={att.file_url} alt="anexo" className="w-8 h-8 rounded-lg object-cover" />
               ) : (
-                <FileText className="w-6 h-6 text-brand-400 ml-1" />
+                <FileText className="w-5 h-5 text-brand-400" />
               )}
-              <span className="max-w-[120px] truncate text-slate-200 text-[11px]">{att.name}</span>
+              <span className="truncate max-w-[120px] text-slate-200">{att.file_name}</span>
               <button
                 onClick={() => removeAttachment(idx)}
-                className="p-1 text-slate-400 hover:text-red-400 rounded-full"
+                className="p-0.5 rounded-full bg-slate-800 text-slate-400 hover:text-red-400"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-3 h-3" />
               </button>
             </div>
           ))}
         </div>
       )}
 
-      {/* Emoji Picker Popover */}
-      {showEmojiPicker && (
-        <div className="absolute bottom-full mb-3 left-4 w-72 bg-background-dark/95 border border-slate-700 rounded-2xl shadow-2xl p-3 z-40 backdrop-blur animate-fadeIn">
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
-            <span className="text-xs font-bold text-slate-300">Emojis</span>
+      {/* Caixa de Texto e Controles */}
+      <div className="flex items-end gap-2">
+        {/* Anexar Arquivo */}
+        {!editingMessage && (
+          <div>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              multiple
+              className="hidden"
+            />
             <button
-              onClick={() => setShowEmojiPicker(false)}
-              className="text-slate-400 hover:text-white"
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="p-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-background-hover transition-colors"
+              title="Anexar arquivo"
             >
-              <X className="w-3.5 h-3.5" />
+              {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
             </button>
           </div>
-          <div className="max-h-48 overflow-y-auto space-y-2">
-            {EMOJI_CATEGORIES.map((cat) => (
-              <div key={cat.name}>
-                <span className="text-[10px] uppercase font-semibold text-slate-500 block mb-1">
-                  {cat.name}
-                </span>
-                <div className="grid grid-cols-6 gap-1">
-                  {cat.emojis.map((emoji) => (
-                    <button
-                      key={emoji}
-                      onClick={() => addEmoji(emoji)}
-                      className="text-xl p-1 hover:bg-background-surface rounded-lg hover:scale-125 transition-all text-center"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+        )}
 
-      {/* Barra de Entrada Principal */}
-      <div className="flex items-end gap-2">
-        {/* Botão de Anexo */}
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileUpload}
-          multiple
-          className="hidden"
-        />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="p-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-background-surface transition-colors flex-shrink-0"
-          title="Anexar arquivo ou foto"
-        >
-          {uploading ? <Loader2 className="w-5 h-5 animate-spin text-brand-400" /> : <Paperclip className="w-5 h-5" />}
-        </button>
-
-        {/* Botão de Emoji */}
-        <button
-          type="button"
-          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-          className="p-2.5 rounded-xl text-slate-400 hover:text-yellow-400 hover:bg-background-surface transition-colors flex-shrink-0"
-          title="Inserir emoji"
-        >
-          <Smile className="w-5 h-5" />
-        </button>
-
-        {/* Textarea de Mensagem */}
-        <div className="flex-1 bg-background-surface/80 rounded-2xl border border-slate-700/70 focus-within:border-brand-500 focus-within:ring-1 focus-within:ring-brand-500 transition-all flex items-center px-3 py-1.5">
+        {/* Input Textarea */}
+        <div className="flex-1 relative bg-background-dark rounded-2xl border border-slate-700/80 focus-within:border-brand-500 transition-all flex items-end">
           <textarea
             ref={textareaRef}
             rows={1}
             value={content}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="Digite sua mensagem... (Enter para enviar)"
-            className="w-full bg-transparent text-slate-100 placeholder-slate-500 text-sm resize-none max-h-32 focus:outline-none"
+            placeholder={editingMessage ? "Edite sua mensagem..." : "Digite uma mensagem... (Enter para enviar)"}
+            className="w-full bg-transparent px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-32 leading-relaxed"
           />
+
+          {/* Emoji Picker Button */}
+          <div className="pb-2.5 pr-2 relative">
+            <button
+              type="button"
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              className="p-1 text-slate-400 hover:text-yellow-400 transition-colors"
+              title="Inserir emoji"
+            >
+              <Smile className="w-5 h-5" />
+            </button>
+
+            {showEmojiPicker && (
+              <div className="absolute bottom-full right-0 mb-3 w-64 bg-background-surface/95 border border-slate-700 rounded-2xl shadow-2xl p-3 z-30 backdrop-blur animate-fadeIn">
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+                  <span className="text-xs font-bold text-slate-300">Emojis</span>
+                  <button onClick={() => setShowEmojiPicker(false)} className="text-slate-400 hover:text-white">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {EMOJI_CATEGORIES.map(cat => (
+                    <div key={cat.name}>
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                        {cat.name}
+                      </span>
+                      <div className="grid grid-cols-6 gap-1">
+                        {cat.emojis.map(e => (
+                          <button
+                            key={e}
+                            type="button"
+                            onClick={() => addEmoji(e)}
+                            className="text-base p-1 rounded-lg hover:bg-slate-700/60 transition-transform hover:scale-125 flex items-center justify-center"
+                          >
+                            {e}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Botão Enviar */}
+        {/* Botão Enviar / Salvar Edição */}
         <button
           type="button"
           onClick={handleSend}
           disabled={(!content.trim() && attachments.length === 0) || uploading}
-          className={`p-3 rounded-2xl transition-all shadow-lg flex-shrink-0 ${
-            content.trim() || attachments.length > 0
-              ? 'bg-brand-600 hover:bg-brand-500 text-white shadow-brand-500/30 scale-105'
-              : 'bg-background-surface text-slate-500 opacity-60 cursor-not-allowed'
+          className={`p-3 rounded-2xl text-white shadow-lg transition-all flex items-center justify-center ${
+            editingMessage
+              ? 'bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black shadow-amber-500/20'
+              : content.trim() || attachments.length > 0
+              ? 'bg-brand-600 hover:bg-brand-500 shadow-brand-500/25 hover:scale-105'
+              : 'bg-slate-800 text-slate-500 cursor-not-allowed'
           }`}
-          title="Enviar mensagem"
+          title={editingMessage ? "Salvar alteração" : "Enviar mensagem"}
         >
-          <Send className="w-4 h-4" />
+          {editingMessage ? <Check className="w-5 h-5" /> : <Send className="w-5 h-5" />}
         </button>
       </div>
     </div>
