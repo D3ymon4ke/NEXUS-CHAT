@@ -48,7 +48,7 @@ const BADGE_OPTIONS = ['PATCH', 'ATUALIZAÇÃO', 'NOVIDADE', 'EVENTO', 'CORREÇ�
 
 export function AdminModal({ isOpen, onClose }) {
   const { user } = useAuth();
-  const { loadConversations } = useChat();
+  const { loadConversations, clearMessages } = useChat();
 
   const [activeTab, setActiveTab] = useState('stats'); // 'stats' | 'chat_master' | 'users' | 'shop' | 'patches' | 'cleanup' | 'broadcast'
   const [stats, setStats] = useState(null);
@@ -229,6 +229,7 @@ export function AdminModal({ isOpen, onClose }) {
         await supabase.from('messages').delete().eq('conversation_id', BELMONT_ID);
       }
 
+      if (clearMessages) clearMessages();
       sounds.playPop();
       setFeedback({ text: 'Todas as mensagens da Belmont Conference foram limpas com sucesso!', type: 'success' });
       loadAdminData();
@@ -249,6 +250,7 @@ export function AdminModal({ isOpen, onClose }) {
         await supabase.from('messages').delete().neq('id', '00000000-0000-0000-0000-000000000000');
       }
 
+      if (clearMessages) clearMessages();
       sounds.playPop();
       setFeedback({ text: 'Histórico global de mensagens reiniciado com sucesso!', type: 'success' });
       loadAdminData();

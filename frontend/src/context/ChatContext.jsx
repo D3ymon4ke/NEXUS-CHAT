@@ -159,6 +159,23 @@ export function ChatProvider({ children }) {
           setMessages(prev => prev.map(m => m.id === updated.id ? { ...m, ...updated } : m));
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${activeConversationId}`
+        },
+        (payload) => {
+          if (payload.old?.id) {
+            setMessages(prev => prev.filter(m => m.id !== payload.old.id));
+          } else {
+            // Se for limpeza em massa
+            setMessages([]);
+          }
+        }
+      )
       .subscribe();
 
     return () => {
@@ -391,7 +408,9 @@ export function ChatProvider({ children }) {
         toggleSound,
         masterIdentities,
         setMasterIdentityForConv,
-        clearMasterIdentityForConv
+        clearMasterIdentityForConv,
+        setMessages,
+        clearMessages: () => setMessages([])
       }}
     >
       {children}
