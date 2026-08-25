@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { useSocket } from '../../context/SocketContext';
+import { StoriesBar } from '../stories/StoriesBar';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -9,13 +10,11 @@ import {
   Users,
   Search,
   Settings,
-  Shield,
   ShieldAlert,
-  Sparkles,
-  Flame,
   Crown,
   Wallet,
-  Home
+  Home,
+  UserPlus
 } from 'lucide-react';
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
@@ -27,7 +26,11 @@ export function Sidebar({
   onOpenAuth,
   onOpenShop,
   onOpenWallet,
-  onOpenAdmin
+  onOpenAdmin,
+  onOpenFriends,
+  onOpenCreateStory,
+  onOpenStoryViewer,
+  onOpenProfile
 }) {
   const { user } = useAuth();
   const { conversations, activeConversationId, setActiveConversationId, loadingConversations } = useChat();
@@ -40,13 +43,11 @@ export function Sidebar({
   const filteredConversations = conversations.filter((conv) => {
     const isBelmont = conv.id === BELMONT_ID || conv.is_permanent;
 
-    // Se estiver em 'all' ou 'group', Belmont sempre aparece
     if (filterTab === 'direct' && isBelmont) return false;
     if (filterTab === 'unread' && (!conv.unread_count || conv.unread_count === 0)) return false;
     if (filterTab === 'direct' && conv.type !== 'direct') return false;
     if (filterTab === 'group' && conv.type !== 'group' && !isBelmont) return false;
 
-    // Filtro por termo de busca
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
     const name = (conv.type === 'group' ? conv.name : conv.direct_user?.display_name || conv.direct_user?.username || '').toLowerCase();
@@ -91,9 +92,9 @@ export function Sidebar({
           </div>
         </div>
 
-        {/* Botões de Ação da Barra Lateral + Loja + Carteira + Admin */}
+        {/* Botões de Ação da Barra Lateral */}
         <div className="flex items-center gap-1 flex-shrink-0">
-          {/* Botão Painel Admin (Visível apenas para Damon / Admin) */}
+          {/* Botão Painel Admin (Damon) */}
           {(user?.role === 'admin' || user?.username?.toLowerCase() === 'damon') && (
             <button
               onClick={onOpenAdmin}
@@ -103,6 +104,15 @@ export function Sidebar({
               <ShieldAlert className="w-4 h-4" />
             </button>
           )}
+
+          {/* Botão Amigos */}
+          <button
+            onClick={onOpenFriends}
+            className="p-1.5 rounded-xl text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition-all"
+            title="Central de Amigos"
+          >
+            <Users className="w-4 h-4" />
+          </button>
 
           {/* Botão Carteira */}
           <button
@@ -135,19 +145,18 @@ export function Sidebar({
             className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-background-surface transition-colors"
             title="Novo Grupo"
           >
-            <Users className="w-4 h-4" />
-          </button>
-          <button
-            onClick={onOpenSettings}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-background-surface transition-colors"
-            title="Configurações"
-          >
-            <Settings className="w-4 h-4" />
+            <UserPlus className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Barra de Busca */}
+      {/* Barra de Stories Estilo Instagram */}
+      <StoriesBar
+        onOpenCreateStory={onOpenCreateStory}
+        onOpenStoryViewer={onOpenStoryViewer}
+      />
+
+      {/* Barra de Busca e Filtros */}
       <div className="p-3 border-b border-slate-800/80">
         <div className="relative">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -207,107 +216,104 @@ export function Sidebar({
             <p className="text-[11px] text-slate-400 truncate mt-0.5">Patch notes, clima & dicas da plataforma</p>
           </div>
         </button>
+
         {loadingConversations ? (
           <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-xs gap-2">
             <div className="w-6 h-6 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
             <span>Carregando conversas...</span>
           </div>
         ) : filteredConversations.length === 0 ? (
-          <div className="text-center py-12 px-4 text-slate-400 text-xs">
-            <p className="font-semibold text-slate-300 mb-1">Nenhuma conversa encontrada</p>
-            <p className="text-slate-500">Clique em + para iniciar uma nova conversa com alguém.</p>
+          <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-xs text-center px-4">
+            <p>Nenhuma conversa encontrada.</p>
           </div>
         ) : (
           filteredConversations.map((conv) => {
-            const isBelmont = conv.id === BELMONT_ID || conv.name === 'BELMONT CONFERENCE' || conv.is_permanent;
-            const isActive = conv.id === activeConversationId;
-            const isGroup = conv.type === 'group' || isBelmont;
+            const isBelmont = conv.id === BELMONT_ID || conv.is_permanent;
+            const isActive = activeConversationId === conv.id;
             const directUser = conv.direct_user;
-            const isOnline = !isGroup && directUser ? isUserOnline(directUser.id) : false;
+            const isDirect = conv.type === 'direct';
+            const isOnline = isDirect && directUser && isUserOnline(directUser.id);
 
-            const avatar = isBelmont
+            const convName = isBelmont
+              ? 'BELMONT CONFERENCE'
+              : isDirect
+              ? directUser?.display_name || directUser?.username || 'Usuário'
+              : conv.name;
+
+            const convAvatar = isBelmont
               ? '/belmont-logo.jpg'
-              : isGroup
-              ? (conv.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${conv.name}`)
-              : (directUser?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${directUser?.id}`);
-
-            const title = isBelmont ? 'BELMONT CONFERENCE' : isGroup ? conv.name : (directUser?.display_name || 'Usuário');
-            const lastMsg = conv.last_message;
-            const time = formatLastMessageTime(lastMsg?.created_at || conv.updated_at);
+              : isDirect
+              ? directUser?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${directUser?.id}`
+              : conv.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${conv.id}`;
 
             return (
               <div
                 key={conv.id}
                 onClick={() => setActiveConversationId(conv.id)}
-                className={`relative flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-all border ${
+                className={`p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-all border ${
                   isBelmont
                     ? isActive
-                      ? 'bg-gradient-to-r from-amber-500/20 via-indigo-950/40 to-brand-900/30 border-amber-500/60 shadow-lg shadow-amber-500/10 ring-1 ring-amber-500/40'
-                      : 'bg-gradient-to-r from-indigo-950/40 to-slate-900/60 border-amber-500/30 hover:border-amber-500/60'
+                      ? 'bg-gradient-to-r from-amber-950/70 via-slate-900 to-indigo-950/60 border-amber-500/80 shadow-lg shadow-amber-500/10'
+                      : 'bg-gradient-to-r from-amber-950/30 via-slate-900/50 to-slate-900/30 border-amber-500/40 hover:border-amber-500/70 shadow-sm'
                     : isActive
-                    ? 'bg-brand-600/20 border-brand-500/40 shadow-sm'
-                    : 'bg-transparent border-transparent hover:bg-background-surface/60'
+                    ? 'bg-brand-600/20 border-brand-500/60 shadow-sm'
+                    : 'bg-background-surface/50 border-slate-800/80 hover:border-slate-700/80 hover:bg-background-surface'
                 }`}
               >
-                {/* Avatar com badge online ou Logo Especial Belmont */}
                 <div className="relative flex-shrink-0">
                   <img
-                    src={avatar}
-                    alt={title}
-                    className={`w-12 h-12 rounded-2xl object-cover shadow-sm ${
-                      isBelmont
-                        ? 'border-2 border-amber-400/80 p-0.5 bg-black'
-                        : 'border border-slate-700'
+                    src={convAvatar}
+                    alt={convName}
+                    className={`w-11 h-11 rounded-2xl object-cover shadow ${
+                      isBelmont ? 'border-2 border-amber-400' : 'border border-slate-700'
                     }`}
                   />
-                  {isBelmont ? (
-                    <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gradient-to-tr from-amber-600 to-yellow-400 rounded-full flex items-center justify-center shadow-md border border-black text-[10px]">
-                      👑
+                  {isDirect && (
+                    <span
+                      className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-background-card ${
+                        isOnline ? 'bg-chat-online' : 'bg-slate-500'
+                      }`}
+                    />
+                  )}
+                  {isBelmont && (
+                    <span className="absolute -top-1 -right-1 p-0.5 bg-amber-500 rounded-full text-black shadow">
+                      <Crown className="w-3 h-3" />
                     </span>
-                  ) : isOnline ? (
-                    <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-chat-online rounded-full border-2 border-background-card" />
-                  ) : null}
+                  )}
                 </div>
 
-                {/* Detalhes da Conversa */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className={`font-bold text-sm truncate flex items-center gap-1.5 ${
-                      isBelmont ? 'text-amber-300 tracking-wide font-extrabold' : 'text-slate-100'
-                    }`}>
-                      {title}
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className={`text-xs font-bold truncate ${isBelmont ? 'text-amber-300 font-extrabold tracking-wide' : 'text-slate-100'}`}>
+                        {convName}
+                      </span>
                       {isBelmont && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold uppercase tracking-wider">
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-extrabold uppercase">
                           Principal
                         </span>
                       )}
-                    </span>
-                    <span className="text-[10px] text-slate-400 flex-shrink-0 ml-1">
-                      {time}
-                    </span>
+                    </div>
+                    {conv.last_message && (
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        {formatLastMessageTime(conv.last_message.created_at)}
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <p className={`text-xs truncate pr-2 ${isBelmont ? 'text-slate-300' : 'text-slate-400'}`}>
-                      {lastMsg?.sender_id === user?.id && (
-                        <span className="text-brand-400 font-medium mr-1">Você:</span>
-                      )}
-                      {lastMsg ? (
-                        lastMsg.is_deleted ? (
-                          <span className="italic opacity-60">Mensagem apagada</span>
-                        ) : lastMsg.content ? (
-                          lastMsg.content
-                        ) : (
-                          '📷 Anexo'
-                        )
+                    <p className="text-[11px] text-slate-400 truncate max-w-[180px]">
+                      {conv.last_message ? (
+                        <span>{conv.last_message.content || 'Anexo'}</span>
+                      ) : isBelmont ? (
+                        <span className="text-amber-400/80">Sala permanente para todos os membros</span>
                       ) : (
-                        isBelmont ? 'Sala permanente para todos os membros' : 'Nenhuma mensagem ainda'
+                        <span className="italic">Nenhuma mensagem ainda</span>
                       )}
                     </p>
 
-                    {/* Contador de Mensagens Não Lidas */}
                     {conv.unread_count > 0 && (
-                      <span className="flex-shrink-0 px-1.5 py-0.5 min-w-[20px] text-center rounded-full bg-brand-500 text-white font-bold text-[10px] shadow-sm animate-pulse">
+                      <span className="px-1.5 py-0.5 rounded-full bg-brand-600 text-white text-[10px] font-bold min-w-[18px] text-center shadow">
                         {conv.unread_count}
                       </span>
                     )}

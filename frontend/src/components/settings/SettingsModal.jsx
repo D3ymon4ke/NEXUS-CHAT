@@ -18,7 +18,9 @@ import {
   Database,
   Package,
   Layers,
-  Palette
+  Palette,
+  Upload,
+  Camera
 } from 'lucide-react';
 
 export function SettingsModal({ isOpen, onClose }) {
@@ -166,31 +168,61 @@ export function SettingsModal({ isOpen, onClose }) {
         {/* ABA 1: PERFIL */}
         {activeTab === 'profile' && (
           <form onSubmit={handleSaveProfile} className="space-y-4">
-            <div className="flex items-center gap-4 p-4 rounded-2xl bg-background-surface/60 border border-slate-700/50">
+            <div className="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-2xl bg-background-surface/60 border border-slate-700/50">
               <div className="relative group">
                 <img
                   src={avatarUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
                   alt="Avatar"
-                  className="w-16 h-16 rounded-2xl object-cover border-2 border-brand-500 shadow-md"
+                  className="w-20 h-20 rounded-2xl object-cover border-2 border-brand-500 shadow-md"
                 />
                 <button
                   type="button"
                   onClick={generateNewAvatar}
-                  title="Gerar novo avatar aleatório"
+                  title="Gerar avatar aleatório"
                   className="absolute -bottom-1 -right-1 p-1.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl shadow transition-transform group-hover:scale-110"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <div className="flex-1 min-w-0">
-                <span className="text-xs text-slate-400 block mb-1 font-semibold">URL do Avatar</span>
+
+              <div className="flex-1 min-w-0 w-full space-y-2">
                 <input
-                  type="text"
-                  value={avatarUrl}
-                  onChange={(e) => setAvatarUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full px-3 py-1.5 rounded-xl bg-background-dark text-xs border border-slate-700 text-slate-200 focus:border-brand-500 transition-all truncate"
+                  type="file"
+                  id="avatar-file-upload"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (ev) => {
+                        if (ev.target?.result) setAvatarUrl(ev.target.result);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  className="hidden"
                 />
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById('avatar-file-upload')?.click()}
+                    className="px-3.5 py-1.5 rounded-xl bg-brand-600/30 text-brand-300 hover:bg-brand-600/50 border border-brand-500/40 text-xs font-bold flex items-center gap-1.5 shadow transition-all"
+                  >
+                    <Upload className="w-3.5 h-3.5" /> Escolher Foto do Dispositivo
+                  </button>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-slate-400 block mb-0.5 font-semibold">Ou insira URL da Imagem:</span>
+                  <input
+                    type="text"
+                    value={avatarUrl}
+                    onChange={(e) => setAvatarUrl(e.target.value)}
+                    placeholder="https://..."
+                    className="w-full px-3 py-1.5 rounded-xl bg-background-dark text-xs border border-slate-700 text-slate-200 focus:border-brand-500 transition-all truncate"
+                  />
+                </div>
               </div>
             </div>
 

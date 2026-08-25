@@ -12,11 +12,16 @@ import { NexusShopModal } from './components/shop/NexusShopModal';
 import { NexusWalletModal } from './components/wallet/NexusWalletModal';
 import { AdminModal } from './components/admin/AdminModal';
 import { HomeHub } from './components/home/HomeHub';
-import { Sparkles, Flame, Check } from 'lucide-react';
+import { UserProfileModal } from './components/profile/UserProfileModal';
+import { FriendsModal } from './components/friends/FriendsModal';
+import { CreateStoryModal } from './components/stories/CreateStoryModal';
+import { StoryViewerModal } from './components/stories/StoryViewerModal';
+import { apiRequest } from './lib/api';
+import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 
 function ChatDashboard() {
   const { user, loading } = useAuth();
-  const { activeConversation, activeConversationId, setActiveConversationId } = useChat();
+  const { activeConversation, activeConversationId, setActiveConversationId, loadConversations } = useChat();
   const { coinsAlert } = useSocket();
 
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -26,6 +31,12 @@ function ChatDashboard() {
   const [showShopModal, setShowShopModal] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
+  const [showFriendsModal, setShowFriendsModal] = useState(false);
+  const [showCreateStoryModal, setShowCreateStoryModal] = useState(false);
+
+  // Perfil e Stories Viewer States
+  const [targetUserProfile, setTargetUserProfile] = useState(null);
+  const [activeStoryGroup, setActiveStoryGroup] = useState(null);
 
   const [mobileView, setMobileView] = useState('sidebar'); // 'sidebar' | 'chat'
 
@@ -36,6 +47,33 @@ function ChatDashboard() {
 
   const handleMobileBack = () => {
     setMobileView('sidebar');
+  };
+
+  const handleStartDirectChat = async (targetUser) => {
+    if (!user || !targetUser) return;
+    try {
+      if (isSupabaseConfigured && supabase) {
+        // Criar conversa direta no Supabase
+        const { data: newConv } = await supabase
+          .from('conversations')
+          .insert({ type: 'direct' })
+          .select()
+          .single();
+
+        if (newConv) {
+          await supabase.from('conversation_participants').insert([
+            { conversation_id: newConv.id, user_id: user.id, role: 'member' },
+            { conversation_id: newConv.id, user_id: targetUser.id, role: 'member' }
+          ]);
+
+          if (loadConversations) await loadConversations();
+          setActiveConversationId(newConv.id);
+          setMobileView('chat');
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao iniciar chat direto:', err);
+    }
   };
 
   if (loading) {
@@ -49,7 +87,7 @@ function ChatDashboard() {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-background-darker overflow-hidden relative">
-      {/* Toast Discreto e Elegante de Ganho de Nexus Coins (Canto Inferior Direito) */}
+      {/* Toast Discreto de Ganho de Nexus Coins */}
       {coinsAlert && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/90 border border-amber-500/50 text-amber-300 font-bold text-xs shadow-xl backdrop-blur animate-fadeIn select-none pointer-events-none">
           <img src="/nexus-coin.jpg" alt="Moeda" className="w-3.5 h-3.5 rounded-full" />
@@ -59,7 +97,7 @@ function ChatDashboard() {
 
       {/* Conteúdo Principal do Chat */}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Barra Lateral (Visível em desktop ou em mobile quando mobileView === 'sidebar') */}
+        {/* Barra Lateral */}
         <div
           className={`h-full ${
             mobileView === 'chat' ? 'hidden md:flex' : 'flex w-full md:w-auto'
@@ -73,6 +111,10 @@ function ChatDashboard() {
             onOpenShop={() => setShowShopModal(true)}
             onOpenWallet={() => setShowWalletModal(true)}
             onOpenAdmin={() => setShowAdminModal(true)}
+            onOpenFriends={() => setShowFriendsModal(true)}
+            onOpenCreateStory={() => setShowCreateStoryModal(true)}
+            onOpenStoryViewer={(group) => setActiveStoryGroup(group)}
+            onOpenProfile={(u) => setTargetUserProfile(u)}
           />
         </div>
 
@@ -83,7 +125,10 @@ function ChatDashboard() {
           }`}
         >
           {activeConversation && activeConversationId ? (
-            <ChatArea onBack={handleMobileBack} />
+            <ChatArea
+              onBack={handleMobileBack}
+              onOpenProfile={(u) => setTargetUserProfile(u)}
+            />
           ) : (
             <HomeHub
               onOpenChat={(convId) => {
@@ -137,6 +182,48 @@ function ChatDashboard() {
       <AdminModal
         isOpen={showAdminModal}
         onClose={() => setShowAdminModal(false)}
+      />
+
+      <FriendsModal
+        isOpen={showFriendsModal}
+        onClose={() => setShowFriendsModal(false)}
+        onStartChat={(target) => handleStartDirectChat(target)}
+        onOpenProfile={(target) => setTargetUserProfile(target)}
+      />
+
+      <UserProfileModal
+        targetUser={targetUserProfile}
+        isOpen={Boolean(targetUserProfile)}
+        onClose={() => setTargetUserProfile(null)}
+        onStartDirectChat={(target) => handleStartDirectChat(target)}
+        onOpenUserStories={async (userId) => {
+          setTargetUserProfile(null);
+          // Buscar stories do usuário e abrir viewer
+          const { data } = await supabase
+            .from('nexus_stories')
+            .select('*, author:profiles(*)')
+            .eq('user_id', userId)
+            .gt('expires_at', new Date().toISOString());
+
+          if (data && data.length > 0) {
+            setActiveStoryGroup({
+              user: data[0].author,
+              stories: data
+            });
+          }
+        }}
+      />
+
+      <CreateStoryModal
+        isOpen={showCreateStoryModal}
+        onClose={() => setShowCreateStoryModal(false)}
+      />
+
+      <StoryViewerModal
+        storyGroup={activeStoryGroup}
+        isOpen={Boolean(activeStoryGroup)}
+        onClose={() => setActiveStoryGroup(null)}
+        onReplyToAuthor={(author) => handleStartDirectChat(author)}
       />
     </div>
   );

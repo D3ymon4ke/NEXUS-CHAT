@@ -56,7 +56,8 @@ export function MessageBubble({
   onDelete,
   onPin,
   onReact,
-  onImageClick
+  onImageClick,
+  onOpenProfile
 }) {
   const [showMenu, setShowMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -96,9 +97,13 @@ export function MessageBubble({
         isOwn ? 'items-end' : 'items-start'
       }`}
     >
-      {/* Nome do Remetente em Grupos */}
+      {/* Nome do Remetente em Grupos (Clicável para ver perfil) */}
       {!isOwn && sender && !isDeleted && (
-        <div className="flex items-center gap-1.5 mb-0.5 ml-2">
+        <div
+          onClick={() => onOpenProfile && onOpenProfile(sender)}
+          className="flex items-center gap-1.5 mb-0.5 ml-2 cursor-pointer hover:opacity-80 transition-opacity"
+          title="Ver perfil do membro"
+        >
           <span className={`text-[11px] font-semibold ${nameStyle}`}>
             {sender.display_name || sender.username}
           </span>

@@ -11,7 +11,7 @@ import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChevronDown, MessageSquare, ShieldCheck, Sparkles, Search, X } from 'lucide-react';
 
-export function ChatArea({ onBack }) {
+export function ChatArea({ onBack, onOpenProfile }) {
   const { user } = useAuth();
   const {
     activeConversation,
@@ -176,6 +176,7 @@ export function ChatArea({ onBack }) {
                     onPin={(id, isPinned) => pinMessage(id, isPinned)}
                     onReact={(id, emoji) => reactToMessage(id, emoji)}
                     onImageClick={(url) => setSelectedImage(url)}
+                    onOpenProfile={(u) => onOpenProfile && onOpenProfile(u)}
                   />
                 </div>
               </React.Fragment>
