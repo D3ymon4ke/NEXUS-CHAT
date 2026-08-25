@@ -19,7 +19,10 @@ import {
   Layers,
   ArrowRight,
   Radio,
-  FileText
+  FileText,
+  Clock,
+  Compass,
+  CheckCircle2
 } from 'lucide-react';
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
@@ -27,33 +30,33 @@ const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
 const PLATFORM_TIPS = [
   {
     icon: '🪙',
-    title: 'Economia & Recompensas',
-    text: 'A cada mensagem enviada, você ganha +5 Nexus Coins automaticamente! Use suas moedas para desbloquear molduras e fundos exclusivos na Loja.'
+    title: 'Ganhe Nexus Coins',
+    text: 'A cada mensagem enviada, você ganha +5 Nexus Coins automaticamente! Troque por molduras, balões e temas na Loja.'
   },
   {
     icon: '🔥',
     title: 'Sequência Diária',
-    text: 'Entre todo dia e resgate seu bônus diário de login na Loja Nexus. Quanto maior a sua sequência, mais moedas você ganha (até 250 moedas por dia)!'
+    text: 'Colete seu bônus diário na Loja para aumentar sua sequência e ganhar até 250 moedas por dia!'
   },
   {
     icon: '👑',
     title: 'Belmont Conference',
-    text: 'A Belmont Conference é o canal supremo oficial, onde ocorrem transmissões do admin Damon e conversas entre todos os membros.'
+    text: 'A sala principal oficial do Nexus Chat para conversas em grupo e comunicados do admin Damon.'
   },
   {
     icon: '🖼️',
-    title: 'Imagens e Legendas',
-    text: 'Você pode colar imagens diretamente do teclado com Ctrl+V e digitar sua legenda antes de enviar.'
+    title: 'Imagens com Legenda',
+    text: 'Cole imagens com Ctrl+V diretamente no chat e digite sua legenda antes de enviar.'
   },
   {
     icon: '🎒',
-    title: 'Inventário no Perfil',
-    text: 'Clique no seu avatar ou na engrenagem de configurações para abrir seu Inventário e equipar suas molduras e temas favoritos.'
+    title: 'Meu Inventário',
+    text: 'No seu perfil, abra o Inventário para equipar e alternar suas molduras e temas de balão a qualquer momento.'
   },
   {
     icon: '✨',
-    title: 'Emojis e Figurinhas Animadas',
-    text: 'Abra o seletor de emojis na barra de mensagem e clique na aba Figurinhas Animadas para enviar stickers de alta qualidade!'
+    title: 'Figurinhas Animadas',
+    text: 'No seletor de emojis da conversa, use a aba Figurinhas Animadas para enviar stickers animados em alta definição.'
   }
 ];
 
@@ -66,15 +69,48 @@ const BADGE_COLORS = {
   ANÚNCIO: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
 };
 
+const DEFAULT_FALLBACK_PATCHES = [
+  {
+    id: 'p1',
+    tag: 'NOVIDADE',
+    title: 'Loja Nexus, Economia & Wallpapers',
+    version: 'v2.5.0',
+    content: 'Sistema completo de moedas por mensagens, bônus de login diário, planos de fundo dinâmicos e inventário de efeitos.',
+    author_name: 'Damon',
+    is_pinned: true,
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'p2',
+    tag: 'ATUALIZAÇÃO',
+    title: 'Edição e Exclusão de Mensagens',
+    version: 'v2.4.0',
+    content: 'Agora você pode editar suas mensagens enviadas e excluir com placeholder estilizado em tempo real.',
+    author_name: 'Damon',
+    is_pinned: false,
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'p3',
+    tag: 'PATCH',
+    title: 'Anexo de Imagens & Figurinhas Animadas',
+    version: 'v2.3.0',
+    content: 'Envio de imagens com pré-visualização e legenda, além de dezenas de figurinhas animadas em alta qualidade.',
+    author_name: 'Damon',
+    is_pinned: false,
+    created_at: new Date().toISOString()
+  }
+];
+
 export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet }) {
   const { user } = useAuth();
   const { setActiveConversationId } = useChat();
 
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
-  const [patchNotes, setPatchNotes] = useState([]);
-  const [loadingPatches, setLoadingPatches] = useState(true);
+  const [patchNotes, setPatchNotes] = useState(DEFAULT_FALLBACK_PATCHES);
+  const [loadingPatches, setLoadingPatches] = useState(false);
 
-  // Rotação automática de dicas a cada 6 segundos
+  // Rotação de dicas
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTipIndex((prev) => (prev + 1) % PLATFORM_TIPS.length);
@@ -97,12 +133,8 @@ export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet }) {
             setPatchNotes(data);
           }
         } catch (err) {
-          console.error('Erro ao buscar patch notes:', err);
-        } finally {
-          setLoadingPatches(false);
+          console.warn('Usando patch notes locais:', err);
         }
-      } else {
-        setLoadingPatches(false);
       }
     }
     loadPatches();
@@ -113,145 +145,169 @@ export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet }) {
     if (onOpenChat) onOpenChat(BELMONT_ID);
   };
 
-  const currentTip = PLATFORM_TIPS[currentTipIndex];
+  const currentTip = PLATFORM_TIPS[currentTipIndex] || PLATFORM_TIPS[0];
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background-darker overflow-y-auto relative select-none">
       {/* Background Decorativo Glow */}
       <div className="absolute top-0 right-1/4 w-96 h-96 bg-brand-600/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute top-1/3 left-10 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/2 left-10 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="max-w-4xl w-full mx-auto p-4 sm:p-8 space-y-6">
-        {/* BANNER PRINCIPAL DE BOAS-VINDAS */}
-        <div className="relative rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-indigo-950/80 border border-slate-700/60 shadow-2xl overflow-hidden">
-          <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
-
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-6 relative z-10">
-            <div className="flex items-center gap-5 text-center sm:text-left">
+      <div className="max-w-6xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+        {/* 1. HERO BANNER PRINCIPAL (COMPACTO E HOLOGRÁFICO) */}
+        <div className="relative rounded-3xl p-6 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-indigo-950/70 border border-slate-700/60 shadow-2xl overflow-hidden">
+          <div className="flex flex-col lg:flex-row items-center justify-between gap-6 relative z-10">
+            {/* Perfil & Identidade */}
+            <div className="flex items-center gap-4 text-center sm:text-left">
               <div className="relative flex-shrink-0">
                 <img
                   src="/belmont-logo.jpg"
                   alt="Nexus Belmont Logo"
-                  className="w-20 h-20 rounded-3xl object-cover border-2 border-amber-400/80 shadow-2xl shadow-amber-500/30"
+                  className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl object-cover border-2 border-amber-400/80 shadow-xl shadow-amber-500/20"
                 />
-                <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
+                <span className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-slate-900"></span>
+                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-slate-900"></span>
                 </span>
               </div>
 
               <div>
                 <div className="flex items-center justify-center sm:justify-start gap-2 mb-1">
-                  <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">NEXUS CHAT</h1>
+                  <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">NEXUS CHAT</h1>
                   <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500/20 to-brand-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-extrabold uppercase">
-                    v2.5 Live
+                    Hub Principal
                   </span>
                 </div>
                 <p className="text-xs sm:text-sm text-slate-300">
-                  Olá, <strong className="text-white">{user?.display_name || user?.username}</strong>! Bem-vindo ao hub central.
+                  Bem-vindo de volta, <strong className="text-white">{user?.display_name || user?.username || 'Membro'}</strong>!
                 </p>
-                <div className="flex items-center justify-center sm:justify-start gap-3 mt-3">
-                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-300 text-xs font-bold shadow-sm">
+
+                {/* Badges de Saldo e Sequência */}
+                <div className="flex items-center justify-center sm:justify-start gap-2.5 mt-2.5">
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-300 text-xs font-bold shadow-sm">
                     <img src="/nexus-coin.jpg" alt="Moeda" className="w-4 h-4 rounded-full" />
                     <span>{user?.nexus_coins || 100} Coins</span>
                   </div>
                   <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-200 text-xs font-bold">
-                    <Flame className="w-4 h-4 text-amber-400" />
+                    <Flame className="w-3.5 h-3.5 text-amber-400" />
                     <span>{user?.daily_streak || 0} Dias Streak</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Ações Rápidas */}
-            <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto">
+            {/* Ações de Acesso Rápido */}
+            <div className="flex flex-wrap items-center justify-center gap-2.5 w-full lg:w-auto">
               <button
                 onClick={handleEnterBelmont}
-                className="px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-xs shadow-xl shadow-amber-500/25 transition-all flex items-center justify-center gap-2 hover:scale-105"
+                className="flex-1 sm:flex-initial px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-xs shadow-lg shadow-amber-500/25 transition-all flex items-center justify-center gap-2 hover:scale-105"
               >
-                <Crown className="w-4 h-4" /> Entrar na Belmont Conference
+                <Crown className="w-4 h-4" /> Entrar na Belmont
               </button>
               {onOpenShop && (
                 <button
                   onClick={onOpenShop}
-                  className="px-4 py-3 rounded-2xl bg-background-surface/80 hover:bg-slate-700/80 text-white font-bold text-xs border border-slate-700 transition-all flex items-center justify-center gap-1.5"
+                  className="px-4 py-2.5 rounded-2xl bg-background-surface hover:bg-slate-700/80 text-white font-bold text-xs border border-slate-700 transition-all flex items-center justify-center gap-1.5"
                 >
-                  <ShoppingBag className="w-4 h-4 text-amber-400" /> Loja Nexus
+                  <ShoppingBag className="w-4 h-4 text-amber-400" /> Loja
+                </button>
+              )}
+              {onOpenWallet && (
+                <button
+                  onClick={onOpenWallet}
+                  className="px-4 py-2.5 rounded-2xl bg-background-surface hover:bg-slate-700/80 text-white font-bold text-xs border border-slate-700 transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Coins className="w-4 h-4 text-amber-400" /> Carteira
                 </button>
               )}
             </div>
           </div>
         </div>
 
-        {/* WIDGET DE PREVISÃO DO TEMPO */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-400 px-1">
-            <span>🌦️</span>
-            <span>Previsão do Tempo em Tempo Real</span>
-          </div>
-          <WeatherWidget />
-        </div>
+        {/* 2. GRID PRINCIPAL (2 COLUNAS: ESQUERDA = CLIMA/DICAS, DIREITA = PATCH NOTES) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* COLUNA ESQUERDA (5 COLUNAS) */}
+          <div className="lg:col-span-5 space-y-5">
+            {/* Widget de Clima */}
+            <div className="p-4 rounded-3xl bg-background-surface/80 border border-slate-800 shadow-xl space-y-2.5">
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
+                  <span>🌦️</span>
+                  <span>Previsão do Tempo em Tempo Real</span>
+                </div>
+                <span className="text-[10px] text-slate-500 font-semibold">Ao Vivo</span>
+              </div>
+              <WeatherWidget />
+            </div>
 
-        {/* CARD DINÂMICO DE DICAS DA PLATAFORMA */}
-        <div className="p-5 rounded-3xl bg-gradient-to-r from-slate-900/90 via-background-surface/80 to-slate-900/90 border border-slate-800 shadow-xl relative overflow-hidden">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">{currentTip.icon}</span>
-              <span className="text-xs font-extrabold text-amber-300 uppercase tracking-wide">
-                Dica da Plataforma • {currentTip.title}
+            {/* Card Dinâmico de Dicas da Plataforma */}
+            <div className="p-5 rounded-3xl bg-gradient-to-br from-slate-900/90 via-background-surface/80 to-slate-900/90 border border-slate-800 shadow-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">{currentTip.icon}</span>
+                  <span className="text-xs font-extrabold text-amber-300 uppercase tracking-wide">
+                    {currentTip.title}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setCurrentTipIndex((prev) => (prev - 1 + PLATFORM_TIPS.length) % PLATFORM_TIPS.length)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-[10px] text-slate-500 font-bold px-1">
+                    {currentTipIndex + 1}/{PLATFORM_TIPS.length}
+                  </span>
+                  <button
+                    onClick={() => setCurrentTipIndex((prev) => (prev + 1) % PLATFORM_TIPS.length)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-300 leading-relaxed min-h-[48px]">
+                {currentTip.text}
+              </p>
+
+              <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                <div className="bg-amber-400 h-full w-full animate-pulse" />
+              </div>
+            </div>
+
+            {/* Card Informativo de Status do Sistema */}
+            <div className="p-4 rounded-3xl bg-slate-900/60 border border-slate-800/80 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-white">Servidor & Conexão</div>
+                  <div className="text-[10px] text-slate-400">Criptografia Realtime Ativa</div>
+                </div>
+              </div>
+              <span className="text-[10px] px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-bold">
+                100% Operacional
               </span>
             </div>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setCurrentTipIndex((prev) => (prev - 1 + PLATFORM_TIPS.length) % PLATFORM_TIPS.length)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/5"
-                title="Dica anterior"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="text-[10px] text-slate-500 font-bold px-1">
-                {currentTipIndex + 1}/{PLATFORM_TIPS.length}
-              </span>
-              <button
-                onClick={() => setCurrentTipIndex((prev) => (prev + 1) % PLATFORM_TIPS.length)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/5"
-                title="Próxima dica"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
           </div>
 
-          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed min-h-[36px] transition-all">
-            {currentTip.text}
-          </p>
-
-          {/* Barra de Progresso do Timer */}
-          <div className="w-full bg-slate-800 h-1 rounded-full mt-3 overflow-hidden">
-            <div className="bg-amber-400 h-full w-full animate-[pulse_3s_infinite]" />
-          </div>
-        </div>
-
-        {/* SEÇÃO DE PATCH NOTES & ATUALIZAÇÕES */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-brand-400" />
-              <h2 className="text-sm font-extrabold text-white uppercase tracking-wider">
-                Notas de Atualização & Patch Notes
-              </h2>
+          {/* COLUNA DIREITA: FEED DE PATCH NOTES (7 COLUNAS) */}
+          <div className="lg:col-span-7 space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-amber-400" />
+                <h2 className="text-sm font-extrabold text-white uppercase tracking-wider">
+                  Notas de Atualização & Patch Notes
+                </h2>
+              </div>
+              <span className="text-[11px] text-slate-500">Oficial Damon</span>
             </div>
-            <span className="text-[11px] text-slate-500">Publicado por Damon</span>
-          </div>
 
-          {loadingPatches ? (
-            <div className="text-center py-8 text-xs text-slate-400">Carregando notas de atualização...</div>
-          ) : patchNotes.length === 0 ? (
-            <div className="p-6 rounded-2xl bg-background-surface/60 border border-slate-800 text-center text-xs text-slate-400">
-              Nenhuma nota de atualização publicada no momento.
-            </div>
-          ) : (
-            <div className="space-y-3">
+            {/* Lista de Patch Notes em Cards Estilizados */}
+            <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
               {patchNotes.map((patch) => {
                 const badgeStyle = BADGE_COLORS[patch.tag] || 'bg-slate-700 text-slate-300 border-slate-600';
                 return (
@@ -259,8 +315,8 @@ export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet }) {
                     key={patch.id}
                     className={`p-5 rounded-3xl border transition-all ${
                       patch.is_pinned
-                        ? 'bg-gradient-to-br from-slate-900/90 to-amber-950/20 border-amber-500/40 shadow-lg shadow-amber-500/5'
-                        : 'bg-background-surface/70 border-slate-800 hover:border-slate-700'
+                        ? 'bg-gradient-to-br from-slate-900/95 via-slate-900/90 to-amber-950/20 border-amber-500/40 shadow-lg shadow-amber-500/5'
+                        : 'bg-background-surface/80 border-slate-800 hover:border-slate-700'
                     }`}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
@@ -279,7 +335,8 @@ export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet }) {
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] text-slate-500">
+                      <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
                         {new Date(patch.created_at).toLocaleDateString('pt-BR')} • {patch.author_name}
                       </span>
                     </div>
@@ -292,7 +349,7 @@ export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet }) {
                 );
               })}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

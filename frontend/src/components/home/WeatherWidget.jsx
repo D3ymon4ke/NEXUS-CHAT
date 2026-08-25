@@ -1,34 +1,42 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 export function WeatherWidget() {
-  useEffect(() => {
-    // Carrega o script do widget de tempo de forma segura
-    const scriptId = 'weather-widget-script';
-    let script = document.getElementById(scriptId);
+  const containerRef = useRef(null);
 
-    if (!script) {
-      script = document.createElement('script');
-      script.id = scriptId;
-      script.src = 'https://app3.weatherwidget.org/js/?id=ww_215c38aacc48b';
-      script.async = true;
-      document.body.appendChild(script);
-    } else {
-      // Re-executa o script se já existia na página
-      if (window.__weatherwidget_init) {
-        window.__weatherwidget_init();
+  useEffect(() => {
+    try {
+      const scriptId = 'weather-widget-script';
+      const existingScript = document.getElementById(scriptId);
+
+      if (!existingScript) {
+        const script = document.createElement('script');
+        script.id = scriptId;
+        script.src = 'https://app3.weatherwidget.org/js/?id=ww_215c38aacc48b';
+        script.async = true;
+        document.body.appendChild(script);
+      } else {
+        if (typeof window !== 'undefined' && window.__weatherwidget_init) {
+          window.__weatherwidget_init();
+        }
       }
+    } catch (err) {
+      console.warn('Erro ao inicializar widget de clima:', err);
     }
   }, []);
 
   return (
-    <div className="w-full rounded-2xl overflow-hidden shadow-xl border border-slate-700/60 bg-slate-900/90 p-2">
+    <div ref={containerRef} className="w-full rounded-2xl overflow-hidden shadow-lg border border-slate-700/50 bg-slate-900/90 min-h-[100px] flex items-center justify-center relative">
       <div
         id="ww_215c38aacc48b"
         v="1.3"
         loc="id"
         a='{"t":"horizontal","lang":"pt","sl_lpl":1,"ids":["wl5106"],"font":"Arial","sl_ics":"one_a","sl_sot":"celsius","cl_bkg":"image","cl_font":"#FFFFFF","cl_cloud":"#FFFFFF","cl_persp":"#81D4FA","cl_sun":"#FFC107","cl_moon":"#FFC107","cl_thund":"#FF5722"}'
+        className="w-full text-center"
       >
-        Mais previsões: <a href="https://tempolongo.com/rio_de_janeiro_tempo_25_dias/" id="ww_215c38aacc48b_u" target="_blank" rel="noreferrer">Weather Rio de Janeiro 30 days</a>
+        <span className="text-xs text-slate-400">Carregando previsão do tempo...</span>
+        <a href="https://tempolongo.com/rio_de_janeiro_tempo_25_dias/" id="ww_215c38aacc48b_u" target="_blank" rel="noreferrer" className="hidden">
+          Weather Rio de Janeiro
+        </a>
       </div>
     </div>
   );
