@@ -2,16 +2,18 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useAuth } from './AuthContext';
 import { useSocket } from './SocketContext';
 import { apiRequest } from '../lib/api';
+import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { sounds } from '../lib/sound';
 
 const ChatContext = createContext(null);
+const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
 
 export function ChatProvider({ children }) {
   const { user } = useAuth();
   const { socket, connected } = useSocket();
 
   const [conversations, setConversations] = useState([]);
-  const [activeConversationId, setActiveConversationId] = useState(null);
+  const [activeConversationId, setActiveConversationId] = useState(BELMONT_ID);
   const [messages, setMessages] = useState([]);
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -19,7 +21,13 @@ export function ChatProvider({ children }) {
   const [replyingTo, setReplyingTo] = useState(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
 
-  const activeConversation = conversations.find(c => c.id === activeConversationId) || null;
+  const activeConversation = conversations.find(c => c.id === activeConversationId) || {
+    id: BELMONT_ID,
+    name: 'BELMONT CONFERENCE',
+    type: 'group',
+    is_permanent: true,
+    avatar_url: '/belmont-logo.jpg'
+  };
 
   // Atualizar configuração de som
   const toggleSound = () => {
@@ -91,15 +99,58 @@ export function ChatProvider({ children }) {
     };
   }, [activeConversationId, socket, connected]);
 
-  // Escutar eventos em tempo real do Socket
+  // --- SUPABASE REALTIME (Canal de Mensagens em Tempo Real Nativo da Nuvem) ---
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || !activeConversationId) return;
+
+    const channel = supabase
+      .channel(`chat:room:${activeConversationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${activeConversationId}`
+        },
+        async (payload) => {
+          const newMsg = payload.new;
+          if (newMsg.sender_id !== user?.id) {
+            const { data: sender } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', newMsg.sender_id)
+              .single();
+
+            const formatted = {
+              ...newMsg,
+              sender: sender || { id: newMsg.sender_id, display_name: 'Usuário' },
+              attachments: [],
+              reactions: []
+            };
+
+            setMessages(prev => {
+              if (prev.some(m => m.id === formatted.id || (m.tempId && m.tempId === formatted.id))) return prev;
+              return [...prev, formatted];
+            });
+            sounds.playReceive();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeConversationId, user?.id]);
+
+  // Escutar eventos em tempo real do Socket (quando conectado)
   useEffect(() => {
     if (!socket) return;
 
-    // Recebimento de Nova Mensagem
     const handleNewMessage = (msg) => {
       if (msg.conversation_id === activeConversationId) {
         setMessages(prev => {
-          // Evita duplicatas se foi enviada de forma otimista
           const exists = prev.some(m => m.id === msg.id || (msg.tempId && m.tempId === msg.tempId));
           if (exists) {
             return prev.map(m => (m.id === msg.id || (msg.tempId && m.tempId === msg.tempId) ? msg : m));
@@ -107,21 +158,17 @@ export function ChatProvider({ children }) {
           return [...prev, msg];
         });
 
-        // Som de recebimento se não for do próprio usuário
         if (msg.sender_id !== user?.id) {
           sounds.playReceive();
         }
 
-        // Marcar como lida automaticamente se a janela estiver ativa
         socket.emit('mark_as_read', { conversationId: activeConversationId, lastMessageId: msg.id });
       } else {
-        // Notificação sonora para mensagens em outras conversas
         if (msg.sender_id !== user?.id) {
           sounds.playPop();
         }
       }
 
-      // Atualizar lista de conversas com a última mensagem
       setConversations(prev => {
         return prev.map(conv => {
           if (conv.id === msg.conversation_id) {
@@ -137,90 +184,15 @@ export function ChatProvider({ children }) {
       });
     };
 
-    // Mensagem Editada
-    const handleMessageEdited = ({ messageId, conversationId, content, is_edited, updated_at }) => {
-      if (conversationId === activeConversationId) {
-        setMessages(prev => prev.map(m => m.id === messageId ? { ...m, content, is_edited: true, updated_at } : m));
-      }
-    };
-
-    // Mensagem Deletada
-    const handleDeleteMessage = ({ messageId, conversationId }) => {
-      if (conversationId === activeConversationId) {
-        setMessages(prev => prev.map(m => m.id === messageId ? { ...m, is_deleted: true, content: 'Esta mensagem foi apagada.' } : m));
-      }
-    };
-
-    // Mensagem Fixada
-    const handlePinMessage = ({ messageId, conversationId, isPinned }) => {
-      if (conversationId === activeConversationId) {
-        setMessages(prev => prev.map(m => m.id === messageId ? { ...m, is_pinned: isPinned } : m));
-      }
-    };
-
-    // Reação Atualizada
-    const handleReactionUpdated = ({ messageId, conversationId, userId: reactUserId, emoji }) => {
-      if (conversationId === activeConversationId) {
-        setMessages(prev => prev.map(m => {
-          if (m.id === messageId) {
-            const currentReactions = m.reactions || [];
-            const hasReacted = currentReactions.some(r => r.user_id === reactUserId && r.emoji === emoji);
-            let updatedReactions;
-            if (hasReacted) {
-              updatedReactions = currentReactions.filter(r => !(r.user_id === reactUserId && r.emoji === emoji));
-            } else {
-              updatedReactions = [...currentReactions, { emoji, user_id: reactUserId }];
-            }
-            return { ...m, reactions: updatedReactions };
-          }
-          return m;
-        }));
-      }
-    };
-
-    // Indicador de Digitação
-    const handleTypingStart = ({ conversationId, user: typingUser }) => {
-      if (conversationId === activeConversationId && typingUser.id !== user?.id) {
-        setTypingUsers(prev => {
-          const next = new Map(prev);
-          next.set(typingUser.id, typingUser);
-          return next;
-        });
-      }
-    };
-
-    const handleTypingStop = ({ conversationId, userId: stoppedUserId }) => {
-      if (conversationId === activeConversationId) {
-        setTypingUsers(prev => {
-          const next = new Map(prev);
-          next.delete(stoppedUserId);
-          return next;
-        });
-      }
-    };
-
     socket.on('new_message', handleNewMessage);
-    socket.on('message_edited', handleMessageEdited);
-    socket.on('message_deleted', handleDeleteMessage);
-    socket.on('message_pinned_updated', handlePinMessage);
-    socket.on('message_reaction_updated', handleReactionUpdated);
-    socket.on('user_typing_start', handleTypingStart);
-    socket.on('user_typing_stop', handleTypingStop);
-
     return () => {
       socket.off('new_message', handleNewMessage);
-      socket.off('message_edited', handleMessageEdited);
-      socket.off('message_deleted', handleDeleteMessage);
-      socket.off('message_pinned_updated', handlePinMessage);
-      socket.off('message_reaction_updated', handleReactionUpdated);
-      socket.off('user_typing_start', handleTypingStart);
-      socket.off('user_typing_stop', handleTypingStop);
     };
   }, [socket, activeConversationId, user?.id]);
 
-  // Envio de Mensagem
-  const sendMessage = async ({ content, type = 'text', attachments = [], replyToId = null }) => {
-    if (!activeConversationId || !user) return;
+  // Enviar Mensagem (com suporte a Supabase direto + Socket.IO)
+  const sendMessage = async ({ content, attachments = [], type = 'text', replyToId = null }) => {
+    if (!user || (!content.trim() && attachments.length === 0)) return;
 
     const tempId = `temp-${Date.now()}`;
     const optimisticMessage = {
@@ -246,16 +218,43 @@ export function ChatProvider({ children }) {
         id: user.id,
         display_name: user.display_name,
         username: user.username,
-        avatar_url: user.avatar_url
+        avatar_url: user.avatar_url,
+        equipped_frame: user.equipped_frame,
+        equipped_bubble: user.equipped_bubble,
+        equipped_badge: user.equipped_badge,
+        equipped_name_color: user.equipped_name_color
       },
       status: 'sending'
     };
 
-    // Adiciona instantaneamente na UI (Atualização Otimista)
     setMessages(prev => [...prev, optimisticMessage]);
     setReplyingTo(null);
     sounds.playSend();
 
+    // 1. Envio via Supabase Direto
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: insertedMsg, error: insertErr } = await supabase.from('messages').insert({
+          conversation_id: activeConversationId,
+          sender_id: user.id,
+          content: content || '',
+          type,
+          reply_to_id: optimisticMessage.reply_to_id
+        }).select().single();
+
+        if (insertedMsg && !insertErr) {
+          setMessages(prev => prev.map(m => m.tempId === tempId ? { ...optimisticMessage, id: insertedMsg.id, status: 'sent' } : m));
+
+          // Atualizar Nexus Coins (+5 moedas por envio)
+          const newBalance = (user.nexus_coins || 100) + 5;
+          await supabase.from('profiles').update({ nexus_coins: newBalance }).eq('id', user.id);
+        }
+      } catch (err) {
+        console.error('Erro ao persistir mensagem no Supabase:', err);
+      }
+    }
+
+    // 2. Envio via WebSocket (se conectado)
     if (socket && connected) {
       socket.emit('send_message', {
         conversationId: activeConversationId,
@@ -270,7 +269,6 @@ export function ChatProvider({ children }) {
     }
   };
 
-  // Notificar Digitação
   const emitTyping = (isTyping) => {
     if (!socket || !connected || !activeConversationId || !user) return;
     if (isTyping) {
@@ -291,79 +289,40 @@ export function ChatProvider({ children }) {
     }
   };
 
-  // Ações de Mensagem
   const editMessage = (messageId, content) => {
     if (socket && connected) {
-      socket.emit('edit_message', {
-        messageId,
-        conversationId: activeConversationId,
-        content
-      });
+      socket.emit('edit_message', { messageId, conversationId: activeConversationId, content });
     }
   };
 
   const deleteMessage = (messageId) => {
     if (socket && connected) {
-      socket.emit('delete_message', {
-        messageId,
-        conversationId: activeConversationId
-      });
+      socket.emit('delete_message', { messageId, conversationId: activeConversationId });
     }
   };
 
   const pinMessage = (messageId, isPinned) => {
     if (socket && connected) {
-      socket.emit('pin_message', {
-        messageId,
-        conversationId: activeConversationId,
-        isPinned
-      });
+      socket.emit('pin_message', { messageId, conversationId: activeConversationId, isPinned });
     }
   };
 
-  const reactMessage = (messageId, emoji) => {
+  const reactToMessage = async (messageId, emoji) => {
+    if (!user) return;
+    setMessages(prev => prev.map(m => {
+      if (m.id === messageId) {
+        const reactions = m.reactions || [];
+        const exists = reactions.some(r => r.user_id === user.id && r.emoji === emoji);
+        const updated = exists
+          ? reactions.filter(r => !(r.user_id === user.id && r.emoji === emoji))
+          : [...reactions, { id: `temp-${Date.now()}`, message_id: messageId, user_id: user.id, emoji }];
+        return { ...m, reactions: updated };
+      }
+      return m;
+    }));
+
     if (socket && connected) {
-      socket.emit('react_message', {
-        messageId,
-        conversationId: activeConversationId,
-        emoji
-      });
-    }
-  };
-
-  // Iniciar conversa direta com um usuário
-  const startDirectChat = async (targetUser) => {
-    try {
-      const res = await apiRequest('/conversations/direct', {
-        method: 'POST',
-        body: JSON.stringify({ targetUserId: targetUser.id })
-      });
-
-      if (res.success) {
-        await loadConversations();
-        setActiveConversationId(res.conversationId);
-        return res.conversationId;
-      }
-    } catch (err) {
-      console.error('Erro ao iniciar conversa:', err);
-    }
-  };
-
-  // Criar novo grupo
-  const createGroup = async ({ name, description, avatarUrl, memberIds }) => {
-    try {
-      const res = await apiRequest('/conversations/group', {
-        method: 'POST',
-        body: JSON.stringify({ name, description, avatarUrl, memberIds })
-      });
-
-      if (res.success && res.conversation) {
-        await loadConversations();
-        setActiveConversationId(res.conversation.id);
-        return res.conversation;
-      }
-    } catch (err) {
-      console.error('Erro ao criar grupo:', err);
+      socket.emit('react_message', { messageId, conversationId: activeConversationId, userId: user.id, emoji });
     }
   };
 
@@ -371,26 +330,24 @@ export function ChatProvider({ children }) {
     <ChatContext.Provider
       value={{
         conversations,
-        activeConversation,
         activeConversationId,
-        setActiveConversationId,
+        activeConversation,
         messages,
         loadingConversations,
         loadingMessages,
-        typingUsers: Array.from(typingUsers.values()),
+        typingUsers,
         replyingTo,
-        setReplyingTo,
         soundEnabled,
-        toggleSound,
+        setActiveConversationId,
+        loadConversations,
         sendMessage,
         emitTyping,
         editMessage,
         deleteMessage,
         pinMessage,
-        reactMessage,
-        startDirectChat,
-        createGroup,
-        refreshConversations: loadConversations
+        reactToMessage,
+        setReplyingTo,
+        toggleSound
       }}
     >
       {children}
