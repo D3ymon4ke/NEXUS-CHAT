@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { Plus, Sparkles, ChevronRight, ChevronLeft } from 'lucide-react';
 
-export function StoriesBar({ onOpenCreateStory, onOpenStoryViewer }) {
+export function StoriesBar({ onOpenCreateStory, onOpenStoryViewer, refreshKey }) {
   const { user } = useAuth();
   const [groupedStories, setGroupedStories] = useState([]);
   const [userHasStory, setUserHasStory] = useState(false);
@@ -28,7 +28,7 @@ export function StoriesBar({ onOpenCreateStory, onOpenStoryViewer }) {
         supabase.removeChannel(channel);
       };
     }
-  }, [user?.id]);
+  }, [user?.id, refreshKey]);
 
   const loadActiveStories = async () => {
     if (!isSupabaseConfigured || !supabase) return;

@@ -30,18 +30,21 @@ import {
   Check,
   FileText,
   Tag,
-  Edit2
+  Edit2,
+  Ghost,
+  Eye,
+  UserCheck2,
+  Lock
 } from 'lucide-react';
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
-
 const BADGE_OPTIONS = ['PATCH', 'ATUALIZAÇÃO', 'NOVIDADE', 'EVENTO', 'CORREÇÃO', 'ANÚNCIO'];
 
 export function AdminModal({ isOpen, onClose }) {
   const { user } = useAuth();
   const { loadConversations } = useChat();
 
-  const [activeTab, setActiveTab] = useState('stats'); // 'stats' | 'users' | 'cleanup' | 'shop' | 'patches' | 'broadcast'
+  const [activeTab, setActiveTab] = useState('stats'); // 'stats' | 'users' | 'chat_master' | 'shop' | 'patches' | 'cleanup' | 'broadcast'
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [shopItems, setShopItems] = useState([]);
@@ -75,12 +78,26 @@ export function AdminModal({ isOpen, onClose }) {
   const [patchContent, setPatchContent] = useState('');
   const [patchIsPinned, setPatchIsPinned] = useState(false);
 
+  // Substate Chat Master (Fantasma & Personificação Secreta)
+  const [allMasterConversations, setAllMasterConversations] = useState([]);
+  const [selectedMasterConvId, setSelectedMasterConvId] = useState(BELMONT_ID);
+  const [masterMessages, setMasterMessages] = useState([]);
+  const [impersonatedUserId, setImpersonatedUserId] = useState(user?.id || '');
+  const [masterInputText, setMasterInputText] = useState('');
+
   useEffect(() => {
     if (!isOpen) return;
     loadAdminData();
     loadShopItems();
     loadPatchNotes();
+    loadChatMasterData();
   }, [isOpen]);
+
+  useEffect(() => {
+    if (activeTab === 'chat_master' && selectedMasterConvId) {
+      loadMasterConversationMessages(selectedMasterConvId);
+    }
+  }, [activeTab, selectedMasterConvId]);
 
   const loadAdminData = async () => {
     try {
@@ -108,6 +125,9 @@ export function AdminModal({ isOpen, onClose }) {
         });
 
         setUsers(usersList || []);
+        if (!impersonatedUserId && usersList?.length > 0) {
+          setImpersonatedUserId(user?.id || usersList[0].id);
+        }
       }
     } catch (err) {
       console.error('Erro ao carregar dados admin:', err);
@@ -138,7 +158,70 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
-  // 1. Limpeza de Mensagens
+  // 1. Carregar Todas as Conversas para o Chat Master
+  const loadChatMasterData = async () => {
+    if (!isSupabaseConfigured || !supabase) return;
+    try {
+      const { data: convs } = await supabase
+        .from('conversations')
+        .select('*, participants:conversation_participants(user:profiles(*))')
+        .order('updated_at', { ascending: false });
+
+      if (convs) {
+        setAllMasterConversations(convs);
+      }
+    } catch (err) {
+      console.warn('Erro ao carregar conversas master:', err);
+    }
+  };
+
+  // 2. Carregar Mensagens da Conversa Selecionada no Chat Master
+  const loadMasterConversationMessages = async (convId) => {
+    if (!isSupabaseConfigured || !supabase || !convId) return;
+    try {
+      const { data: msgs } = await supabase
+        .from('messages')
+        .select('*, sender:profiles(*)')
+        .eq('conversation_id', convId)
+        .order('created_at', { ascending: true })
+        .limit(50);
+
+      if (msgs) {
+        setMasterMessages(msgs);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar mensagens master:', err);
+    }
+  };
+
+  // 3. Enviar Mensagem Secreta Personificando Outro Usuário
+  const handleSendMasterMessage = async (e) => {
+    e.preventDefault();
+    if (!masterInputText.trim() || !selectedMasterConvId || !impersonatedUserId) return;
+
+    try {
+      setActionLoading(true);
+      if (isSupabaseConfigured && supabase) {
+        await supabase.from('messages').insert({
+          conversation_id: selectedMasterConvId,
+          sender_id: impersonatedUserId,
+          content: masterInputText.trim(),
+          type: 'text'
+        });
+      }
+
+      sounds.playPop();
+      setMasterInputText('');
+      loadMasterConversationMessages(selectedMasterConvId);
+      setFeedback({ text: 'Mensagem enviada com sucesso personificando o usuário selecionado!', type: 'success' });
+    } catch (err) {
+      setFeedback({ text: 'Erro ao enviar mensagem como personificador.', type: 'error' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // 4. Limpeza de Mensagens
   const handleClearBelmontChat = async () => {
     if (!window.confirm('Tem certeza que deseja apagar TODAS as mensagens da sala BELMONT CONFERENCE?')) return;
 
@@ -179,7 +262,7 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
-  // 2. Conceder Moedas
+  // 5. Conceder Moedas
   const handleGiveCoins = async (targetUserId, amount) => {
     try {
       setActionLoading(true);
@@ -211,7 +294,7 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
-  // 3. Cadastrar Novo Item na Loja
+  // 6. Criar Item na Loja
   const handleCreateShopItem = async (e) => {
     e.preventDefault();
     if (!newItemName.trim()) return;
@@ -277,7 +360,7 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
-  // 4. Cadastrar Patch Notes
+  // 7. Criar Patch Note
   const handleCreatePatchNote = async (e) => {
     e.preventDefault();
     if (!patchTitle.trim() || !patchContent.trim()) return;
@@ -322,7 +405,7 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
-  // 5. Transmissão Oficial
+  // 8. Transmissão Oficial
   const handleSendBroadcast = async (e) => {
     e.preventDefault();
     if (!broadcastMessage.trim()) return;
@@ -365,9 +448,11 @@ export function AdminModal({ isOpen, onClose }) {
     item.category.toLowerCase().includes(shopSearchQuery.toLowerCase())
   );
 
+  const impersonatedUserObj = users.find(u => u.id === impersonatedUserId) || user;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn select-none">
-      <div className="glass-modal w-full max-w-3xl rounded-3xl p-6 shadow-2xl border border-rose-500/40 flex flex-col max-h-[90vh] overflow-hidden relative">
+      <div className="glass-modal w-full max-w-4xl rounded-3xl p-6 shadow-2xl border border-rose-500/40 flex flex-col max-h-[90vh] overflow-hidden relative">
         {/* Glow de Fundo */}
         <div className="absolute -top-24 -right-24 w-60 h-60 bg-rose-500/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -left-24 w-60 h-60 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
@@ -385,7 +470,7 @@ export function AdminModal({ isOpen, onClose }) {
                   Damon Access
                 </span>
               </div>
-              <p className="text-xs text-slate-400">Controle de usuários, itens da loja, patch notes e limpeza</p>
+              <p className="text-xs text-slate-400">Controle de usuários, chat master fantasma, loja e limpeza</p>
             </div>
           </div>
           <button
@@ -419,6 +504,7 @@ export function AdminModal({ isOpen, onClose }) {
         <div className="flex bg-background-surface/80 p-1 rounded-2xl border border-slate-800 my-3 overflow-x-auto">
           {[
             { id: 'stats', label: 'Estatísticas', icon: Activity },
+            { id: 'chat_master', label: '🎭 Chat Master Secreto', icon: Ghost },
             { id: 'users', label: 'Usuários & Coins', icon: Users },
             { id: 'shop', label: '🛍️ Gerenciar Loja', icon: ShoppingBag },
             { id: 'patches', label: '📢 Patch Notes', icon: FileText },
@@ -434,7 +520,7 @@ export function AdminModal({ isOpen, onClose }) {
                   setActiveTab(tab.id);
                   setFeedback({ text: '', type: '' });
                 }}
-                className={`flex-1 min-w-[120px] py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                className={`flex-1 min-w-[130px] py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
                   isActive
                     ? 'bg-gradient-to-r from-rose-600 to-red-700 text-white shadow-md'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
@@ -448,8 +534,147 @@ export function AdminModal({ isOpen, onClose }) {
         </div>
 
         {/* CONTEÚDO DAS ABAS */}
-        <div className="flex-1 overflow-y-auto pr-1 space-y-4 min-h-[280px]">
-          {/* ABA 1: ESTATÍSTICAS */}
+        <div className="flex-1 overflow-y-auto pr-1 space-y-4 min-h-[320px]">
+          {/* ABA 1: CHAT MASTER SECRETO (FANTASMA & PERSONIFICAÇÃO) */}
+          {activeTab === 'chat_master' && (
+            <div className="space-y-4">
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-950/40 via-slate-900 to-indigo-950/40 border border-purple-500/40 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-purple-500/20 text-purple-300 flex items-center justify-center border border-purple-500/40">
+                    <Ghost className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-extrabold text-purple-300 uppercase tracking-wide">
+                      Modo Chat Master Fantasma Ativo
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      Você pode espionar qualquer conversa e enviar mensagens secretamente personificando qualquer usuário registrado!
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 bg-black/50 px-3 py-1.5 rounded-xl border border-purple-500/30 text-xs">
+                  <span className="text-[10px] text-slate-400">Personificando:</span>
+                  <strong className="text-amber-300 font-bold">{impersonatedUserObj?.display_name || impersonatedUserObj?.username}</strong>
+                </div>
+              </div>
+
+              {/* Grid: 1. Seletor de Conversa e Personificador | 2. Visualizador e Envio */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                {/* Coluna Esquerda: Lista de Conversas e Usuários (4 cols) */}
+                <div className="md:col-span-5 space-y-3">
+                  {/* Seletor de Quem Personificar */}
+                  <div className="p-3 rounded-2xl bg-background-surface border border-slate-800 space-y-2">
+                    <label className="text-[10px] font-extrabold text-amber-300 uppercase block">
+                      🎭 1. Escolha como quem você vai responder:
+                    </label>
+                    <select
+                      value={impersonatedUserId}
+                      onChange={(e) => setImpersonatedUserId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-purple-500 font-semibold"
+                    >
+                      {users.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.display_name || u.username} (@{u.username}) {u.username === 'damon' ? '👑' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Lista de Conversas para Espionar / Participar */}
+                  <div className="p-3 rounded-2xl bg-background-surface border border-slate-800 space-y-2">
+                    <label className="text-[10px] font-extrabold text-slate-300 uppercase block">
+                      💬 2. Escolha a Conversa do Sistema:
+                    </label>
+                    <div className="space-y-1.5 max-h-[190px] overflow-y-auto pr-1">
+                      {allMasterConversations.map((conv) => {
+                        const isBelmont = conv.id === BELMONT_ID || conv.is_permanent;
+                        const isSelected = selectedMasterConvId === conv.id;
+                        const participantNames = (conv.participants || [])
+                          .map((p) => p.user?.display_name || p.user?.username)
+                          .filter(Boolean)
+                          .join(', ');
+
+                        return (
+                          <div
+                            key={conv.id}
+                            onClick={() => setSelectedMasterConvId(conv.id)}
+                            className={`p-2 rounded-xl border text-xs cursor-pointer transition-all ${
+                              isSelected
+                                ? 'bg-purple-600/30 border-purple-500 text-white font-bold'
+                                : 'bg-background-dark/80 border-slate-800 text-slate-300 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="truncate">{isBelmont ? '👑 BELMONT CONFERENCE' : conv.name || 'Conversa Direta'}</span>
+                              <span className="text-[9px] text-slate-500 uppercase">{conv.type}</span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                              {participantNames || 'Membros do chat'}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Coluna Direita: Stream de Mensagens e Barra de Envio Secreta (7 cols) */}
+                <div className="md:col-span-7 flex flex-col h-[320px] rounded-2xl bg-background-surface border border-slate-800 overflow-hidden">
+                  <div className="p-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-200">
+                      Visualizador de Mensagens ({masterMessages.length} msgs)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => loadMasterConversationMessages(selectedMasterConvId)}
+                      className="text-[10px] text-purple-400 hover:text-purple-300 font-semibold"
+                    >
+                      🔄 Atualizar
+                    </button>
+                  </div>
+
+                  {/* Mensagens */}
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2 text-xs">
+                    {masterMessages.length === 0 ? (
+                      <div className="text-center py-10 text-slate-500 text-[11px]">
+                        Nenhuma mensagem encontrada nesta conversa.
+                      </div>
+                    ) : (
+                      masterMessages.map((m) => (
+                        <div key={m.id} className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 space-y-0.5">
+                          <div className="flex items-center justify-between text-[10px] text-slate-400">
+                            <strong className="text-amber-300">{m.sender?.display_name || m.sender?.username || 'Usuário'}</strong>
+                            <span>{new Date(m.created_at).toLocaleTimeString('pt-BR')}</span>
+                          </div>
+                          <p className="text-slate-200">{m.content}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Barra de Envio como Personificador */}
+                  <form onSubmit={handleSendMasterMessage} className="p-2 bg-slate-900 border-t border-slate-800 flex gap-2">
+                    <input
+                      type="text"
+                      value={masterInputText}
+                      onChange={(e) => setMasterInputText(e.target.value)}
+                      placeholder={`Enviar como ${impersonatedUserObj?.display_name || 'Usuário'}...`}
+                      className="flex-1 px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={actionLoading || !masterInputText.trim()}
+                      className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-extrabold text-xs flex items-center gap-1 shadow-md"
+                    >
+                      <Send className="w-3.5 h-3.5" /> Enviar
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ABA 2: ESTATÍSTICAS */}
           {activeTab === 'stats' && stats && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -487,7 +712,7 @@ export function AdminModal({ isOpen, onClose }) {
             </div>
           )}
 
-          {/* ABA 2: USUÁRIOS & CONCEDER MOEDAS */}
+          {/* ABA 3: USUÁRIOS & CONCEDER MOEDAS */}
           {activeTab === 'users' && (
             <div className="space-y-3">
               <div className="relative">
@@ -542,7 +767,7 @@ export function AdminModal({ isOpen, onClose }) {
             </div>
           )}
 
-          {/* ABA 3: GERENCIAR LOJA (TODOS OS ITENS + CADASTRO) */}
+          {/* ABA 4: GERENCIAR LOJA */}
           {activeTab === 'shop' && (
             <div className="space-y-4">
               {/* Formulário de Criação de Item */}
@@ -625,7 +850,7 @@ export function AdminModal({ isOpen, onClose }) {
                 </button>
               </form>
 
-              {/* Lista e Gerenciamento de TODOS os Itens da Loja */}
+              {/* Lista e Gerenciamento de Itens da Loja */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-xs font-bold text-slate-300">
@@ -657,7 +882,6 @@ export function AdminModal({ isOpen, onClose }) {
                       </div>
 
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        {/* Editor de Preço Rápido */}
                         <div className="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded-lg border border-slate-700">
                           <img src="/nexus-coin.jpg" alt="Moeda" className="w-3.5 h-3.5 rounded-full" />
                           <input
@@ -684,10 +908,9 @@ export function AdminModal({ isOpen, onClose }) {
             </div>
           )}
 
-          {/* ABA 4: GERENCIAR PATCH NOTES (NOVO) */}
+          {/* ABA 5: GERENCIAR PATCH NOTES */}
           {activeTab === 'patches' && (
             <div className="space-y-4">
-              {/* Formulário de Publicação de Patch Notes */}
               <form onSubmit={handleCreatePatchNote} className="p-4 rounded-2xl bg-slate-900/90 border border-brand-500/30 space-y-3">
                 <div className="flex items-center gap-2 text-xs font-extrabold text-brand-300">
                   <FileText className="w-4 h-4" /> Publicar Nova Nota de Atualização / Patch Note
@@ -765,7 +988,6 @@ export function AdminModal({ isOpen, onClose }) {
                 </button>
               </form>
 
-              {/* Lista de Patch Notes Existentes */}
               <div>
                 <h4 className="text-xs font-bold text-slate-300 mb-2">Patch Notes Publicadas ({patchNotesList.length})</h4>
                 <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
@@ -795,7 +1017,7 @@ export function AdminModal({ isOpen, onClose }) {
             </div>
           )}
 
-          {/* ABA 5: LIMPEZA DE CHAT */}
+          {/* ABA 6: LIMPEZA DE CHAT */}
           {activeTab === 'cleanup' && (
             <div className="space-y-4">
               <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/30">
@@ -847,7 +1069,7 @@ export function AdminModal({ isOpen, onClose }) {
             </div>
           )}
 
-          {/* ABA 6: TRANSMISSÃO BELMONT */}
+          {/* ABA 7: TRANSMISSÃO BELMONT */}
           {activeTab === 'broadcast' && (
             <form onSubmit={handleSendBroadcast} className="space-y-3">
               <div className="p-3 rounded-2xl bg-brand-500/10 border border-brand-500/30 text-xs text-brand-300">

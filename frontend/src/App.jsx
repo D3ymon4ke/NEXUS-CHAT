@@ -37,6 +37,7 @@ function ChatDashboard() {
   // Perfil e Stories Viewer States
   const [targetUserProfile, setTargetUserProfile] = useState(null);
   const [activeStoryGroup, setActiveStoryGroup] = useState(null);
+  const [storiesRefreshKey, setStoriesRefreshKey] = useState(Date.now());
 
   const [mobileView, setMobileView] = useState('sidebar'); // 'sidebar' | 'chat'
 
@@ -115,6 +116,7 @@ function ChatDashboard() {
             onOpenCreateStory={() => setShowCreateStoryModal(true)}
             onOpenStoryViewer={(group) => setActiveStoryGroup(group)}
             onOpenProfile={(u) => setTargetUserProfile(u)}
+            storiesRefreshKey={storiesRefreshKey}
           />
         </div>
 
@@ -217,6 +219,7 @@ function ChatDashboard() {
       <CreateStoryModal
         isOpen={showCreateStoryModal}
         onClose={() => setShowCreateStoryModal(false)}
+        onStoryCreated={() => setStoriesRefreshKey(Date.now())}
       />
 
       <StoryViewerModal
@@ -224,6 +227,7 @@ function ChatDashboard() {
         isOpen={Boolean(activeStoryGroup)}
         onClose={() => setActiveStoryGroup(null)}
         onReplyToAuthor={(author) => handleStartDirectChat(author)}
+        onStoryDeleted={() => setStoriesRefreshKey(Date.now())}
       />
     </div>
   );

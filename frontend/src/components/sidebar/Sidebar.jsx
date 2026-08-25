@@ -30,7 +30,8 @@ export function Sidebar({
   onOpenFriends,
   onOpenCreateStory,
   onOpenStoryViewer,
-  onOpenProfile
+  onOpenProfile,
+  storiesRefreshKey
 }) {
   const { user } = useAuth();
   const { conversations, activeConversationId, setActiveConversationId, loadingConversations } = useChat();
@@ -152,6 +153,7 @@ export function Sidebar({
 
       {/* Barra de Stories Estilo Instagram */}
       <StoriesBar
+        refreshKey={storiesRefreshKey}
         onOpenCreateStory={onOpenCreateStory}
         onOpenStoryViewer={onOpenStoryViewer}
       />

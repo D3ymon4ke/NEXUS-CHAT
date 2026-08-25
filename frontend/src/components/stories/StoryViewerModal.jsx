@@ -29,7 +29,7 @@ const STORY_REACTIONS = [
   { id: 'crown', emoji: '👑', label: 'Coroa' }
 ];
 
-export function StoryViewerModal({ storyGroup, isOpen, onClose, onReplyToAuthor }) {
+export function StoryViewerModal({ storyGroup, isOpen, onClose, onReplyToAuthor, onStoryDeleted }) {
   const { user: currentUser } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
@@ -117,7 +117,6 @@ export function StoryViewerModal({ storyGroup, isOpen, onClose, onReplyToAuthor 
   const handleSendReaction = async (reaction) => {
     if (!currentStory || !currentUser) return;
 
-    // Efeito de partículas flutuantes
     const id = Date.now();
     setFloatingEmojis((prev) => [...prev, { id, emoji: reaction.emoji, x: Math.random() * 60 + 20 }]);
     setTimeout(() => {
@@ -140,13 +139,14 @@ export function StoryViewerModal({ storyGroup, isOpen, onClose, onReplyToAuthor 
   };
 
   const handleDeleteOwnStory = async () => {
-    if (!window.confirm('Tem certeza que deseja excluir este Story?')) return;
+    if (!window.confirm('Tem certeza que deseja excluir este Story permanentemente?')) return;
     try {
       if (isSupabaseConfigured && supabase && currentStory) {
         await supabase.from('nexus_stories').delete().eq('id', currentStory.id);
       }
       sounds.playPop();
       onClose();
+      if (onStoryDeleted) onStoryDeleted();
     } catch (e) {
       console.error('Erro ao excluir story:', e);
     }
