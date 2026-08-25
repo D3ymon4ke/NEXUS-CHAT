@@ -1,14 +1,14 @@
 {
-  "outputDirectory": "dist",
-  "framework": "vite",
+  "cleanUrls": true,
+  "trailingSlash": false,
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "http://187.127.40.228:5000/api/$1"
+      "source": "/api/:path*",
+      "destination": "http://187.127.40.228:5000/api/:path*"
     },
     {
-      "source": "/socket.io/(.*)",
-      "destination": "http://187.127.40.228:5000/socket.io/$1"
+      "source": "/socket.io/:path*",
+      "destination": "http://187.127.40.228:5000/socket.io/:path*"
     },
     {
       "source": "/(.*)",
