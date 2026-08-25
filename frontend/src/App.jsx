@@ -16,7 +16,7 @@ import { Sparkles, Flame, Check } from 'lucide-react';
 
 function ChatDashboard() {
   const { user, loading } = useAuth();
-  const { activeConversation, setActiveConversationId } = useChat();
+  const { activeConversation, activeConversationId, setActiveConversationId } = useChat();
   const { coinsAlert } = useSocket();
 
   const [showAuthModal, setShowAuthModal] = useState(false);
