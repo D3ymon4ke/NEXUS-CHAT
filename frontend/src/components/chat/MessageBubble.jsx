@@ -95,10 +95,6 @@ export function MessageBubble({
       className={`group relative flex flex-col my-1.5 transition-all ${
         isOwn ? 'items-end' : 'items-start'
       }`}
-      onMouseLeave={() => {
-        setShowMenu(false);
-        setShowEmojiPicker(false);
-      }}
     >
       {/* Nome do Remetente em Grupos */}
       {!isOwn && sender && !isDeleted && (
@@ -120,13 +116,19 @@ export function MessageBubble({
         {!isDeleted && (
           <div
             className={`absolute top-0 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex items-center bg-background-surface/95 border border-slate-700/80 rounded-full px-1.5 py-0.5 shadow-lg backdrop-blur ${
+              showMenu || showEmojiPicker ? '!opacity-100 !z-40' : ''
+            } ${
               isOwn ? 'right-0 -translate-x-full mr-2' : 'left-0 translate-x-full ml-2'
             }`}
           >
             {/* Reação Rápida */}
             <div className="relative">
               <button
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowEmojiPicker(!showEmojiPicker);
+                  setShowMenu(false);
+                }}
                 title="Reagir"
                 className="p-1 text-slate-400 hover:text-yellow-400 rounded-full hover:bg-slate-700/60 transition-colors"
               >
@@ -134,20 +136,30 @@ export function MessageBubble({
               </button>
 
               {showEmojiPicker && (
-                <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-background-dark/95 border border-slate-700 px-2 py-1 rounded-full shadow-xl z-30 animate-fadeIn">
-                  {POPULAR_REACTIONS.map((emoji) => (
-                    <button
-                      key={emoji}
-                      onClick={() => {
-                        onReact(message.id, emoji);
-                        setShowEmojiPicker(false);
-                      }}
-                      className="hover:scale-125 transition-transform text-sm p-0.5"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div
+                    className="fixed inset-0 z-30"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowEmojiPicker(false);
+                    }}
+                  />
+                  <div className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-background-dark/95 border border-slate-700 px-2 py-1 rounded-full shadow-xl z-40 animate-fadeIn backdrop-blur">
+                    {POPULAR_REACTIONS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onReact(message.id, emoji);
+                          setShowEmojiPicker(false);
+                        }}
+                        className="hover:scale-125 transition-transform text-sm p-0.5"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
 
@@ -161,7 +173,11 @@ export function MessageBubble({
 
             <div className="relative">
               <button
-                onClick={() => setShowMenu(!showMenu)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMenu(!showMenu);
+                  setShowEmojiPicker(false);
+                }}
                 title="Mais opções"
                 className="p-1 text-slate-400 hover:text-slate-200 rounded-full hover:bg-slate-700/60 transition-colors"
               >
@@ -169,50 +185,59 @@ export function MessageBubble({
               </button>
 
               {showMenu && (
-                <div
-                  className={`absolute bottom-full mb-2 w-36 bg-background-surface/95 border border-slate-700 rounded-xl shadow-2xl py-1 text-xs z-30 backdrop-blur ${
-                    isOwn ? 'right-0' : 'left-0'
-                  }`}
-                >
-                  <button
-                    onClick={handleCopy}
-                    className="w-full px-3 py-1.5 text-left text-slate-200 hover:bg-background-hover flex items-center gap-2"
-                  >
-                    <Copy className="w-3.5 h-3.5 text-slate-400" /> Copiar Texto
-                  </button>
-                  <button
-                    onClick={() => {
-                      onPin(message.id, !message.is_pinned);
+                <>
+                  <div
+                    className="fixed inset-0 z-30"
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setShowMenu(false);
                     }}
-                    className="w-full px-3 py-1.5 text-left text-slate-200 hover:bg-background-hover flex items-center gap-2"
+                  />
+                  <div
+                    className={`absolute top-full mt-1.5 w-36 bg-background-surface/95 border border-slate-700/80 rounded-xl shadow-2xl py-1 text-xs z-40 backdrop-blur-md animate-fadeIn ${
+                      isOwn ? 'right-0' : 'left-0'
+                    }`}
                   >
-                    <Pin className="w-3.5 h-3.5 text-slate-400" />
-                    {message.is_pinned ? 'Desafixar' : 'Fixar'}
-                  </button>
-                  {isOwn && (
-                    <>
-                      <button
-                        onClick={() => {
-                          onEdit(message);
-                          setShowMenu(false);
-                        }}
-                        className="w-full px-3 py-1.5 text-left text-slate-200 hover:bg-background-hover flex items-center gap-2"
-                      >
-                        <Edit2 className="w-3.5 h-3.5 text-slate-400" /> Editar
-                      </button>
-                      <button
-                        onClick={() => {
-                          onDelete(message.id);
-                          setShowMenu(false);
-                        }}
-                        className="w-full px-3 py-1.5 text-left text-red-400 hover:bg-red-500/10 flex items-center gap-2"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" /> Excluir
-                      </button>
-                    </>
-                  )}
-                </div>
+                    <button
+                      onClick={handleCopy}
+                      className="w-full px-3 py-1.5 text-left text-slate-200 hover:bg-background-hover flex items-center gap-2"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-slate-400" /> Copiar Texto
+                    </button>
+                    <button
+                      onClick={() => {
+                        onPin(message.id, !message.is_pinned);
+                        setShowMenu(false);
+                      }}
+                      className="w-full px-3 py-1.5 text-left text-slate-200 hover:bg-background-hover flex items-center gap-2"
+                    >
+                      <Pin className="w-3.5 h-3.5 text-slate-400" />
+                      {message.is_pinned ? 'Desafixar' : 'Fixar'}
+                    </button>
+                    {isOwn && (
+                      <>
+                        <button
+                          onClick={() => {
+                            onEdit(message);
+                            setShowMenu(false);
+                          }}
+                          className="w-full px-3 py-1.5 text-left text-slate-200 hover:bg-background-hover flex items-center gap-2"
+                        >
+                          <Edit2 className="w-3.5 h-3.5 text-slate-400" /> Editar
+                        </button>
+                        <button
+                          onClick={() => {
+                            onDelete(message.id);
+                            setShowMenu(false);
+                          }}
+                          className="w-full px-3 py-1.5 text-left text-red-400 hover:bg-red-500/10 flex items-center gap-2"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Excluir
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           </div>
