@@ -74,6 +74,7 @@ export function SettingsModal({ isOpen, onClose }) {
     try {
       const fieldMap = {
         frames: 'equipped_frame',
+        wallpapers: 'equipped_wallpaper',
         bubbles: 'equipped_bubble',
         badges: 'equipped_badge',
         name_colors: 'equipped_name_color'
@@ -258,6 +259,7 @@ export function SettingsModal({ isOpen, onClose }) {
                 {myInventoryItems.map((item) => {
                   const isEquipped =
                     (item.category === 'frames' && user?.equipped_frame === item.id) ||
+                    (item.category === 'wallpapers' && user?.equipped_wallpaper === item.id) ||
                     (item.category === 'bubbles' && user?.equipped_bubble === item.id) ||
                     (item.category === 'badges' && user?.equipped_badge === item.id) ||
                     (item.category === 'name_colors' && user?.equipped_name_color === item.id);

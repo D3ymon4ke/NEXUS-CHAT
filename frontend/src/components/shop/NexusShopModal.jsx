@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { apiRequest } from '../../lib/api';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { SHOP_CATALOG } from '../../lib/shopCatalog';
 import { sounds } from '../../lib/sound';
@@ -8,29 +7,27 @@ import confetti from 'canvas-confetti';
 import {
   ShoppingBag,
   Sparkles,
-  Calendar,
   Check,
-  Crown,
   Flame,
   X,
   Palette,
   MessageSquare,
   Shield,
-  Zap,
   Package,
-  Layers
+  Image as ImageIcon
 } from 'lucide-react';
 
 export function NexusShopModal({ isOpen, onClose }) {
   const { user, updateProfile } = useAuth();
-  const [activeTab, setActiveTab] = useState('frames'); // 'frames' | 'bubbles' | 'badges' | 'name_colors' | 'inventory'
-  const [catalog] = useState(SHOP_CATALOG);
+  const [activeTab, setActiveTab] = useState('frames'); // 'frames' | 'wallpapers' | 'bubbles' | 'badges' | 'name_colors' | 'inventory'
+  const [catalog, setCatalog] = useState(SHOP_CATALOG);
   const [userCoins, setUserCoins] = useState(user?.nexus_coins || 100);
   const [dailyStreak, setDailyStreak] = useState(user?.daily_streak || 0);
   const [lastDailyClaim, setLastDailyClaim] = useState(user?.last_daily_claim || null);
-  const [unlockedItems, setUnlockedItems] = useState(user?.unlocked_items || ['frame_default', 'bubble_default']);
+  const [unlockedItems, setUnlockedItems] = useState(user?.unlocked_items || ['frame_default', 'bubble_default', 'wallpaper_default']);
 
   const [equippedFrame, setEquippedFrame] = useState(user?.equipped_frame || 'default');
+  const [equippedWallpaper, setEquippedWallpaper] = useState(user?.equipped_wallpaper || 'default');
   const [equippedBubble, setEquippedBubble] = useState(user?.equipped_bubble || 'default');
   const [equippedBadge, setEquippedBadge] = useState(user?.equipped_badge || 'none');
   const [equippedNameColor, setEquippedNameColor] = useState(user?.equipped_name_color || 'default');
@@ -39,14 +36,14 @@ export function NexusShopModal({ isOpen, onClose }) {
   const [purchasingId, setPurchasingId] = useState(null);
   const [feedbackMsg, setFeedbackMsg] = useState({ text: '', type: '' });
 
-  // Sincroniza dados do usuário ao abrir o modal
   useEffect(() => {
     if (!isOpen || !user) return;
     setUserCoins(user.nexus_coins || 100);
     setDailyStreak(user.daily_streak || 0);
     setLastDailyClaim(user.last_daily_claim || null);
-    setUnlockedItems(user.unlocked_items || ['frame_default', 'bubble_default']);
+    setUnlockedItems(user.unlocked_items || ['frame_default', 'bubble_default', 'wallpaper_default']);
     setEquippedFrame(user.equipped_frame || 'default');
+    setEquippedWallpaper(user.equipped_wallpaper || 'default');
     setEquippedBubble(user.equipped_bubble || 'default');
     setEquippedBadge(user.equipped_badge || 'none');
     setEquippedNameColor(user.equipped_name_color || 'default');
@@ -57,21 +54,41 @@ export function NexusShopModal({ isOpen, onClose }) {
   const loadRemoteData = async () => {
     if (isSupabaseConfigured && supabase && user) {
       try {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('nexus_coins, daily_streak, last_daily_claim, equipped_frame, equipped_bubble, equipped_badge, equipped_name_color, unlocked_items')
-          .eq('id', user.id)
-          .single();
+        const [
+          { data: profile },
+          { data: customItems }
+        ] = await Promise.all([
+          supabase.from('profiles').select('nexus_coins, daily_streak, last_daily_claim, equipped_frame, equipped_wallpaper, equipped_bubble, equipped_badge, equipped_name_color, unlocked_items').eq('id', user.id).single(),
+          supabase.from('shop_items').select('*').eq('is_active', true)
+        ]);
 
         if (profile) {
           setUserCoins(profile.nexus_coins || 100);
           setDailyStreak(profile.daily_streak || 0);
           setLastDailyClaim(profile.last_daily_claim || null);
-          setUnlockedItems(profile.unlocked_items || ['frame_default', 'bubble_default']);
+          setUnlockedItems(profile.unlocked_items || ['frame_default', 'bubble_default', 'wallpaper_default']);
           setEquippedFrame(profile.equipped_frame || 'default');
+          setEquippedWallpaper(profile.equipped_wallpaper || 'default');
           setEquippedBubble(profile.equipped_bubble || 'default');
           setEquippedBadge(profile.equipped_badge || 'none');
           setEquippedNameColor(profile.equipped_name_color || 'default');
+        }
+
+        if (customItems && customItems.length > 0) {
+          // Mescla itens do admin com o catálogo base evitando duplicatas
+          const formattedCustom = customItems.map(ci => ({
+            id: ci.id,
+            category: ci.category,
+            name: ci.name,
+            description: ci.description,
+            price: ci.price,
+            icon: ci.icon || '✨',
+            cssClass: ci.css_class || '',
+            imageUrl: ci.image_url
+          }));
+          const existingIds = new Set(formattedCustom.map(i => i.id));
+          const baseFiltered = SHOP_CATALOG.filter(i => !existingIds.has(i.id));
+          setCatalog([...baseFiltered, ...formattedCustom]);
         }
       } catch (err) {
         console.error('Erro ao buscar dados remotos da loja:', err);
@@ -179,7 +196,6 @@ export function NexusShopModal({ isOpen, onClose }) {
       if (updateProfile) updateProfile({ nexus_coins: newCoins, unlocked_items: newUnlocked });
       setFeedbackMsg({ text: `Você desbloqueou "${item.name}" com sucesso!`, type: 'success' });
 
-      // Auto-equipar após comprar
       handleEquipItem(item.category, item.id);
     } catch (err) {
       setFeedbackMsg({ text: 'Erro ao processar compra.', type: 'error' });
@@ -192,6 +208,7 @@ export function NexusShopModal({ isOpen, onClose }) {
     try {
       const fieldMap = {
         frames: 'equipped_frame',
+        wallpapers: 'equipped_wallpaper',
         bubbles: 'equipped_bubble',
         badges: 'equipped_badge',
         name_colors: 'equipped_name_color'
@@ -201,6 +218,7 @@ export function NexusShopModal({ isOpen, onClose }) {
       if (!fieldName) return;
 
       if (category === 'frames') setEquippedFrame(itemId);
+      if (category === 'wallpapers') setEquippedWallpaper(itemId);
       if (category === 'bubbles') setEquippedBubble(itemId);
       if (category === 'badges') setEquippedBadge(itemId);
       if (category === 'name_colors') setEquippedNameColor(itemId);
@@ -256,7 +274,7 @@ export function NexusShopModal({ isOpen, onClose }) {
                   Itens & Efeitos
                 </span>
               </div>
-              <p className="text-xs text-slate-400">Compre molduras, balões e auras ou gerencie seu inventário</p>
+              <p className="text-xs text-slate-400">Personalize molduras, fundos de conversa, balões e auras</p>
             </div>
           </div>
 
@@ -332,14 +350,15 @@ export function NexusShopModal({ isOpen, onClose }) {
           </div>
         )}
 
-        {/* Abas: Categorias da Loja + Meu Inventário */}
-        <div className="flex bg-background-surface/80 p-1 rounded-2xl border border-slate-800 mb-3">
+        {/* Abas da Loja */}
+        <div className="flex bg-background-surface/80 p-1 rounded-2xl border border-slate-800 mb-3 overflow-x-auto">
           {[
             { id: 'frames', label: 'Molduras', icon: Sparkles },
-            { id: 'bubbles', label: 'Cores de Balão', icon: MessageSquare },
-            { id: 'badges', label: 'Badges & Títulos', icon: Shield },
-            { id: 'name_colors', label: 'Cores de Nome', icon: Palette },
-            { id: 'inventory', label: '🎒 Meu Inventário', icon: Package, highlight: true }
+            { id: 'wallpapers', label: 'Planos de Fundo', icon: ImageIcon },
+            { id: 'bubbles', label: 'Balões', icon: MessageSquare },
+            { id: 'badges', label: 'Badges', icon: Shield },
+            { id: 'name_colors', label: 'Auras', icon: Palette },
+            { id: 'inventory', label: '🎒 Inventário', icon: Package, highlight: true }
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -350,7 +369,7 @@ export function NexusShopModal({ isOpen, onClose }) {
                   setActiveTab(tab.id);
                   setFeedbackMsg({ text: '', type: '' });
                 }}
-                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                className={`flex-1 min-w-[90px] py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
                   isActive
                     ? tab.highlight
                       ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md'
@@ -361,7 +380,7 @@ export function NexusShopModal({ isOpen, onClose }) {
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{tab.label}</span>
+                <span>{tab.label}</span>
               </button>
             );
           })}
@@ -374,7 +393,7 @@ export function NexusShopModal({ isOpen, onClose }) {
               <Package className="w-10 h-10 text-slate-600 mb-1" />
               <span className="font-bold text-slate-300">Seu inventário está vazio!</span>
               <p className="text-slate-500 text-center max-w-xs">
-                Explore as abas de Molduras, Balões e Badges da Loja para comprar itens com suas Nexus Coins.
+                Explore as abas de Molduras, Fundos e Balões para comprar itens com suas Nexus Coins.
               </p>
             </div>
           ) : (
@@ -383,6 +402,7 @@ export function NexusShopModal({ isOpen, onClose }) {
                 const isUnlocked = unlockedItems.includes(item.id);
                 const isEquipped =
                   (item.category === 'frames' && equippedFrame === item.id) ||
+                  (item.category === 'wallpapers' && equippedWallpaper === item.id) ||
                   (item.category === 'bubbles' && equippedBubble === item.id) ||
                   (item.category === 'badges' && equippedBadge === item.id) ||
                   (item.category === 'name_colors' && equippedNameColor === item.id);
@@ -419,6 +439,12 @@ export function NexusShopModal({ isOpen, onClose }) {
                               alt="preview"
                               className={`w-12 h-12 rounded-full object-cover ${item.cssClass}`}
                             />
+                          </div>
+                        )}
+
+                        {item.category === 'wallpapers' && (
+                          <div className={`w-full h-12 rounded-xl border border-white/10 flex items-center justify-center text-[11px] font-semibold text-slate-200 ${item.cssClass}`}>
+                            Prévia do Fundo ✨
                           </div>
                         )}
 

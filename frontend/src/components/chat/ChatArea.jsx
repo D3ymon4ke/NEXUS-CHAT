@@ -6,6 +6,7 @@ import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
 import { PinnedBanner } from './PinnedBanner';
 import { ImageViewerModal } from './ImageViewerModal';
+import { WALLPAPER_STYLES } from '../../lib/shopCatalog';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChevronDown, MessageSquare, ShieldCheck, Sparkles, Search, X } from 'lucide-react';
@@ -84,8 +85,10 @@ export function ChatArea({ onBack }) {
     return format(date, "d 'de' MMMM", { locale: ptBR });
   };
 
+  const wallpaperClass = WALLPAPER_STYLES[user?.equipped_wallpaper] || 'bg-background-darker';
+
   return (
-    <div className="flex-1 flex flex-col h-full bg-background-darker relative overflow-hidden">
+    <div className={`flex-1 flex flex-col h-full relative overflow-hidden transition-colors duration-500 ${wallpaperClass}`}>
       {/* Header */}
       <ChatHeader
         onBack={onBack}

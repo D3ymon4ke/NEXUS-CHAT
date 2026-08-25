@@ -38,6 +38,53 @@ export const SHOP_CATALOG = [
     cssClass: 'border-2 border-purple-400 shadow-[0_0_16px_rgba(192,132,252,0.9)] ring-2 ring-indigo-500'
   },
 
+  // --- PLANOS DE FUNDO DE CONVERSA (WALLPAPERS) ---
+  {
+    id: 'wallpaper_cyber_grid',
+    category: 'wallpapers',
+    name: 'Cyber Grid Neon',
+    description: 'Grade futurista com linhas ciano e azul escuro',
+    price: 350,
+    icon: '🌐',
+    cssClass: 'bg-[radial-gradient(#06b6d4_1px,transparent_1px)] [background-size:20px_20px] bg-slate-950'
+  },
+  {
+    id: 'wallpaper_belmont_palace',
+    category: 'wallpapers',
+    name: 'Palácio Belmont Real',
+    description: 'Aura nobre dourada com brasões translúcidos',
+    price: 600,
+    icon: '👑',
+    cssClass: 'bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-950/40 via-slate-950 to-black border-amber-500/10'
+  },
+  {
+    id: 'wallpaper_dark_nebula',
+    category: 'wallpapers',
+    name: 'Nebulosa Cosmos',
+    description: 'Poeira cósmica violeta e estrelas distantes',
+    price: 450,
+    icon: '✨',
+    cssClass: 'bg-[radial-gradient(ellipse_at_bottom,_var(--tw-gradient-stops))] from-purple-950/50 via-slate-950 to-black'
+  },
+  {
+    id: 'wallpaper_synthwave',
+    category: 'wallpapers',
+    name: 'Synthwave Sunset',
+    description: 'Gradiente retrô dos anos 80 em magenta e azul',
+    price: 400,
+    icon: '🌇',
+    cssClass: 'bg-gradient-to-b from-indigo-950/60 via-slate-950 to-rose-950/40'
+  },
+  {
+    id: 'wallpaper_deep_obsidian',
+    category: 'wallpapers',
+    name: 'Obsidian Minimalista',
+    description: 'Preto puro com textura geométrica sutil',
+    price: 200,
+    icon: '🖤',
+    cssClass: 'bg-slate-950 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:24px_24px]'
+  },
+
   // --- CORES E TEMAS DE BALÃO DE CHAT (BUBBLES) ---
   {
     id: 'bubble_cyber_violet',
@@ -143,3 +190,11 @@ export const SHOP_CATALOG = [
     cssClass: 'text-cyan-400 font-extrabold drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]'
   }
 ];
+
+export const WALLPAPER_STYLES = {
+  wallpaper_cyber_grid: 'bg-[radial-gradient(#06b6d4_1px,transparent_1px)] [background-size:20px_20px] bg-slate-950',
+  wallpaper_belmont_palace: 'bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-950/40 via-slate-950 to-black',
+  wallpaper_dark_nebula: 'bg-[radial-gradient(ellipse_at_bottom,_var(--tw-gradient-stops))] from-purple-950/50 via-slate-950 to-black',
+  wallpaper_synthwave: 'bg-gradient-to-b from-indigo-950/60 via-slate-950 to-rose-950/40',
+  wallpaper_deep_obsidian: 'bg-slate-950 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:24px_24px]'
+};
