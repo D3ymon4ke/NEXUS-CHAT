@@ -1,6 +1,14 @@
 {
-  "framework": "vite",
+  "version": 2,
   "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "http://187.127.40.228:5000/api/:path*"
+    },
+    {
+      "source": "/socket.io/:path*",
+      "destination": "http://187.127.40.228:5000/socket.io/:path*"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"

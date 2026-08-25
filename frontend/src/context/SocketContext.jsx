@@ -4,10 +4,12 @@ import { useAuth } from './AuthContext';
 
 const SocketContext = createContext(null);
 
+const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+
 const SOCKET_URL = 
   import.meta.env.VITE_SOCKET_URL || 
   import.meta.env.NEXT_PUBLIC_SOCKET_URL || 
-  'http://187.127.40.228:5000';
+  (isHttps ? '/' : 'http://187.127.40.228:5000');
 
 export function SocketProvider({ children }) {
   const { user, session } = useAuth();

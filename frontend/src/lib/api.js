@@ -1,15 +1,18 @@
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 
+const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+
 const API_BASE_URL = 
   import.meta.env.VITE_API_URL || 
   import.meta.env.NEXT_PUBLIC_API_URL || 
-  'http://187.127.40.228:5000/api';
+  (isHttps ? '/api' : 'http://187.127.40.228:5000/api');
 
 /**
  * Utilitário para chamadas à API com token JWT automático
  */
 export async function apiRequest(endpoint, options = {}) {
-  const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${API_BASE_URL}${cleanEndpoint}`;
 
   let token = null;
   if (isSupabaseConfigured && supabase) {
