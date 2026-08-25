@@ -14,7 +14,9 @@ import {
   Crown,
   Wallet,
   Home,
-  UserPlus
+  UserPlus,
+  Download,
+  Smartphone
 } from 'lucide-react';
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
@@ -31,6 +33,7 @@ export function Sidebar({
   onOpenCreateStory,
   onOpenStoryViewer,
   onOpenProfile,
+  onOpenInstallPWA,
   storiesRefreshKey,
   onSelectConversation
 }) {
@@ -111,6 +114,15 @@ export function Sidebar({
               <ShieldAlert className="w-4 h-4" />
             </button>
           )}
+
+          {/* Botão Instalar App no Celular */}
+          <button
+            onClick={onOpenInstallPWA}
+            className="p-1.5 rounded-xl text-emerald-400 hover:text-white bg-emerald-500/15 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all animate-pulse"
+            title="Instalar Nexus Chat no Celular (PWA)"
+          >
+            <Download className="w-4 h-4" />
+          </button>
 
           {/* Botão Amigos */}
           <button
@@ -276,6 +288,12 @@ export function Sidebar({
                       isBelmont ? 'border-2 border-amber-400' : 'border border-slate-700'
                     }`}
                   />
+                  {/* Badge Vermelho de Mensagens Novas no Avatar */}
+                  {conv.unread_count > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.2 rounded-full bg-rose-600 border-2 border-slate-900 text-white text-[10px] font-extrabold shadow-[0_0_12px_rgba(225,29,72,0.9)] animate-bounce z-10">
+                      {conv.unread_count > 99 ? '99+' : conv.unread_count}
+                    </span>
+                  )}
                   {isDirect && (
                     <span
                       className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-background-card ${
@@ -320,9 +338,10 @@ export function Sidebar({
                       )}
                     </p>
 
+                    {/* Badge Vermelho Luminoso de Mensagens Novas */}
                     {conv.unread_count > 0 && (
-                      <span className="px-1.5 py-0.5 rounded-full bg-brand-600 text-white text-[10px] font-bold min-w-[18px] text-center shadow">
-                        {conv.unread_count}
+                      <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-600 to-red-600 text-white text-[10px] font-extrabold min-w-[20px] text-center shadow-lg shadow-rose-600/40 animate-pulse border border-rose-400/50">
+                        {conv.unread_count > 99 ? '99+' : conv.unread_count}
                       </span>
                     )}
                   </div>

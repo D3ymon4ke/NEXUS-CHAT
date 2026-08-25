@@ -16,6 +16,7 @@ import { UserProfileModal } from './components/profile/UserProfileModal';
 import { FriendsModal } from './components/friends/FriendsModal';
 import { CreateStoryModal } from './components/stories/CreateStoryModal';
 import { StoryViewerModal } from './components/stories/StoryViewerModal';
+import { InstallAppModal } from './components/pwa/InstallAppModal';
 import { apiRequest } from './lib/api';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 
@@ -33,6 +34,7 @@ function ChatDashboard() {
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [showCreateStoryModal, setShowCreateStoryModal] = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
 
   // Perfil e Stories Viewer States
   const [targetUserProfile, setTargetUserProfile] = useState(null);
@@ -116,6 +118,7 @@ function ChatDashboard() {
             onOpenCreateStory={() => setShowCreateStoryModal(true)}
             onOpenStoryViewer={(group) => setActiveStoryGroup(group)}
             onOpenProfile={(u) => setTargetUserProfile(u)}
+            onOpenInstallPWA={() => setShowInstallModal(true)}
             storiesRefreshKey={storiesRefreshKey}
             onSelectConversation={handleSelectConversation}
           />
@@ -230,6 +233,11 @@ function ChatDashboard() {
         onClose={() => setActiveStoryGroup(null)}
         onReplyToAuthor={(author) => handleStartDirectChat(author)}
         onStoryDeleted={() => setStoriesRefreshKey(Date.now())}
+      />
+
+      <InstallAppModal
+        isOpen={showInstallModal}
+        onClose={() => setShowInstallModal(false)}
       />
     </div>
   );
