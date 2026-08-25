@@ -51,6 +51,7 @@ const BADGE_LABELS = {
 export function MessageBubble({
   message,
   isOwn,
+  showSenderInfo = true,
   onReply,
   onEdit,
   onDelete,
@@ -66,8 +67,12 @@ export function MessageBubble({
   const sender = message.sender || {};
   const isDeleted = Boolean(message.is_deleted);
   const badgeInfo = BADGE_LABELS[sender.equipped_badge];
-  const nameStyle = NAME_STYLES[sender.equipped_name_color] || 'text-brand-400';
-  
+  const nameStyle = NAME_STYLES[sender.equipped_name_color] || 'text-brand-400 font-bold';
+  const frameClass = FRAME_STYLES[sender.equipped_frame] || 'border border-slate-700';
+
+  const isAdmin = sender.role === 'admin' || sender.username?.toLowerCase() === 'damon';
+  const isModerator = sender.role === 'moderator';
+
   const customBubble = isDeleted
     ? 'bg-slate-900/60 border border-slate-800 text-slate-400'
     : isOwn
@@ -93,30 +98,64 @@ export function MessageBubble({
 
   return (
     <div
-      className={`group relative flex flex-col my-1.5 transition-all ${
-        isOwn ? 'items-end' : 'items-start'
+      className={`group relative flex my-1.5 transition-all ${
+        isOwn ? 'justify-end' : 'justify-start items-end gap-2'
       }`}
     >
-      {/* Nome do Remetente em Grupos (Clicável para ver perfil) */}
-      {!isOwn && sender && !isDeleted && (
+      {/* Bolinha da Imagem do Usuário (Visível em grupos e conversas com mais de 2 pessoas) */}
+      {!isOwn && showSenderInfo && (
         <div
           onClick={() => onOpenProfile && onOpenProfile(sender)}
-          className="flex items-center gap-1.5 mb-0.5 ml-2 cursor-pointer hover:opacity-80 transition-opacity"
-          title="Ver perfil do membro"
+          className="cursor-pointer flex-shrink-0 group-hover:scale-105 transition-transform mb-1"
+          title={`Ver perfil de ${sender.display_name || sender.username}`}
         >
-          <span className={`text-[11px] font-semibold ${nameStyle}`}>
-            {sender.display_name || sender.username}
-          </span>
-          {badgeInfo && (
-            <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-0.5">
-              <span>{badgeInfo.icon}</span>
-              <span>{badgeInfo.label}</span>
-            </span>
-          )}
+          <img
+            src={sender.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${sender.id || 'nexus'}`}
+            alt={sender.display_name || 'avatar'}
+            className={`w-8 h-8 rounded-full object-cover shadow ${frameClass}`}
+          />
         </div>
       )}
 
-      <div className="relative flex items-center max-w-[85%] sm:max-w-[70%]">
+      <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-[70%]`}>
+        {/* Nome do Remetente e Badges de Cargo (Admin / Mod / Badges) */}
+        {!isOwn && showSenderInfo && !isDeleted && (
+          <div
+            onClick={() => onOpenProfile && onOpenProfile(sender)}
+            className="flex flex-wrap items-center gap-1.5 mb-1 ml-1 cursor-pointer hover:opacity-85 transition-opacity"
+            title="Ver perfil do membro"
+          >
+            <span className={`text-[11px] ${nameStyle}`}>
+              {sender.display_name || sender.username}
+            </span>
+
+            {/* Badge de Admin Damon com Efeito Glow */}
+            {isAdmin && (
+              <span className="px-2 py-0.2 rounded-full bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white text-[9px] font-extrabold border border-amber-400/80 shadow-[0_0_10px_rgba(239,68,68,0.6)] animate-pulse flex items-center gap-0.5">
+                <span>👑</span>
+                <span>ADMIN</span>
+              </span>
+            )}
+
+            {/* Badge de Moderador */}
+            {isModerator && !isAdmin && (
+              <span className="px-2 py-0.2 rounded-full bg-indigo-600/30 text-indigo-300 text-[9px] font-bold border border-indigo-500/40 flex items-center gap-0.5">
+                <span>🛡️</span>
+                <span>MOD</span>
+              </span>
+            )}
+
+            {/* Badge da Loja Equipado */}
+            {badgeInfo && (
+              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-0.5">
+                <span>{badgeInfo.icon}</span>
+                <span>{badgeInfo.label}</span>
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="relative flex items-center w-full">
         {/* Menu Flutuante de Ações no Hover (Desabilitado se mensagem excluída) */}
         {!isDeleted && (
           <div
@@ -383,5 +422,6 @@ export function MessageBubble({
         </div>
       )}
     </div>
+  </div>
   );
 }

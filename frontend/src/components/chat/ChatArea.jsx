@@ -170,6 +170,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
                   <MessageBubble
                     message={msg}
                     isOwn={isOwn}
+                    showSenderInfo={activeConversation?.type === 'group' || activeConversation?.id === '00000000-0000-0000-0000-000000000001' || (activeConversation?.participants?.length || 0) >= 3}
                     onReply={(m) => setReplyingTo(m)}
                     onEdit={(m) => setEditingMessage(m)}
                     onDelete={(id) => deleteMessage(id)}
