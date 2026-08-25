@@ -65,27 +65,58 @@ export function StoriesBar({ onOpenCreateStory, onOpenStoryViewer }) {
     }
   };
 
+  const myStoryGroup = groupedStories.find((g) => g.user.id === user?.id) || {
+    user: user || {},
+    stories: []
+  };
+
   return (
     <div className="w-full py-2.5 px-3 bg-background-surface/40 border-b border-slate-800/80 flex items-center gap-3 overflow-x-auto select-none no-scrollbar">
       {/* Botão de Adicionar / Ver Meu Story */}
       <div className="flex flex-col items-center flex-shrink-0 cursor-pointer group">
-        <div className="relative" onClick={onOpenCreateStory}>
-          <div className={`p-0.5 rounded-full ${userHasStory ? 'bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600' : 'bg-slate-700'}`}>
+        <div className="relative">
+          {/* Clique no Avatar: Abre o Story do próprio usuário se ele tiver, ou abre criador */}
+          <div
+            onClick={() => {
+              if (userHasStory && myStoryGroup.stories.length > 0) {
+                if (onOpenStoryViewer) onOpenStoryViewer(myStoryGroup);
+              } else {
+                if (onOpenCreateStory) onOpenCreateStory();
+              }
+            }}
+            className={`p-0.5 rounded-full ${userHasStory ? 'bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600 animate-pulse' : 'bg-slate-700'}`}
+            title={userHasStory ? 'Ver meu Story' : 'Criar Story'}
+          >
             <img
               src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
               alt="Meu Avatar"
               className="w-12 h-12 rounded-full object-cover border-2 border-slate-900 shadow group-hover:scale-105 transition-transform"
             />
           </div>
+
+          {/* Botão + no canto: Sempre abre o Criador de Stories */}
           <button
             type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onOpenCreateStory) onOpenCreateStory();
+            }}
             className="absolute bottom-0 right-0 p-1 bg-brand-600 hover:bg-brand-500 text-white rounded-full border-2 border-slate-900 shadow-md group-hover:scale-110 transition-transform"
             title="Criar novo Story"
           >
             <Plus className="w-3 h-3" />
           </button>
         </div>
-        <span className="text-[10px] font-bold text-slate-300 mt-1 truncate max-w-[60px]">
+        <span
+          onClick={() => {
+            if (userHasStory && myStoryGroup.stories.length > 0) {
+              if (onOpenStoryViewer) onOpenStoryViewer(myStoryGroup);
+            } else {
+              if (onOpenCreateStory) onOpenCreateStory();
+            }
+          }}
+          className="text-[10px] font-bold text-slate-300 mt-1 truncate max-w-[60px] hover:text-amber-300 transition-colors"
+        >
           {userHasStory ? 'Seu Story' : 'Criar Story'}
         </span>
       </div>

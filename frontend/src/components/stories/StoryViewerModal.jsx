@@ -15,7 +15,8 @@ import {
   Crown,
   Sparkles,
   Volume2,
-  VolumeX
+  VolumeX,
+  Trash2
 } from 'lucide-react';
 
 const STORY_DURATION = 5000; // 5 segundos por story
@@ -138,6 +139,19 @@ export function StoryViewerModal({ storyGroup, isOpen, onClose, onReplyToAuthor 
     }
   };
 
+  const handleDeleteOwnStory = async () => {
+    if (!window.confirm('Tem certeza que deseja excluir este Story?')) return;
+    try {
+      if (isSupabaseConfigured && supabase && currentStory) {
+        await supabase.from('nexus_stories').delete().eq('id', currentStory.id);
+      }
+      sounds.playPop();
+      onClose();
+    } catch (e) {
+      console.error('Erro ao excluir story:', e);
+    }
+  };
+
   if (!isOpen || !currentStory) return null;
 
   return (
@@ -174,7 +188,7 @@ export function StoryViewerModal({ storyGroup, isOpen, onClose, onReplyToAuthor 
             />
             <div>
               <span className="text-xs font-bold text-white block drop-shadow">
-                {author.display_name || author.username}
+                {author.display_name || author.username} {isOwnStory && '(Você)'}
               </span>
               <span className="text-[10px] text-white/75 drop-shadow">
                 {new Date(currentStory.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
@@ -184,9 +198,19 @@ export function StoryViewerModal({ storyGroup, isOpen, onClose, onReplyToAuthor 
 
           <div className="flex items-center gap-2">
             {isOwnStory && (
-              <span className="text-xs text-white/90 font-bold px-2.5 py-1 rounded-full bg-black/50 border border-white/20 flex items-center gap-1">
-                <Eye className="w-3.5 h-3.5 text-amber-300" /> {viewCount}
-              </span>
+              <>
+                <span className="text-xs text-white/90 font-bold px-2.5 py-1 rounded-full bg-black/50 border border-white/20 flex items-center gap-1">
+                  <Eye className="w-3.5 h-3.5 text-amber-300" /> {viewCount}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleDeleteOwnStory}
+                  className="p-1.5 rounded-full bg-rose-600/80 hover:bg-rose-600 text-white transition-colors"
+                  title="Excluir este story"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </>
             )}
             <button
               onClick={onClose}
