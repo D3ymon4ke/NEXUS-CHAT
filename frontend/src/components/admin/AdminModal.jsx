@@ -34,7 +34,13 @@ import {
   Ghost,
   Eye,
   UserCheck2,
-  Lock
+  Lock,
+  Cpu,
+  Server,
+  Zap,
+  Flame,
+  Globe,
+  Sliders
 } from 'lucide-react';
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
@@ -44,7 +50,7 @@ export function AdminModal({ isOpen, onClose }) {
   const { user } = useAuth();
   const { loadConversations } = useChat();
 
-  const [activeTab, setActiveTab] = useState('stats'); // 'stats' | 'users' | 'chat_master' | 'shop' | 'patches' | 'cleanup' | 'broadcast'
+  const [activeTab, setActiveTab] = useState('stats'); // 'stats' | 'chat_master' | 'users' | 'shop' | 'patches' | 'cleanup' | 'broadcast'
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [shopItems, setShopItems] = useState([]);
@@ -78,7 +84,7 @@ export function AdminModal({ isOpen, onClose }) {
   const [patchContent, setPatchContent] = useState('');
   const [patchIsPinned, setPatchIsPinned] = useState(false);
 
-  // Substate Chat Master (Fantasma & Personificação Secreta)
+  // Substate Chat Master
   const [allMasterConversations, setAllMasterConversations] = useState([]);
   const [selectedMasterConvId, setSelectedMasterConvId] = useState(BELMONT_ID);
   const [masterMessages, setMasterMessages] = useState([]);
@@ -158,7 +164,6 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
-  // 1. Carregar Todas as Conversas para o Chat Master
   const loadChatMasterData = async () => {
     if (!isSupabaseConfigured || !supabase) return;
     try {
@@ -167,15 +172,12 @@ export function AdminModal({ isOpen, onClose }) {
         .select('*, participants:conversation_participants(user:profiles(*))')
         .order('updated_at', { ascending: false });
 
-      if (convs) {
-        setAllMasterConversations(convs);
-      }
+      if (convs) setAllMasterConversations(convs);
     } catch (err) {
       console.warn('Erro ao carregar conversas master:', err);
     }
   };
 
-  // 2. Carregar Mensagens da Conversa Selecionada no Chat Master
   const loadMasterConversationMessages = async (convId) => {
     if (!isSupabaseConfigured || !supabase || !convId) return;
     try {
@@ -186,15 +188,12 @@ export function AdminModal({ isOpen, onClose }) {
         .order('created_at', { ascending: true })
         .limit(50);
 
-      if (msgs) {
-        setMasterMessages(msgs);
-      }
+      if (msgs) setMasterMessages(msgs);
     } catch (err) {
       console.error('Erro ao carregar mensagens master:', err);
     }
   };
 
-  // 3. Enviar Mensagem Secreta Personificando Outro Usuário
   const handleSendMasterMessage = async (e) => {
     e.preventDefault();
     if (!masterInputText.trim() || !selectedMasterConvId || !impersonatedUserId) return;
@@ -221,7 +220,6 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
-  // 4. Limpeza de Mensagens
   const handleClearBelmontChat = async () => {
     if (!window.confirm('Tem certeza que deseja apagar TODAS as mensagens da sala BELMONT CONFERENCE?')) return;
 
@@ -262,7 +260,6 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
-  // 5. Conceder Moedas
   const handleGiveCoins = async (targetUserId, amount) => {
     try {
       setActionLoading(true);
@@ -294,7 +291,6 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
-  // 6. Criar Item na Loja
   const handleCreateShopItem = async (e) => {
     e.preventDefault();
     if (!newItemName.trim()) return;
@@ -360,7 +356,6 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
-  // 7. Criar Patch Note
   const handleCreatePatchNote = async (e) => {
     e.preventDefault();
     if (!patchTitle.trim() || !patchContent.trim()) return;
@@ -380,7 +375,7 @@ export function AdminModal({ isOpen, onClose }) {
 
       sounds.playPop();
       confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-      setFeedback({ text: 'Nota de Atualização (Patch Note) publicada com sucesso na Página Inicial!', type: 'success' });
+      setFeedback({ text: 'Nota de Atualização publicada com sucesso!', type: 'success' });
       setPatchTitle('');
       setPatchContent('');
       setPatchIsPinned(false);
@@ -405,7 +400,6 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
-  // 8. Transmissão Oficial
   const handleSendBroadcast = async (e) => {
     e.preventDefault();
     if (!broadcastMessage.trim()) return;
@@ -450,32 +444,48 @@ export function AdminModal({ isOpen, onClose }) {
 
   const impersonatedUserObj = users.find(u => u.id === impersonatedUserId) || user;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn select-none">
-      <div className="glass-modal w-full max-w-4xl rounded-3xl p-6 shadow-2xl border border-rose-500/40 flex flex-col max-h-[90vh] overflow-hidden relative">
-        {/* Glow de Fundo */}
-        <div className="absolute -top-24 -right-24 w-60 h-60 bg-rose-500/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -left-24 w-60 h-60 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
+  const navTabs = [
+    { id: 'stats', label: 'Estatísticas', icon: Activity, badge: 'Live' },
+    { id: 'chat_master', label: 'Super DM Master', icon: Ghost, badge: 'Secreto' },
+    { id: 'users', label: 'Usuários & Coins', icon: Users },
+    { id: 'shop', label: 'Gerenciar Loja', icon: ShoppingBag },
+    { id: 'patches', label: 'Patch Notes', icon: FileText },
+    { id: 'cleanup', label: 'Limpeza de Chat', icon: Trash2 },
+    { id: 'broadcast', label: 'Transmissão Belmont', icon: Radio }
+  ];
 
-        {/* Topbar */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-rose-600 to-red-800 text-white flex items-center justify-center shadow-lg shadow-rose-500/25 border border-rose-400/50">
-              <ShieldAlert className="w-6 h-6" />
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-xl animate-fadeIn select-none">
+      <div className="w-full max-w-5xl rounded-3xl p-6 shadow-2xl border border-rose-500/40 bg-gradient-to-b from-slate-900/95 via-background-darker/95 to-slate-950/95 flex flex-col max-h-[92vh] overflow-hidden relative backdrop-blur-2xl">
+        {/* Glows Decorativos de Fundo */}
+        <div className="absolute -top-32 -right-32 w-80 h-80 bg-rose-600/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Topbar com Identidade Visual Damon */}
+        <div className="flex items-center justify-between pb-4 border-b border-slate-800/80">
+          <div className="flex items-center gap-3.5">
+            <div className="relative">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-600 via-red-600 to-amber-600 text-white flex items-center justify-center shadow-xl shadow-rose-600/30 border border-amber-400/50 animate-pulse">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-slate-900 shadow" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-extrabold text-white">PAINEL SUPREMO DE ADMINISTRAÇÃO</h2>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-extrabold uppercase">
-                  Damon Access
+                <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
+                  PAINEL SUPREMO DE ADMINISTRAÇÃO
+                </h2>
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-gradient-to-r from-rose-600/30 to-amber-600/30 text-rose-300 border border-rose-500/50 font-extrabold uppercase shadow-sm">
+                  👑 Damon Access
                 </span>
               </div>
-              <p className="text-xs text-slate-400">Controle de usuários, chat master fantasma, loja e limpeza</p>
+              <p className="text-xs text-slate-400">Controle total de economia, super dms, catálogo e moderação</p>
             </div>
           </div>
+
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-background-surface transition-colors"
+            className="p-2 rounded-2xl text-slate-400 hover:text-white hover:bg-slate-800/80 transition-all border border-slate-800"
           >
             <X className="w-5 h-5" />
           </button>
@@ -486,8 +496,8 @@ export function AdminModal({ isOpen, onClose }) {
           <div
             className={`my-3 p-3 rounded-2xl text-xs font-semibold flex items-center justify-between animate-fadeIn ${
               feedback.type === 'success'
-                ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
-                : 'bg-rose-500/15 border border-rose-500/30 text-rose-300'
+                ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 shadow-lg shadow-emerald-500/10'
+                : 'bg-rose-500/15 border border-rose-500/30 text-rose-300 shadow-lg shadow-rose-500/10'
             }`}
           >
             <div className="flex items-center gap-2">
@@ -500,17 +510,9 @@ export function AdminModal({ isOpen, onClose }) {
           </div>
         )}
 
-        {/* Abas do Painel */}
-        <div className="flex bg-background-surface/80 p-1 rounded-2xl border border-slate-800 my-3 overflow-x-auto">
-          {[
-            { id: 'stats', label: 'Estatísticas', icon: Activity },
-            { id: 'chat_master', label: '🎭 Chat Master Secreto', icon: Ghost },
-            { id: 'users', label: 'Usuários & Coins', icon: Users },
-            { id: 'shop', label: '🛍️ Gerenciar Loja', icon: ShoppingBag },
-            { id: 'patches', label: '📢 Patch Notes', icon: FileText },
-            { id: 'cleanup', label: '🧹 Limpeza de Chat', icon: Trash2 },
-            { id: 'broadcast', label: 'Transmissão Belmont', icon: Radio }
-          ].map((tab) => {
+        {/* Barra de Abas Estilizada com Pills Modernos */}
+        <div className="flex bg-slate-900/80 p-1.5 rounded-2xl border border-slate-800/80 my-3.5 overflow-x-auto no-scrollbar gap-1">
+          {navTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
@@ -520,14 +522,21 @@ export function AdminModal({ isOpen, onClose }) {
                   setActiveTab(tab.id);
                   setFeedback({ text: '', type: '' });
                 }}
-                className={`flex-1 min-w-[130px] py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                className={`py-2 px-3.5 text-xs font-bold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
                   isActive
-                    ? 'bg-gradient-to-r from-rose-600 to-red-700 text-white shadow-md'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                    ? 'bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white shadow-lg shadow-rose-600/30 border border-rose-400/40'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" />
+                <Icon className="w-4 h-4" />
                 <span>{tab.label}</span>
+                {tab.badge && (
+                  <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-extrabold uppercase ${
+                    isActive ? 'bg-black/30 text-white' : 'bg-rose-500/20 text-rose-300'
+                  }`}>
+                    {tab.badge}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -535,37 +544,97 @@ export function AdminModal({ isOpen, onClose }) {
 
         {/* CONTEÚDO DAS ABAS */}
         <div className="flex-1 overflow-y-auto pr-1 space-y-4 min-h-[320px]">
-          {/* ABA 1: CHAT MASTER SECRETO (FANTASMA & PERSONIFICAÇÃO) */}
+          {/* ABA 1: ESTATÍSTICAS & STATUS */}
+          {activeTab === 'stats' && stats && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <div className="p-5 rounded-3xl bg-gradient-to-br from-slate-900 to-slate-900/60 border border-slate-800 shadow-xl relative overflow-hidden group hover:border-slate-700 transition-all">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total de Membros</span>
+                    <div className="w-8 h-8 rounded-xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-brand-400">
+                      <Users className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="text-3xl font-extrabold text-white">{stats.totalUsers}</div>
+                  <p className="text-[11px] text-slate-500 mt-1">Usuários registrados no sistema</p>
+                </div>
+
+                <div className="p-5 rounded-3xl bg-gradient-to-br from-slate-900 to-slate-900/60 border border-slate-800 shadow-xl relative overflow-hidden group hover:border-slate-700 transition-all">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Mensagens Enviadas</span>
+                    <div className="w-8 h-8 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                      <MessageSquare className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="text-3xl font-extrabold text-white">{stats.totalMessages}</div>
+                  <p className="text-[11px] text-slate-500 mt-1">Volume global de mensagens</p>
+                </div>
+
+                <div className="p-5 rounded-3xl bg-gradient-to-br from-slate-900 to-slate-900/60 border border-slate-800 shadow-xl relative overflow-hidden group hover:border-slate-700 transition-all">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nexus Coins Ativas</span>
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                      <Coins className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="text-3xl font-extrabold text-amber-300 flex items-center gap-1.5">
+                    <img src="/nexus-coin.jpg" alt="Moeda" className="w-6 h-6 rounded-full" />
+                    <span>{stats.totalCoinsInEconomy}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">Saldo em circulação na economia</p>
+                </div>
+              </div>
+
+              {/* Status do Servidor & VPS */}
+              <div className="p-5 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900/80 to-emerald-950/40 border border-emerald-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/40">
+                    <Server className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                      <CheckCircle className="w-4 h-4" /> Servidor & VPS Belmont Conectados
+                    </div>
+                    <div className="text-xs text-slate-300 mt-0.5">{stats.vpsStatus}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/40 shadow-sm">
+                    Uptime: {stats.serverUptime}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ABA 2: CHAT MASTER SECRETO (FANTASMA & PERSONIFICAÇÃO) */}
           {activeTab === 'chat_master' && (
             <div className="space-y-4">
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-950/40 via-slate-900 to-indigo-950/40 border border-purple-500/40 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-purple-500/20 text-purple-300 flex items-center justify-center border border-purple-500/40">
+              <div className="p-4 rounded-3xl bg-gradient-to-r from-purple-950/50 via-slate-900 to-indigo-950/50 border border-purple-500/40 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-purple-500/20 text-purple-300 flex items-center justify-center border border-purple-500/40">
                     <Ghost className="w-5 h-5" />
                   </div>
                   <div>
                     <h3 className="text-xs font-extrabold text-purple-300 uppercase tracking-wide">
-                      Modo Chat Master Fantasma Ativo
+                      Super DM & Chat Master Fantasma Ativo
                     </h3>
                     <p className="text-[11px] text-slate-400">
-                      Você pode espionar qualquer conversa e enviar mensagens secretamente personificando qualquer usuário registrado!
+                      Espione qualquer conversa e responda personificando qualquer usuário secretamente.
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 bg-black/50 px-3 py-1.5 rounded-xl border border-purple-500/30 text-xs">
-                  <span className="text-[10px] text-slate-400">Personificando:</span>
+                <div className="flex items-center gap-2 bg-black/60 px-3.5 py-1.5 rounded-2xl border border-purple-500/40 text-xs">
+                  <span className="text-[10px] text-slate-400">Identidade:</span>
                   <strong className="text-amber-300 font-bold">{impersonatedUserObj?.display_name || impersonatedUserObj?.username}</strong>
                 </div>
               </div>
 
-              {/* Grid: 1. Seletor de Conversa e Personificador | 2. Visualizador e Envio */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                {/* Coluna Esquerda: Lista de Conversas e Usuários (4 cols) */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
                 <div className="md:col-span-5 space-y-3">
-                  {/* Seletor de Quem Personificar */}
-                  <div className="p-3 rounded-2xl bg-background-surface border border-slate-800 space-y-2">
+                  <div className="p-4 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-2.5">
                     <label className="text-[10px] font-extrabold text-amber-300 uppercase block">
-                      🎭 1. Escolha como quem você vai responder:
+                      🎭 1. Responder como (Identidade):
                     </label>
                     <select
                       value={impersonatedUserId}
@@ -580,8 +649,7 @@ export function AdminModal({ isOpen, onClose }) {
                     </select>
                   </div>
 
-                  {/* Lista de Conversas para Espionar / Participar */}
-                  <div className="p-3 rounded-2xl bg-background-surface border border-slate-800 space-y-2">
+                  <div className="p-4 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-2.5">
                     <label className="text-[10px] font-extrabold text-slate-300 uppercase block">
                       💬 2. Escolha a Conversa do Sistema:
                     </label>
@@ -598,15 +666,15 @@ export function AdminModal({ isOpen, onClose }) {
                           <div
                             key={conv.id}
                             onClick={() => setSelectedMasterConvId(conv.id)}
-                            className={`p-2 rounded-xl border text-xs cursor-pointer transition-all ${
+                            className={`p-2.5 rounded-2xl border text-xs cursor-pointer transition-all ${
                               isSelected
-                                ? 'bg-purple-600/30 border-purple-500 text-white font-bold'
+                                ? 'bg-purple-600/30 border-purple-500 text-white font-bold shadow-md'
                                 : 'bg-background-dark/80 border-slate-800 text-slate-300 hover:border-slate-700'
                             }`}
                           >
                             <div className="flex items-center justify-between">
                               <span className="truncate">{isBelmont ? '👑 BELMONT CONFERENCE' : conv.name || 'Conversa Direta'}</span>
-                              <span className="text-[9px] text-slate-500 uppercase">{conv.type}</span>
+                              <span className="text-[9px] text-slate-500 uppercase font-bold">{conv.type}</span>
                             </div>
                             <p className="text-[10px] text-slate-400 truncate mt-0.5">
                               {participantNames || 'Membros do chat'}
@@ -618,9 +686,8 @@ export function AdminModal({ isOpen, onClose }) {
                   </div>
                 </div>
 
-                {/* Coluna Direita: Stream de Mensagens e Barra de Envio Secreta (7 cols) */}
-                <div className="md:col-span-7 flex flex-col h-[320px] rounded-2xl bg-background-surface border border-slate-800 overflow-hidden">
-                  <div className="p-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between text-xs">
+                <div className="md:col-span-7 flex flex-col h-[340px] rounded-3xl bg-slate-900/90 border border-slate-800 overflow-hidden shadow-xl">
+                  <div className="p-3 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between text-xs">
                     <span className="font-bold text-slate-200">
                       Visualizador de Mensagens ({masterMessages.length} msgs)
                     </span>
@@ -633,15 +700,14 @@ export function AdminModal({ isOpen, onClose }) {
                     </button>
                   </div>
 
-                  {/* Mensagens */}
-                  <div className="flex-1 overflow-y-auto p-3 space-y-2 text-xs">
+                  <div className="flex-1 overflow-y-auto p-3.5 space-y-2 text-xs">
                     {masterMessages.length === 0 ? (
-                      <div className="text-center py-10 text-slate-500 text-[11px]">
+                      <div className="text-center py-12 text-slate-500 text-xs">
                         Nenhuma mensagem encontrada nesta conversa.
                       </div>
                     ) : (
                       masterMessages.map((m) => (
-                        <div key={m.id} className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 space-y-0.5">
+                        <div key={m.id} className="p-2.5 rounded-2xl bg-background-dark/80 border border-slate-800 space-y-0.5">
                           <div className="flex items-center justify-between text-[10px] text-slate-400">
                             <strong className="text-amber-300">{m.sender?.display_name || m.sender?.username || 'Usuário'}</strong>
                             <span>{new Date(m.created_at).toLocaleTimeString('pt-BR')}</span>
@@ -652,19 +718,18 @@ export function AdminModal({ isOpen, onClose }) {
                     )}
                   </div>
 
-                  {/* Barra de Envio como Personificador */}
-                  <form onSubmit={handleSendMasterMessage} className="p-2 bg-slate-900 border-t border-slate-800 flex gap-2">
+                  <form onSubmit={handleSendMasterMessage} className="p-2.5 bg-slate-950 border-t border-slate-800 flex gap-2">
                     <input
                       type="text"
                       value={masterInputText}
                       onChange={(e) => setMasterInputText(e.target.value)}
                       placeholder={`Enviar como ${impersonatedUserObj?.display_name || 'Usuário'}...`}
-                      className="flex-1 px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
+                      className="flex-1 px-3.5 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
                     />
                     <button
                       type="submit"
                       disabled={actionLoading || !masterInputText.trim()}
-                      className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-extrabold text-xs flex items-center gap-1 shadow-md"
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-extrabold text-xs flex items-center gap-1 shadow-lg"
                     >
                       <Send className="w-3.5 h-3.5" /> Enviar
                     </button>
@@ -674,69 +739,31 @@ export function AdminModal({ isOpen, onClose }) {
             </div>
           )}
 
-          {/* ABA 2: ESTATÍSTICAS */}
-          {activeTab === 'stats' && stats && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
-                  <div className="text-xs text-slate-400 mb-1 flex items-center gap-1.5">
-                    <Users className="w-3.5 h-3.5 text-brand-400" /> Total de Usuários
-                  </div>
-                  <div className="text-2xl font-extrabold text-white">{stats.totalUsers}</div>
-                </div>
-                <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
-                  <div className="text-xs text-slate-400 mb-1 flex items-center gap-1.5">
-                    <MessageSquare className="w-3.5 h-3.5 text-cyan-400" /> Mensagens Trocadas
-                  </div>
-                  <div className="text-2xl font-extrabold text-white">{stats.totalMessages}</div>
-                </div>
-                <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
-                  <div className="text-xs text-slate-400 mb-1 flex items-center gap-1.5">
-                    <Coins className="w-3.5 h-3.5 text-amber-400" /> Moedas em Circulação
-                  </div>
-                  <div className="text-2xl font-extrabold text-amber-300">{stats.totalCoinsInEconomy}</div>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 to-emerald-950/30 border border-emerald-500/30 flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
-                    <CheckCircle className="w-4 h-4" /> Servidor & VPS Conectados
-                  </div>
-                  <div className="text-xs text-slate-300 mt-1">{stats.vpsStatus}</div>
-                </div>
-                <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold">
-                  Uptime: {stats.serverUptime}
-                </span>
-              </div>
-            </div>
-          )}
-
           {/* ABA 3: USUÁRIOS & CONCEDER MOEDAS */}
           {activeTab === 'users' && (
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Buscar usuário por nome ou username..."
-                  className="w-full pl-9 pr-4 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500"
+                  placeholder="Buscar usuário por nome, username ou email..."
+                  className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-background-dark border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 shadow-inner"
                 />
               </div>
 
-              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
                 {filteredUsers.map((u) => (
                   <div
                     key={u.id}
-                    className="p-3 rounded-2xl bg-background-surface/80 border border-slate-800 flex items-center justify-between hover:border-slate-700 transition-all"
+                    className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 flex items-center justify-between hover:border-slate-700 transition-all shadow"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <img
                         src={u.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${u.id}`}
                         alt="avatar"
-                        className="w-9 h-9 rounded-xl object-cover border border-slate-700"
+                        className="w-10 h-10 rounded-2xl object-cover border border-slate-700 shadow"
                       />
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
@@ -757,9 +784,9 @@ export function AdminModal({ isOpen, onClose }) {
 
                     <button
                       onClick={() => setSelectedUserForCoins(u)}
-                      className="px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40 text-xs font-bold flex items-center gap-1 transition-all"
+                      className="px-3.5 py-2 rounded-xl bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm"
                     >
-                      <PlusCircle className="w-3.5 h-3.5" /> Dar Moedas
+                      <PlusCircle className="w-3.5 h-3.5" /> Conceder Moedas
                     </button>
                   </div>
                 ))}
@@ -770,13 +797,12 @@ export function AdminModal({ isOpen, onClose }) {
           {/* ABA 4: GERENCIAR LOJA */}
           {activeTab === 'shop' && (
             <div className="space-y-4">
-              {/* Formulário de Criação de Item */}
-              <form onSubmit={handleCreateShopItem} className="p-4 rounded-2xl bg-slate-900/90 border border-amber-500/30 space-y-3">
-                <div className="flex items-center gap-2 text-xs font-extrabold text-amber-300">
-                  <Plus className="w-4 h-4" /> Cadastrar Novo Item na Loja Nexus
+              <form onSubmit={handleCreateShopItem} className="p-5 rounded-3xl bg-slate-900/90 border border-amber-500/30 space-y-3.5 shadow-xl">
+                <div className="flex items-center gap-2 text-xs font-extrabold text-amber-300 uppercase tracking-wide">
+                  <Plus className="w-4 h-4" /> Cadastrar Novo Item no Catálogo
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <div className="sm:col-span-2">
                     <label className="text-[10px] text-slate-400 font-bold block mb-1">Nome do Item</label>
                     <input
@@ -785,7 +811,7 @@ export function AdminModal({ isOpen, onClose }) {
                       value={newItemName}
                       onChange={(e) => setNewItemName(e.target.value)}
                       placeholder="Ex: Fundo Cyber Vermelho, Moldura Dragão..."
-                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
+                      className="w-full px-3.5 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
                     />
                   </div>
 
@@ -794,7 +820,7 @@ export function AdminModal({ isOpen, onClose }) {
                     <select
                       value={newItemCategory}
                       onChange={(e) => setNewItemCategory(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
+                      className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
                     >
                       <option value="frames">Molduras</option>
                       <option value="wallpapers">Planos de Fundo</option>
@@ -805,7 +831,7 @@ export function AdminModal({ isOpen, onClose }) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <div>
                     <label className="text-[10px] text-slate-400 font-bold block mb-1">Preço (Coins)</label>
                     <input
@@ -814,7 +840,7 @@ export function AdminModal({ isOpen, onClose }) {
                       min={10}
                       value={newItemPrice}
                       onChange={(e) => setNewItemPrice(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
+                      className="w-full px-3.5 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
                     />
                   </div>
 
@@ -825,7 +851,7 @@ export function AdminModal({ isOpen, onClose }) {
                       value={newItemIcon}
                       onChange={(e) => setNewItemIcon(e.target.value)}
                       placeholder="👑, 🔥, ✨..."
-                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
+                      className="w-full px-3.5 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
                     />
                   </div>
 
@@ -836,7 +862,7 @@ export function AdminModal({ isOpen, onClose }) {
                       value={newItemDesc}
                       onChange={(e) => setNewItemDesc(e.target.value)}
                       placeholder="Efeito visual exclusivo..."
-                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
+                      className="w-full px-3.5 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
                     />
                   </div>
                 </div>
@@ -844,15 +870,14 @@ export function AdminModal({ isOpen, onClose }) {
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="w-full py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-extrabold text-xs shadow-md hover:scale-[1.01] transition-all flex items-center justify-center gap-1"
+                  className="w-full py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 text-black font-extrabold text-xs shadow-xl shadow-amber-500/20 hover:scale-[1.01] transition-all flex items-center justify-center gap-1.5"
                 >
                   <PlusCircle className="w-4 h-4" /> Publicar Novo Item na Loja
                 </button>
               </form>
 
-              {/* Lista e Gerenciamento de Itens da Loja */}
               <div>
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-2.5">
                   <h4 className="text-xs font-bold text-slate-300">
                     Catálogo Completo da Loja ({shopItems.length} itens registrados)
                   </h4>
@@ -861,19 +886,19 @@ export function AdminModal({ isOpen, onClose }) {
                     value={shopSearchQuery}
                     onChange={(e) => setShopSearchQuery(e.target.value)}
                     placeholder="Filtrar itens..."
-                    className="px-2.5 py-1 rounded-lg bg-background-dark border border-slate-700 text-[11px] text-white w-40"
+                    className="px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white w-44"
                   />
                 </div>
 
                 <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
                   {filteredShopItems.map((item) => (
-                    <div key={item.id} className="p-3 rounded-2xl bg-background-surface border border-slate-800 flex items-center justify-between text-xs hover:border-slate-700 transition-all">
+                    <div key={item.id} className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 flex items-center justify-between text-xs hover:border-slate-700 transition-all shadow">
                       <div className="flex items-center gap-3 min-w-0">
-                        <span className="text-xl flex-shrink-0">{item.icon}</span>
+                        <span className="text-2xl flex-shrink-0">{item.icon}</span>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-white truncate">{item.name}</span>
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-semibold uppercase">
+                            <span className="text-[10px] px-2 py-0.2 rounded-full bg-amber-500/20 text-amber-300 font-semibold uppercase">
                               {item.category}
                             </span>
                           </div>
@@ -882,23 +907,23 @@ export function AdminModal({ isOpen, onClose }) {
                       </div>
 
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <div className="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded-lg border border-slate-700">
+                        <div className="flex items-center gap-1 bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-700 shadow-inner">
                           <img src="/nexus-coin.jpg" alt="Moeda" className="w-3.5 h-3.5 rounded-full" />
                           <input
                             type="number"
                             defaultValue={item.price}
                             onBlur={(e) => handleUpdateItemPrice(item.id, e.target.value)}
-                            className="w-12 bg-transparent text-amber-300 font-bold text-xs focus:outline-none"
+                            className="w-14 bg-transparent text-amber-300 font-bold text-xs focus:outline-none"
                             title="Clique e altere o valor para atualizar o preço"
                           />
                         </div>
 
                         <button
                           onClick={() => handleDeleteShopItem(item.id)}
-                          className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/20 transition-colors"
+                          className="p-2 rounded-xl text-rose-400 hover:bg-rose-500/20 transition-colors"
                           title="Excluir item da loja"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -911,18 +936,18 @@ export function AdminModal({ isOpen, onClose }) {
           {/* ABA 5: GERENCIAR PATCH NOTES */}
           {activeTab === 'patches' && (
             <div className="space-y-4">
-              <form onSubmit={handleCreatePatchNote} className="p-4 rounded-2xl bg-slate-900/90 border border-brand-500/30 space-y-3">
-                <div className="flex items-center gap-2 text-xs font-extrabold text-brand-300">
+              <form onSubmit={handleCreatePatchNote} className="p-5 rounded-3xl bg-slate-900/90 border border-brand-500/30 space-y-3.5 shadow-xl">
+                <div className="flex items-center gap-2 text-xs font-extrabold text-brand-300 uppercase tracking-wide">
                   <FileText className="w-4 h-4" /> Publicar Nova Nota de Atualização / Patch Note
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <div>
                     <label className="text-[10px] text-slate-400 font-bold block mb-1">Tag / Categoria</label>
                     <select
                       value={patchTag}
                       onChange={(e) => setPatchTag(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-brand-500"
+                      className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-brand-500"
                     >
                       {BADGE_OPTIONS.map((tag) => (
                         <option key={tag} value={tag}>{tag}</option>
@@ -938,19 +963,19 @@ export function AdminModal({ isOpen, onClose }) {
                       value={patchTitle}
                       onChange={(e) => setPatchTitle(e.target.value)}
                       placeholder="Ex: Versão 2.5 - Nova Loja, Emojis e Wallpapers..."
-                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-brand-500"
+                      className="w-full px-3.5 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-brand-500"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <div>
                     <label className="text-[10px] text-slate-400 font-bold block mb-1">Versão (Ex: v2.5.0)</label>
                     <input
                       type="text"
                       value={patchVersion}
                       onChange={(e) => setPatchVersion(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-brand-500"
+                      className="w-full px-3.5 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-brand-500"
                     />
                   </div>
 
@@ -975,14 +1000,14 @@ export function AdminModal({ isOpen, onClose }) {
                     value={patchContent}
                     onChange={(e) => setPatchContent(e.target.value)}
                     placeholder="Descreva as novidades, melhorias e correções desta versão..."
-                    className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-brand-500 resize-none"
+                    className="w-full px-3.5 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-brand-500 resize-none"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="w-full py-2 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-1"
+                  className="w-full py-2.5 rounded-2xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 text-white font-extrabold text-xs shadow-lg transition-all flex items-center justify-center gap-1.5"
                 >
                   <Send className="w-4 h-4" /> Publicar Patch Note na Página Inicial
                 </button>
@@ -992,10 +1017,10 @@ export function AdminModal({ isOpen, onClose }) {
                 <h4 className="text-xs font-bold text-slate-300 mb-2">Patch Notes Publicadas ({patchNotesList.length})</h4>
                 <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
                   {patchNotesList.map((patch) => (
-                    <div key={patch.id} className="p-3 rounded-2xl bg-background-surface border border-slate-800 flex items-center justify-between text-xs">
+                    <div key={patch.id} className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 flex items-center justify-between text-xs shadow">
                       <div className="min-w-0 pr-2">
                         <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold text-[10px]">
+                          <span className="px-2 py-0.2 rounded-full bg-amber-500/20 text-amber-300 font-bold text-[10px]">
                             {patch.tag}
                           </span>
                           <span className="font-bold text-white truncate">{patch.title}</span>
@@ -1005,10 +1030,10 @@ export function AdminModal({ isOpen, onClose }) {
                       </div>
                       <button
                         onClick={() => handleDeletePatchNote(patch.id)}
-                        className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/20 flex-shrink-0"
+                        className="p-2 rounded-xl text-rose-400 hover:bg-rose-500/20 flex-shrink-0"
                         title="Excluir patch note"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   ))}
@@ -1020,7 +1045,7 @@ export function AdminModal({ isOpen, onClose }) {
           {/* ABA 6: LIMPEZA DE CHAT */}
           {activeTab === 'cleanup' && (
             <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/30">
+              <div className="p-4 rounded-3xl bg-amber-950/20 border border-amber-500/30">
                 <div className="flex items-center gap-2 text-sm font-bold text-amber-300 mb-1">
                   <AlertTriangle className="w-4 h-4" /> Central de Limpeza e Manutenção
                 </div>
@@ -1029,38 +1054,38 @@ export function AdminModal({ isOpen, onClose }) {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="p-4 rounded-2xl bg-background-surface/80 border border-slate-800 flex flex-col justify-between">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between shadow-xl">
                   <div>
-                    <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
                       <span>👑</span> Limpar Belmont Conference
                     </h4>
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
                       Apaga todas as mensagens da sala principal oficial. A sala continua ativa e permanente para todos.
                     </p>
                   </div>
                   <button
                     onClick={handleClearBelmontChat}
                     disabled={actionLoading}
-                    className="mt-4 w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg transition-all"
+                    className="mt-5 w-full py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/30 transition-all"
                   >
                     {actionLoading ? 'Limpando...' : '🧹 Limpar Mensagens da Belmont'}
                   </button>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-background-surface/80 border border-slate-800 flex flex-col justify-between">
+                <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between shadow-xl">
                   <div>
-                    <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
                       <span>⚠️</span> Limpeza Geral de Mensagens
                     </h4>
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
                       Reinicia o histórico global de mensagens de todas as conversas do sistema.
                     </p>
                   </div>
                   <button
                     onClick={handleClearAllMessages}
                     disabled={actionLoading}
-                    className="mt-4 w-full py-2.5 rounded-xl bg-slate-800 hover:bg-rose-900 text-rose-300 hover:text-white border border-rose-500/40 text-xs font-bold transition-all"
+                    className="mt-5 w-full py-3 rounded-2xl bg-slate-800 hover:bg-rose-900 text-rose-300 hover:text-white border border-rose-500/40 text-xs font-bold transition-all"
                   >
                     {actionLoading ? 'Processando...' : '☢️ Limpeza Completa Geral'}
                   </button>
@@ -1071,8 +1096,8 @@ export function AdminModal({ isOpen, onClose }) {
 
           {/* ABA 7: TRANSMISSÃO BELMONT */}
           {activeTab === 'broadcast' && (
-            <form onSubmit={handleSendBroadcast} className="space-y-3">
-              <div className="p-3 rounded-2xl bg-brand-500/10 border border-brand-500/30 text-xs text-brand-300">
+            <form onSubmit={handleSendBroadcast} className="space-y-3.5 p-5 rounded-3xl bg-slate-900/90 border border-rose-500/30 shadow-xl">
+              <div className="p-3.5 rounded-2xl bg-brand-500/10 border border-brand-500/30 text-xs text-brand-300">
                 Envie um comunicado oficial em destaque diretamente na sala <strong>BELMONT CONFERENCE</strong> para todos os membros.
               </div>
 
@@ -1083,7 +1108,7 @@ export function AdminModal({ isOpen, onClose }) {
                   value={broadcastTitle}
                   onChange={(e) => setBroadcastTitle(e.target.value)}
                   placeholder="Ex: Atualização do Sistema, Novas Regras..."
-                  className="w-full px-3.5 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-rose-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-rose-500"
                 />
               </div>
 
@@ -1095,14 +1120,14 @@ export function AdminModal({ isOpen, onClose }) {
                   value={broadcastMessage}
                   onChange={(e) => setBroadcastMessage(e.target.value)}
                   placeholder="Escreva a mensagem da transmissão..."
-                  className="w-full px-3.5 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-rose-500 resize-none"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-rose-500 resize-none"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={actionLoading}
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 text-white font-extrabold text-xs shadow-lg transition-all flex items-center justify-center gap-1.5"
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 text-white font-extrabold text-xs shadow-xl shadow-rose-600/30 transition-all flex items-center justify-center gap-2"
               >
                 <Radio className="w-4 h-4 animate-pulse" /> Enviar Transmissão Oficial
               </button>
@@ -1112,8 +1137,8 @@ export function AdminModal({ isOpen, onClose }) {
 
         {/* Modal Flutuante para Conceder Moedas */}
         {selectedUserForCoins && (
-          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
-            <div className="glass-modal w-full max-w-sm rounded-3xl p-5 border border-amber-500/50 shadow-2xl space-y-4">
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fadeIn">
+            <div className="w-full max-w-sm rounded-3xl p-6 border border-amber-500/50 bg-slate-900 shadow-2xl space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Coins className="w-5 h-5 text-amber-400" />
@@ -1134,9 +1159,9 @@ export function AdminModal({ isOpen, onClose }) {
                     key={amt}
                     type="button"
                     onClick={() => setCustomCoinsAmount(amt)}
-                    className={`py-1.5 rounded-xl text-xs font-bold border transition-colors ${
+                    className={`py-2 rounded-xl text-xs font-bold border transition-colors ${
                       customCoinsAmount === amt
-                        ? 'bg-amber-500 text-black border-amber-400'
+                        ? 'bg-amber-500 text-black border-amber-400 shadow'
                         : 'bg-slate-800 text-slate-300 border-slate-700'
                     }`}
                   >
@@ -1150,14 +1175,14 @@ export function AdminModal({ isOpen, onClose }) {
                 value={customCoinsAmount}
                 onChange={(e) => setCustomCoinsAmount(e.target.value)}
                 placeholder="Quantidade customizada..."
-                className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white"
+                className="w-full px-3.5 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white"
               />
 
               <button
                 type="button"
                 onClick={() => handleGiveCoins(selectedUserForCoins.id, customCoinsAmount)}
                 disabled={actionLoading}
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-extrabold text-xs shadow-lg"
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-extrabold text-xs shadow-lg shadow-amber-500/20"
               >
                 Confirmar e Entregar Moedas
               </button>
