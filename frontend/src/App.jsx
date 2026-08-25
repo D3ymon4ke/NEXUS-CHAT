@@ -81,7 +81,7 @@ function ChatDashboard() {
 
   if (loading) {
     return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-background-darker text-white gap-3">
+      <div className="h-screen h-[100dvh] w-screen w-[100dvw] flex flex-col items-center justify-center bg-background-darker text-white gap-3">
         <div className="w-10 h-10 border-4 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
         <span className="text-sm font-semibold tracking-wide text-slate-300">Iniciando Nexus Chat...</span>
       </div>
@@ -89,7 +89,7 @@ function ChatDashboard() {
   }
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-background-darker overflow-hidden relative">
+    <div className="h-screen h-[100dvh] w-screen w-[100dvw] flex flex-col bg-background-darker overflow-hidden relative">
       {/* Toast Discreto de Ganho de Nexus Coins */}
       {coinsAlert && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/90 border border-amber-500/50 text-amber-300 font-bold text-xs shadow-xl backdrop-blur animate-fadeIn select-none pointer-events-none">

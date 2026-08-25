@@ -197,7 +197,7 @@ export function MessageInput() {
   };
 
   return (
-    <div className="relative border-t border-slate-800 bg-background-surface/90 backdrop-blur-md p-3">
+    <div className="relative border-t border-slate-800 bg-background-surface/90 backdrop-blur-md p-2.5 sm:p-3 safe-bottom">
       {/* Banner de Edição de Mensagem */}
       {editingMessage && (
         <div className="mb-2 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-between text-xs animate-fadeIn">
@@ -327,7 +327,7 @@ export function MessageInput() {
             </button>
 
             {showEmojiPicker && (
-              <div className="absolute bottom-full right-0 mb-3 w-72 bg-background-surface/95 border border-slate-700 rounded-2xl shadow-2xl p-3 z-30 backdrop-blur-md animate-fadeIn">
+              <div className="absolute bottom-full right-0 mb-3 w-[calc(100vw-2rem)] sm:w-80 max-w-xs sm:max-w-sm bg-background-surface/95 border border-slate-700 rounded-2xl shadow-2xl p-3 z-30 backdrop-blur-md animate-fadeIn">
                 {/* Abas Emojis vs Figurinhas Animadas */}
                 <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
                   <div className="flex gap-1 bg-background-dark p-0.5 rounded-xl border border-slate-800 text-xs">
