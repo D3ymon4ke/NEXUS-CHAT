@@ -26,12 +26,8 @@ app.use(helmet({
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Permite requisições sem origin (como mobile apps, curl ou postman) ou se listado no allowedOrigins
-    if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
-      callback(null, true);
-    } else {
-      callback(new Error('Origem não permitida pelo CORS'));
-    }
+    // Permite qualquer origem (Vercel, localhost, apps mobile)
+    callback(null, true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']

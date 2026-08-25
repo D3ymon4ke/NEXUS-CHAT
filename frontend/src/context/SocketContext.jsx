@@ -7,7 +7,7 @@ const SocketContext = createContext(null);
 const SOCKET_URL = 
   import.meta.env.VITE_SOCKET_URL || 
   import.meta.env.NEXT_PUBLIC_SOCKET_URL || 
-  'http://localhost:5000';
+  'http://187.127.40.228:5000';
 
 export function SocketProvider({ children }) {
   const { user, session } = useAuth();

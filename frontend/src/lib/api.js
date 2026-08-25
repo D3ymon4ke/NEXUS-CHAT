@@ -3,7 +3,7 @@ import { supabase, isSupabaseConfigured } from './supabaseClient';
 const API_BASE_URL = 
   import.meta.env.VITE_API_URL || 
   import.meta.env.NEXT_PUBLIC_API_URL || 
-  'http://localhost:5000/api';
+  'http://187.127.40.228:5000/api';
 
 /**
  * Utilitário para chamadas à API com token JWT automático
