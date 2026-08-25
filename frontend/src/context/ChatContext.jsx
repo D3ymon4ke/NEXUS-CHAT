@@ -13,7 +13,7 @@ export function ChatProvider({ children }) {
   const { socket, connected } = useSocket();
 
   const [conversations, setConversations] = useState([]);
-  const [activeConversationId, setActiveConversationId] = useState(BELMONT_ID);
+  const [activeConversationId, setActiveConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -22,13 +22,9 @@ export function ChatProvider({ children }) {
   const [editingMessage, setEditingMessage] = useState(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
 
-  const activeConversation = conversations.find(c => c.id === activeConversationId) || {
-    id: BELMONT_ID,
-    name: 'BELMONT CONFERENCE',
-    type: 'group',
-    is_permanent: true,
-    avatar_url: '/belmont-logo.jpg'
-  };
+  const activeConversation = activeConversationId
+    ? conversations.find(c => c.id === activeConversationId) || null
+    : null;
 
   const toggleSound = () => {
     setSoundEnabled(prev => {

@@ -14,7 +14,8 @@ import {
   Sparkles,
   Flame,
   Crown,
-  Wallet
+  Wallet,
+  Home
 } from 'lucide-react';
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
@@ -184,6 +185,28 @@ export function Sidebar({
 
       {/* Lista de Conversas */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+        {/* Botão de Retorno à Página Inicial / Hub */}
+        <button
+          onClick={() => setActiveConversationId(null)}
+          className={`w-full p-3 rounded-2xl flex items-center gap-3 transition-all text-left ${
+            activeConversationId === null || activeConversationId === 'home'
+              ? 'bg-gradient-to-r from-brand-600/30 via-slate-800 to-indigo-950/40 border border-brand-500/50 shadow-md'
+              : 'bg-background-surface/60 border border-slate-800/80 hover:border-slate-700 hover:bg-background-surface'
+          }`}
+        >
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-brand-500 to-indigo-600 flex items-center justify-center text-white shadow flex-shrink-0">
+            <Home className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white truncate">Página Inicial</span>
+              <span className="text-[9px] px-1.5 py-0.2 rounded bg-brand-500/20 text-brand-300 font-bold uppercase">
+                Hub
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 truncate mt-0.5">Patch notes, clima & dicas da plataforma</p>
+          </div>
+        </button>
         {loadingConversations ? (
           <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-xs gap-2">
             <div className="w-6 h-6 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />

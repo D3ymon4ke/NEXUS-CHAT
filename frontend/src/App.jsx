@@ -11,6 +11,7 @@ import { SettingsModal } from './components/settings/SettingsModal';
 import { NexusShopModal } from './components/shop/NexusShopModal';
 import { NexusWalletModal } from './components/wallet/NexusWalletModal';
 import { AdminModal } from './components/admin/AdminModal';
+import { HomeHub } from './components/home/HomeHub';
 import { Sparkles, Flame, Check } from 'lucide-react';
 
 function ChatDashboard() {
@@ -75,13 +76,24 @@ function ChatDashboard() {
           />
         </div>
 
-        {/* Área Principal de Chat (Visível em desktop ou em mobile quando mobileView === 'chat') */}
+        {/* Área Principal: HomeHub ou ChatArea */}
         <div
           className={`flex-1 h-full ${
             mobileView === 'sidebar' ? 'hidden md:flex' : 'flex'
           }`}
         >
-          <ChatArea onBack={handleMobileBack} />
+          {activeConversation && activeConversationId ? (
+            <ChatArea onBack={handleMobileBack} />
+          ) : (
+            <HomeHub
+              onOpenChat={(convId) => {
+                setActiveConversationId(convId);
+                setMobileView('chat');
+              }}
+              onOpenShop={() => setShowShopModal(true)}
+              onOpenWallet={() => setShowWalletModal(true)}
+            />
+          )}
         </div>
       </div>
 

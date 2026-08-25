@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
-import { apiRequest } from '../../lib/api';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
-import { SHOP_CATALOG } from '../../lib/shopCatalog';
 import { sounds } from '../../lib/sound';
 import confetti from 'canvas-confetti';
 import {
@@ -29,20 +27,27 @@ import {
   Image as ImageIcon,
   Palette,
   Shield,
-  Check
+  Check,
+  FileText,
+  Tag,
+  Edit2
 } from 'lucide-react';
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
+
+const BADGE_OPTIONS = ['PATCH', 'ATUALIZAÇÃO', 'NOVIDADE', 'EVENTO', 'CORREÇÃO', 'ANÚNCIO'];
 
 export function AdminModal({ isOpen, onClose }) {
   const { user } = useAuth();
   const { loadConversations } = useChat();
 
-  const [activeTab, setActiveTab] = useState('stats'); // 'stats' | 'users' | 'cleanup' | 'shop' | 'broadcast'
+  const [activeTab, setActiveTab] = useState('stats'); // 'stats' | 'users' | 'cleanup' | 'shop' | 'patches' | 'broadcast'
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [shopItems, setShopItems] = useState([]);
+  const [patchNotesList, setPatchNotesList] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [shopSearchQuery, setShopSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [feedback, setFeedback] = useState({ text: '', type: '' });
@@ -63,10 +68,18 @@ export function AdminModal({ isOpen, onClose }) {
   const [newItemIcon, setNewItemIcon] = useState('✨');
   const [newItemCss, setNewItemCss] = useState('');
 
+  // Substate Criar Patch Note
+  const [patchTag, setPatchTag] = useState('ATUALIZAÇÃO');
+  const [patchTitle, setPatchTitle] = useState('');
+  const [patchVersion, setPatchVersion] = useState('v2.5.0');
+  const [patchContent, setPatchContent] = useState('');
+  const [patchIsPinned, setPatchIsPinned] = useState(false);
+
   useEffect(() => {
     if (!isOpen) return;
     loadAdminData();
     loadShopItems();
+    loadPatchNotes();
   }, [isOpen]);
 
   const loadAdminData = async () => {
@@ -110,6 +123,17 @@ export function AdminModal({ isOpen, onClose }) {
         setShopItems(data || []);
       } catch (err) {
         console.error('Erro ao carregar itens da loja:', err);
+      }
+    }
+  };
+
+  const loadPatchNotes = async () => {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data } = await supabase.from('patch_notes').select('*').order('created_at', { ascending: false });
+        setPatchNotesList(data || []);
+      } catch (err) {
+        console.error('Erro ao carregar patch notes:', err);
       }
     }
   };
@@ -225,6 +249,21 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
+  const handleUpdateItemPrice = async (itemId, newPrice) => {
+    const parsed = parseInt(newPrice, 10);
+    if (isNaN(parsed) || parsed < 0) return;
+
+    try {
+      if (isSupabaseConfigured && supabase) {
+        await supabase.from('shop_items').update({ price: parsed }).eq('id', itemId);
+      }
+      setFeedback({ text: 'Preço do item atualizado com sucesso!', type: 'success' });
+      loadShopItems();
+    } catch (err) {
+      console.error('Erro ao atualizar preço:', err);
+    }
+  };
+
   const handleDeleteShopItem = async (itemId) => {
     if (!window.confirm('Deseja excluir este item da loja?')) return;
     try {
@@ -238,7 +277,52 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
-  // 4. Transmissão Oficial
+  // 4. Cadastrar Patch Notes
+  const handleCreatePatchNote = async (e) => {
+    e.preventDefault();
+    if (!patchTitle.trim() || !patchContent.trim()) return;
+
+    try {
+      setActionLoading(true);
+      if (isSupabaseConfigured && supabase) {
+        await supabase.from('patch_notes').insert({
+          tag: patchTag,
+          title: patchTitle,
+          version: patchVersion || 'v2.5.0',
+          content: patchContent,
+          author_name: 'Damon',
+          is_pinned: patchIsPinned
+        });
+      }
+
+      sounds.playPop();
+      confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+      setFeedback({ text: 'Nota de Atualização (Patch Note) publicada com sucesso na Página Inicial!', type: 'success' });
+      setPatchTitle('');
+      setPatchContent('');
+      setPatchIsPinned(false);
+      loadPatchNotes();
+    } catch (err) {
+      setFeedback({ text: 'Erro ao publicar patch note.', type: 'error' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeletePatchNote = async (patchId) => {
+    if (!window.confirm('Deseja excluir esta nota de atualização?')) return;
+    try {
+      if (isSupabaseConfigured && supabase) {
+        await supabase.from('patch_notes').delete().eq('id', patchId);
+      }
+      setFeedback({ text: 'Nota de atualização excluída.', type: 'success' });
+      loadPatchNotes();
+    } catch (err) {
+      console.error('Erro ao excluir patch note:', err);
+    }
+  };
+
+  // 5. Transmissão Oficial
   const handleSendBroadcast = async (e) => {
     e.preventDefault();
     if (!broadcastMessage.trim()) return;
@@ -276,6 +360,11 @@ export function AdminModal({ isOpen, onClose }) {
     (u.email || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const filteredShopItems = shopItems.filter(item =>
+    item.name.toLowerCase().includes(shopSearchQuery.toLowerCase()) ||
+    item.category.toLowerCase().includes(shopSearchQuery.toLowerCase())
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn select-none">
       <div className="glass-modal w-full max-w-3xl rounded-3xl p-6 shadow-2xl border border-rose-500/40 flex flex-col max-h-[90vh] overflow-hidden relative">
@@ -296,7 +385,7 @@ export function AdminModal({ isOpen, onClose }) {
                   Damon Access
                 </span>
               </div>
-              <p className="text-xs text-slate-400">Controle total de usuários, limpeza de chats e gerenciamento da Loja</p>
+              <p className="text-xs text-slate-400">Controle de usuários, itens da loja, patch notes e limpeza</p>
             </div>
           </div>
           <button
@@ -331,8 +420,9 @@ export function AdminModal({ isOpen, onClose }) {
           {[
             { id: 'stats', label: 'Estatísticas', icon: Activity },
             { id: 'users', label: 'Usuários & Coins', icon: Users },
-            { id: 'cleanup', label: '🧹 Limpeza de Chat', icon: Trash2 },
             { id: 'shop', label: '🛍️ Gerenciar Loja', icon: ShoppingBag },
+            { id: 'patches', label: '📢 Patch Notes', icon: FileText },
+            { id: 'cleanup', label: '🧹 Limpeza de Chat', icon: Trash2 },
             { id: 'broadcast', label: 'Transmissão Belmont', icon: Radio }
           ].map((tab) => {
             const Icon = tab.icon;
@@ -452,7 +542,260 @@ export function AdminModal({ isOpen, onClose }) {
             </div>
           )}
 
-          {/* ABA 3: LIMPEZA DE CHAT (NOVO) */}
+          {/* ABA 3: GERENCIAR LOJA (TODOS OS ITENS + CADASTRO) */}
+          {activeTab === 'shop' && (
+            <div className="space-y-4">
+              {/* Formulário de Criação de Item */}
+              <form onSubmit={handleCreateShopItem} className="p-4 rounded-2xl bg-slate-900/90 border border-amber-500/30 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-extrabold text-amber-300">
+                  <Plus className="w-4 h-4" /> Cadastrar Novo Item na Loja Nexus
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="sm:col-span-2">
+                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Nome do Item</label>
+                    <input
+                      type="text"
+                      required
+                      value={newItemName}
+                      onChange={(e) => setNewItemName(e.target.value)}
+                      placeholder="Ex: Fundo Cyber Vermelho, Moldura Dragão..."
+                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Categoria</label>
+                    <select
+                      value={newItemCategory}
+                      onChange={(e) => setNewItemCategory(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
+                    >
+                      <option value="frames">Molduras</option>
+                      <option value="wallpapers">Planos de Fundo</option>
+                      <option value="bubbles">Balões de Chat</option>
+                      <option value="badges">Badges & Títulos</option>
+                      <option value="name_colors">Auras de Nome</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Preço (Coins)</label>
+                    <input
+                      type="number"
+                      required
+                      min={10}
+                      value={newItemPrice}
+                      onChange={(e) => setNewItemPrice(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Ícone / Emoji</label>
+                    <input
+                      type="text"
+                      value={newItemIcon}
+                      onChange={(e) => setNewItemIcon(e.target.value)}
+                      placeholder="👑, 🔥, ✨..."
+                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Descrição</label>
+                    <input
+                      type="text"
+                      value={newItemDesc}
+                      onChange={(e) => setNewItemDesc(e.target.value)}
+                      placeholder="Efeito visual exclusivo..."
+                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="w-full py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-extrabold text-xs shadow-md hover:scale-[1.01] transition-all flex items-center justify-center gap-1"
+                >
+                  <PlusCircle className="w-4 h-4" /> Publicar Novo Item na Loja
+                </button>
+              </form>
+
+              {/* Lista e Gerenciamento de TODOS os Itens da Loja */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-bold text-slate-300">
+                    Catálogo Completo da Loja ({shopItems.length} itens registrados)
+                  </h4>
+                  <input
+                    type="text"
+                    value={shopSearchQuery}
+                    onChange={(e) => setShopSearchQuery(e.target.value)}
+                    placeholder="Filtrar itens..."
+                    className="px-2.5 py-1 rounded-lg bg-background-dark border border-slate-700 text-[11px] text-white w-40"
+                  />
+                </div>
+
+                <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                  {filteredShopItems.map((item) => (
+                    <div key={item.id} className="p-3 rounded-2xl bg-background-surface border border-slate-800 flex items-center justify-between text-xs hover:border-slate-700 transition-all">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-xl flex-shrink-0">{item.icon}</span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-white truncate">{item.name}</span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-semibold uppercase">
+                              {item.category}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-400 block truncate">{item.description}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {/* Editor de Preço Rápido */}
+                        <div className="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded-lg border border-slate-700">
+                          <img src="/nexus-coin.jpg" alt="Moeda" className="w-3.5 h-3.5 rounded-full" />
+                          <input
+                            type="number"
+                            defaultValue={item.price}
+                            onBlur={(e) => handleUpdateItemPrice(item.id, e.target.value)}
+                            className="w-12 bg-transparent text-amber-300 font-bold text-xs focus:outline-none"
+                            title="Clique e altere o valor para atualizar o preço"
+                          />
+                        </div>
+
+                        <button
+                          onClick={() => handleDeleteShopItem(item.id)}
+                          className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/20 transition-colors"
+                          title="Excluir item da loja"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ABA 4: GERENCIAR PATCH NOTES (NOVO) */}
+          {activeTab === 'patches' && (
+            <div className="space-y-4">
+              {/* Formulário de Publicação de Patch Notes */}
+              <form onSubmit={handleCreatePatchNote} className="p-4 rounded-2xl bg-slate-900/90 border border-brand-500/30 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-extrabold text-brand-300">
+                  <FileText className="w-4 h-4" /> Publicar Nova Nota de Atualização / Patch Note
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Tag / Categoria</label>
+                    <select
+                      value={patchTag}
+                      onChange={(e) => setPatchTag(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-brand-500"
+                    >
+                      {BADGE_OPTIONS.map((tag) => (
+                        <option key={tag} value={tag}>{tag}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Título da Atualização</label>
+                    <input
+                      type="text"
+                      required
+                      value={patchTitle}
+                      onChange={(e) => setPatchTitle(e.target.value)}
+                      placeholder="Ex: Versão 2.5 - Nova Loja, Emojis e Wallpapers..."
+                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-brand-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Versão (Ex: v2.5.0)</label>
+                    <input
+                      type="text"
+                      value={patchVersion}
+                      onChange={(e) => setPatchVersion(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-brand-500"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2 flex items-center pt-4">
+                    <label className="flex items-center gap-2 text-xs text-amber-300 font-semibold cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={patchIsPinned}
+                        onChange={(e) => setPatchIsPinned(e.target.checked)}
+                        className="rounded border-slate-700 bg-background-dark text-amber-500 focus:ring-0"
+                      />
+                      <span>Fixar no topo como Destaque 📌</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold block mb-1">Conteúdo / Mudanças</label>
+                  <textarea
+                    rows={3}
+                    required
+                    value={patchContent}
+                    onChange={(e) => setPatchContent(e.target.value)}
+                    placeholder="Descreva as novidades, melhorias e correções desta versão..."
+                    className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-brand-500 resize-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="w-full py-2 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-1"
+                >
+                  <Send className="w-4 h-4" /> Publicar Patch Note na Página Inicial
+                </button>
+              </form>
+
+              {/* Lista de Patch Notes Existentes */}
+              <div>
+                <h4 className="text-xs font-bold text-slate-300 mb-2">Patch Notes Publicadas ({patchNotesList.length})</h4>
+                <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                  {patchNotesList.map((patch) => (
+                    <div key={patch.id} className="p-3 rounded-2xl bg-background-surface border border-slate-800 flex items-center justify-between text-xs">
+                      <div className="min-w-0 pr-2">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold text-[10px]">
+                            {patch.tag}
+                          </span>
+                          <span className="font-bold text-white truncate">{patch.title}</span>
+                          <span className="text-[10px] text-slate-500">{patch.version}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 truncate mt-0.5">{patch.content}</p>
+                      </div>
+                      <button
+                        onClick={() => handleDeletePatchNote(patch.id)}
+                        className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/20 flex-shrink-0"
+                        title="Excluir patch note"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ABA 5: LIMPEZA DE CHAT */}
           {activeTab === 'cleanup' && (
             <div className="space-y-4">
               <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/30">
@@ -504,121 +847,7 @@ export function AdminModal({ isOpen, onClose }) {
             </div>
           )}
 
-          {/* ABA 4: GERENCIAR LOJA (NOVO) */}
-          {activeTab === 'shop' && (
-            <div className="space-y-4">
-              {/* Formulário de Criação de Item */}
-              <form onSubmit={handleCreateShopItem} className="p-4 rounded-2xl bg-slate-900/90 border border-amber-500/30 space-y-3">
-                <div className="flex items-center gap-2 text-xs font-extrabold text-amber-300">
-                  <Plus className="w-4 h-4" /> Cadastrar Novo Item na Loja Nexus
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div className="sm:col-span-2">
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Nome do Item</label>
-                    <input
-                      type="text"
-                      required
-                      value={newItemName}
-                      onChange={(e) => setNewItemName(e.target.value)}
-                      placeholder="Ex: Fundo Cyber Vermelho, Moldura Dragão..."
-                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Categoria</label>
-                    <select
-                      value={newItemCategory}
-                      onChange={(e) => setNewItemCategory(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
-                    >
-                      <option value="frames">Molduras</option>
-                      <option value="wallpapers">Planos de Fundo</option>
-                      <option value="bubbles">Balões de Chat</option>
-                      <option value="badges">Badges & Títulos</option>
-                      <option value="name_colors">Auras de Nome</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Preço (Nexus Coins)</label>
-                    <input
-                      type="number"
-                      required
-                      min={10}
-                      value={newItemPrice}
-                      onChange={(e) => setNewItemPrice(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Ícone / Emoji</label>
-                    <input
-                      type="text"
-                      value={newItemIcon}
-                      onChange={(e) => setNewItemIcon(e.target.value)}
-                      placeholder="👑, 🔥, ✨..."
-                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Descrição Curta</label>
-                    <input
-                      type="text"
-                      value={newItemDesc}
-                      onChange={(e) => setNewItemDesc(e.target.value)}
-                      placeholder="Efeito exclusivo..."
-                      className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={actionLoading}
-                  className="w-full py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-extrabold text-xs shadow-md hover:scale-[1.01] transition-all flex items-center justify-center gap-1"
-                >
-                  <PlusCircle className="w-4 h-4" /> Publicar Item na Loja
-                </button>
-              </form>
-
-              {/* Lista de Itens Customizados Cadastrados */}
-              <div>
-                <h4 className="text-xs font-bold text-slate-300 mb-2">Itens Publicados pelo Admin ({shopItems.length})</h4>
-                {shopItems.length === 0 ? (
-                  <div className="text-xs text-slate-500 py-3 text-center">Nenhum item personalizado cadastrado ainda.</div>
-                ) : (
-                  <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-                    {shopItems.map((item) => (
-                      <div key={item.id} className="p-2.5 rounded-xl bg-background-surface border border-slate-800 flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg">{item.icon}</span>
-                          <div>
-                            <span className="font-bold text-white">{item.name}</span>
-                            <span className="text-[10px] text-slate-400 ml-2">({item.category} • {item.price} coins)</span>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleDeleteShopItem(item.id)}
-                          className="p-1 rounded text-rose-400 hover:bg-rose-500/20"
-                          title="Excluir item"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ABA 5: TRANSMISSÃO BELMONT */}
+          {/* ABA 6: TRANSMISSÃO BELMONT */}
           {activeTab === 'broadcast' && (
             <form onSubmit={handleSendBroadcast} className="space-y-3">
               <div className="p-3 rounded-2xl bg-brand-500/10 border border-brand-500/30 text-xs text-brand-300">
