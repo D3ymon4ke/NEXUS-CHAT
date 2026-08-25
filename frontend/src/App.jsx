@@ -117,6 +117,7 @@ function ChatDashboard() {
             onOpenStoryViewer={(group) => setActiveStoryGroup(group)}
             onOpenProfile={(u) => setTargetUserProfile(u)}
             storiesRefreshKey={storiesRefreshKey}
+            onSelectConversation={handleSelectConversation}
           />
         </div>
 
@@ -139,6 +140,7 @@ function ChatDashboard() {
               }}
               onOpenShop={() => setShowShopModal(true)}
               onOpenWallet={() => setShowWalletModal(true)}
+              onBack={handleMobileBack}
             />
           )}
         </div>

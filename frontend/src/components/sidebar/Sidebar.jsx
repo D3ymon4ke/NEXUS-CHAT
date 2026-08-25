@@ -31,7 +31,8 @@ export function Sidebar({
   onOpenCreateStory,
   onOpenStoryViewer,
   onOpenProfile,
-  storiesRefreshKey
+  storiesRefreshKey,
+  onSelectConversation
 }) {
   const { user } = useAuth();
   const { conversations, activeConversationId, setActiveConversationId, loadingConversations } = useChat();
@@ -39,6 +40,11 @@ export function Sidebar({
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTab, setFilterTab] = useState('all'); // 'all' | 'unread' | 'direct' | 'group'
+
+  const handleSelect = (convId) => {
+    setActiveConversationId(convId);
+    if (onSelectConversation) onSelectConversation(convId);
+  };
 
   // Filtragem de Conversas
   const filteredConversations = conversations.filter((conv) => {
@@ -198,7 +204,7 @@ export function Sidebar({
       <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
         {/* Botão de Retorno à Página Inicial / Hub */}
         <button
-          onClick={() => setActiveConversationId(null)}
+          onClick={() => handleSelect(null)}
           className={`w-full p-3 rounded-2xl flex items-center gap-3 transition-all text-left ${
             activeConversationId === null || activeConversationId === 'home'
               ? 'bg-gradient-to-r from-brand-600/30 via-slate-800 to-indigo-950/40 border border-brand-500/50 shadow-md'
@@ -251,7 +257,7 @@ export function Sidebar({
             return (
               <div
                 key={conv.id}
-                onClick={() => setActiveConversationId(conv.id)}
+                onClick={() => handleSelect(conv.id)}
                 className={`p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-all border ${
                   isBelmont
                     ? isActive

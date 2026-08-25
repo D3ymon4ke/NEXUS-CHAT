@@ -102,7 +102,7 @@ const DEFAULT_FALLBACK_PATCHES = [
   }
 ];
 
-export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet }) {
+export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet, onBack }) {
   const { user } = useAuth();
   const { setActiveConversationId } = useChat();
 
@@ -154,6 +154,17 @@ export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet }) {
       <div className="absolute top-1/2 left-10 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="max-w-6xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+        {/* Botão de Voltar para Barra Lateral em Dispositivos Móveis */}
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="md:hidden flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-slate-900 border border-slate-700/80 text-slate-200 font-bold text-xs shadow-lg active:scale-95 transition-all"
+          >
+            <ChevronLeft className="w-4 h-4 text-amber-400" />
+            <span>Voltar para Lista de Conversas</span>
+          </button>
+        )}
+
         {/* 1. HERO BANNER PRINCIPAL (COMPACTO E HOLOGRÁFICO) */}
         <div className="relative rounded-3xl p-6 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-indigo-950/70 border border-slate-700/60 shadow-2xl overflow-hidden">
           <div className="flex flex-col lg:flex-row items-center justify-between gap-6 relative z-10">
