@@ -8,9 +8,10 @@ const upload = require('../middlewares/upload');
 const authController = require('../controllers/authController');
 const conversationController = require('../controllers/conversationController');
 const messageController = require('../controllers/messageController');
-const userController = require('../controllers/userController');
 const uploadController = require('../controllers/uploadController');
 const economyController = require('../controllers/economyController');
+const walletController = require('../controllers/walletController');
+const adminController = require('../controllers/adminController');
 
 // --- Health Check ---
 router.get('/health', (req, res) => {
@@ -35,6 +36,17 @@ router.get('/economy/shop', authenticateUser, economyController.getShopCatalog);
 router.post('/economy/claim-daily', authenticateUser, economyController.claimDailyReward);
 router.post('/economy/buy', authenticateUser, economyController.buyShopItem);
 router.post('/economy/equip', authenticateUser, economyController.equipShopItem);
+
+// --- Wallet Routes ---
+router.get('/wallet', authenticateUser, walletController.getWalletDetails);
+router.post('/wallet/transfer', authenticateUser, walletController.transferCoins);
+
+// --- Admin Routes (Damon / Role Admin) ---
+router.get('/admin/stats', authenticateUser, adminController.requireAdmin, adminController.getAdminStats);
+router.get('/admin/users', authenticateUser, adminController.requireAdmin, adminController.getAdminUsers);
+router.post('/admin/give-coins', authenticateUser, adminController.requireAdmin, adminController.giveCoinsToUser);
+router.post('/admin/ban-user', authenticateUser, adminController.requireAdmin, adminController.toggleBanUser);
+router.post('/admin/broadcast', authenticateUser, adminController.requireAdmin, adminController.broadcastAnnouncement);
 
 // --- Conversation Routes ---
 router.get('/conversations', authenticateUser, conversationController.getUserConversations);

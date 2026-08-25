@@ -9,6 +9,8 @@ import { NewChatModal } from './components/sidebar/NewChatModal';
 import { NewGroupModal } from './components/sidebar/NewGroupModal';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { NexusShopModal } from './components/shop/NexusShopModal';
+import { NexusWalletModal } from './components/wallet/NexusWalletModal';
+import { AdminModal } from './components/admin/AdminModal';
 import { Sparkles, Flame, Check } from 'lucide-react';
 
 function ChatDashboard() {
@@ -21,6 +23,8 @@ function ChatDashboard() {
   const [showNewGroupModal, setShowNewGroupModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showShopModal, setShowShopModal] = useState(false);
+  const [showWalletModal, setShowWalletModal] = useState(false);
+  const [showAdminModal, setShowAdminModal] = useState(false);
 
   const [mobileView, setMobileView] = useState('sidebar'); // 'sidebar' | 'chat'
 
@@ -44,12 +48,11 @@ function ChatDashboard() {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-background-darker overflow-hidden relative">
-      {/* Toast Flutuante de Ganho de Nexus Coins */}
+      {/* Toast Discreto e Elegante de Ganho de Nexus Coins (Canto Inferior Direito) */}
       {coinsAlert && (
-        <div className="fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500/90 to-yellow-500/90 text-black font-extrabold text-xs shadow-2xl border border-white/30 backdrop-blur animate-bounceShort select-none">
-          <img src="/nexus-coin.jpg" alt="Moeda" className="w-5 h-5 rounded-full" />
-          <span>+{coinsAlert.amount} NEXUS COINS!</span>
-          <span className="text-[10px] font-semibold text-black/80 ml-1">({coinsAlert.reason})</span>
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/90 border border-amber-500/50 text-amber-300 font-bold text-xs shadow-xl backdrop-blur animate-fadeIn select-none pointer-events-none">
+          <img src="/nexus-coin.jpg" alt="Moeda" className="w-3.5 h-3.5 rounded-full" />
+          <span>+{coinsAlert.amount} coins</span>
         </div>
       )}
 
@@ -67,6 +70,8 @@ function ChatDashboard() {
             onOpenSettings={() => setShowSettingsModal(true)}
             onOpenAuth={() => setShowAuthModal(true)}
             onOpenShop={() => setShowShopModal(true)}
+            onOpenWallet={() => setShowWalletModal(true)}
+            onOpenAdmin={() => setShowAdminModal(true)}
           />
         </div>
 
@@ -110,6 +115,16 @@ function ChatDashboard() {
       <NexusShopModal
         isOpen={showShopModal}
         onClose={() => setShowShopModal(false)}
+      />
+
+      <NexusWalletModal
+        isOpen={showWalletModal}
+        onClose={() => setShowWalletModal(false)}
+      />
+
+      <AdminModal
+        isOpen={showAdminModal}
+        onClose={() => setShowAdminModal(false)}
       />
     </div>
   );

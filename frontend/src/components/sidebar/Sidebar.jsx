@@ -10,9 +10,11 @@ import {
   Search,
   Settings,
   Shield,
+  ShieldAlert,
   Sparkles,
   Flame,
-  Crown
+  Crown,
+  Wallet
 } from 'lucide-react';
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
@@ -22,7 +24,9 @@ export function Sidebar({
   onOpenNewGroup,
   onOpenSettings,
   onOpenAuth,
-  onOpenShop
+  onOpenShop,
+  onOpenWallet,
+  onOpenAdmin
 }) {
   const { user } = useAuth();
   const { conversations, activeConversationId, setActiveConversationId, loadingConversations } = useChat();
@@ -86,15 +90,36 @@ export function Sidebar({
           </div>
         </div>
 
-        {/* Botões de Ação da Barra Lateral + Loja Nexus */}
+        {/* Botões de Ação da Barra Lateral + Loja + Carteira + Admin */}
         <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Botão Painel Admin (Visível apenas para Damon / Admin) */}
+          {(user?.role === 'admin' || user?.username?.toLowerCase() === 'damon') && (
+            <button
+              onClick={onOpenAdmin}
+              className="p-1.5 rounded-xl bg-red-500/20 text-red-400 border border-red-500/40 hover:bg-red-500/30 transition-all shadow-sm"
+              title="Painel Administrativo Damon"
+            >
+              <ShieldAlert className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Botão Carteira */}
+          <button
+            onClick={onOpenWallet}
+            className="p-1.5 rounded-xl text-amber-300 hover:text-white bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 transition-all"
+            title="Minha Carteira Nexus"
+          >
+            <Wallet className="w-4 h-4" />
+          </button>
+
+          {/* Botão Loja */}
           <button
             onClick={onOpenShop}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-600/20 border border-amber-500/40 text-amber-300 hover:scale-105 transition-all shadow-sm group"
+            className="flex items-center gap-1 px-2 py-1 rounded-xl bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-600/20 border border-amber-500/40 text-amber-300 hover:scale-105 transition-all shadow-sm group"
             title="Abrir Loja Nexus & Recompensas"
           >
-            <img src="/nexus-coin.jpg" alt="Moeda" className="w-4 h-4 rounded-full" />
-            <span className="text-xs font-extrabold group-hover:text-white">Loja</span>
+            <img src="/nexus-coin.jpg" alt="Moeda" className="w-3.5 h-3.5 rounded-full" />
+            <span className="text-[11px] font-extrabold group-hover:text-white">Loja</span>
           </button>
 
           <button
@@ -102,21 +127,21 @@ export function Sidebar({
             className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-background-surface transition-colors"
             title="Nova Conversa"
           >
-            <MessageSquarePlus className="w-5 h-5" />
+            <MessageSquarePlus className="w-4 h-4" />
           </button>
           <button
             onClick={onOpenNewGroup}
             className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-background-surface transition-colors"
             title="Novo Grupo"
           >
-            <Users className="w-5 h-5" />
+            <Users className="w-4 h-4" />
           </button>
           <button
             onClick={onOpenSettings}
             className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-background-surface transition-colors"
             title="Configurações"
           >
-            <Settings className="w-5 h-5" />
+            <Settings className="w-4 h-4" />
           </button>
         </div>
       </div>
