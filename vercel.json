@@ -1,17 +1,7 @@
 {
   "buildCommand": "npm --prefix frontend install && npm --prefix frontend run build && (cp -r frontend/dist ./dist 2>/dev/null || true)",
-  "outputDirectory": "dist",
-  "cleanUrls": true,
-  "trailingSlash": false,
+  "outputDirectory": "frontend/dist",
   "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "http://187.127.40.228:5000/api/:path*"
-    },
-    {
-      "source": "/socket.io/:path*",
-      "destination": "http://187.127.40.228:5000/socket.io/:path*"
-    },
     {
       "source": "/(.*)",
       "destination": "/index.html"

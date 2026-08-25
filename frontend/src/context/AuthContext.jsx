@@ -82,6 +82,19 @@ export function AuthProvider({ children }) {
 
   async function loadUserProfile(userId) {
     try {
+      if (isSupabaseConfigured && supabase) {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
+
+        if (profile && !error) {
+          setUser(profile);
+          return;
+        }
+      }
+
       const res = await apiRequest('/auth/me');
       if (res.success && res.user) {
         setUser(res.user);
