@@ -21,7 +21,8 @@ export function Sidebar({
   onOpenNewChat,
   onOpenNewGroup,
   onOpenSettings,
-  onOpenAuth
+  onOpenAuth,
+  onOpenShop
 }) {
   const { user } = useAuth();
   const { conversations, activeConversationId, setActiveConversationId, loadingConversations } = useChat();
@@ -59,12 +60,12 @@ export function Sidebar({
   return (
     <div className="w-full md:w-80 lg:w-96 h-full flex flex-col bg-background-card border-r border-slate-800 flex-shrink-0 select-none">
       {/* Topbar: Perfil do Usuário + Ações */}
-      <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-background-surface/40">
+      <div className="p-3.5 border-b border-slate-800 flex items-center justify-between bg-background-surface/40">
         <div
           onClick={onOpenSettings}
-          className="flex items-center gap-3 cursor-pointer group hover:opacity-90 transition-opacity"
+          className="flex items-center gap-2.5 cursor-pointer group hover:opacity-90 transition-opacity min-w-0"
         >
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             <img
               src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
               alt={user?.display_name}
@@ -85,25 +86,34 @@ export function Sidebar({
           </div>
         </div>
 
-        {/* Botões de Ação da Barra Lateral */}
-        <div className="flex items-center gap-1">
+        {/* Botões de Ação da Barra Lateral + Loja Nexus */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            onClick={onOpenShop}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-600/20 border border-amber-500/40 text-amber-300 hover:scale-105 transition-all shadow-sm group"
+            title="Abrir Loja Nexus & Recompensas"
+          >
+            <img src="/nexus-coin.jpg" alt="Moeda" className="w-4 h-4 rounded-full" />
+            <span className="text-xs font-extrabold group-hover:text-white">Loja</span>
+          </button>
+
           <button
             onClick={onOpenNewChat}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-background-surface transition-colors"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-background-surface transition-colors"
             title="Nova Conversa"
           >
             <MessageSquarePlus className="w-5 h-5" />
           </button>
           <button
             onClick={onOpenNewGroup}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-background-surface transition-colors"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-background-surface transition-colors"
             title="Novo Grupo"
           >
             <Users className="w-5 h-5" />
           </button>
           <button
             onClick={onOpenSettings}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-background-surface transition-colors"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-background-surface transition-colors"
             title="Configurações"
           >
             <Settings className="w-5 h-5" />

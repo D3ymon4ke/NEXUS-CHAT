@@ -20,6 +20,33 @@ import { FormattedText } from './FormattedText';
 
 const POPULAR_REACTIONS = ['👍', '❤️', '🔥', '😂', '🎉', '👏'];
 
+const FRAME_STYLES = {
+  frame_cyber_neon: 'border-2 border-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.8)]',
+  frame_belmont_gold: 'border-2 border-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.9)] ring-1 ring-amber-500',
+  frame_inferno: 'border-2 border-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.9)]',
+  frame_galaxy: 'border-2 border-purple-400 shadow-[0_0_12px_rgba(192,132,252,0.9)]'
+};
+
+const BUBBLE_STYLES = {
+  bubble_cyber_violet: 'bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white shadow-lg shadow-purple-500/20',
+  bubble_royal_gold: 'bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 text-amber-50 shadow-lg shadow-amber-500/25 border border-amber-400/40',
+  bubble_matrix_emerald: 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-lg shadow-emerald-500/20 border border-emerald-400/30',
+  bubble_rose_velvet: 'bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-lg shadow-pink-500/20'
+};
+
+const NAME_STYLES = {
+  name_rainbow_glow: 'bg-gradient-to-r from-red-400 via-amber-300 via-green-300 to-sky-400 bg-clip-text text-transparent font-extrabold',
+  name_golden_glow: 'text-amber-300 font-extrabold drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]',
+  name_electric_cyan: 'text-cyan-400 font-extrabold drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]'
+};
+
+const BADGE_LABELS = {
+  badge_belmont_vip: { icon: '👑', label: 'VIP Belmont' },
+  badge_early_adopter: { icon: '⚡', label: 'Pioneiro' },
+  badge_diamond: { icon: '💎', label: 'Diamante' },
+  badge_chat_master: { icon: '🔥', label: 'Chat Master' }
+};
+
 export function MessageBubble({
   message,
   isOwn,
@@ -33,6 +60,11 @@ export function MessageBubble({
   const [showMenu, setShowMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+
+  const sender = message.sender || {};
+  const badgeInfo = BADGE_LABELS[sender.equipped_badge];
+  const nameStyle = NAME_STYLES[sender.equipped_name_color] || 'text-brand-400';
+  const customBubble = isOwn ? (BUBBLE_STYLES[sender.equipped_bubble] || 'bubble-sent text-white') : 'bubble-received text-slate-100';
 
   const formattedTime = message.created_at
     ? format(new Date(message.created_at), 'HH:mm', { locale: ptBR })
@@ -61,11 +93,19 @@ export function MessageBubble({
         setShowEmojiPicker(false);
       }}
     >
-      {/* Nome do Remetente em Grupos para mensagens recebidas */}
-      {!isOwn && message.sender && (
-        <span className="text-[11px] font-semibold text-brand-400 mb-0.5 ml-2">
-          {message.sender.display_name || message.sender.username}
-        </span>
+      {/* Nome do Remetente em Grupos com Badge e Efeito de Cor */}
+      {!isOwn && sender && (
+        <div className="flex items-center gap-1.5 mb-0.5 ml-2">
+          <span className={`text-[11px] font-semibold ${nameStyle}`}>
+            {sender.display_name || sender.username}
+          </span>
+          {badgeInfo && (
+            <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-0.5">
+              <span>{badgeInfo.icon}</span>
+              <span>{badgeInfo.label}</span>
+            </span>
+          )}
+        </div>
       )}
 
       <div className="relative flex items-center max-w-[85%] sm:max-w-[70%]">
@@ -171,11 +211,9 @@ export function MessageBubble({
 
         {/* Corpo do Balão da Mensagem */}
         <div
-          className={`relative px-3.5 py-2 rounded-2xl shadow-sm transition-all ${
-            isOwn
-              ? 'bubble-sent text-white'
-              : 'bubble-received text-slate-100'
-          } ${message.is_deleted ? 'italic opacity-60' : ''}`}
+          className={`relative px-3.5 py-2 rounded-2xl shadow-sm transition-all ${customBubble} ${
+            message.is_deleted ? 'italic opacity-60' : ''
+          }`}
         >
           {/* Citação da Resposta (Reply Quote) */}
           {message.reply_to && (

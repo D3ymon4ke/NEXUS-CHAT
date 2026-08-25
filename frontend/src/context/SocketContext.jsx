@@ -14,6 +14,7 @@ export function SocketProvider({ children }) {
   const [socket, setSocket] = useState(null);
   const [connected, setConnected] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState(new Set());
+  const [coinsAlert, setCoinsAlert] = useState(null);
 
   useEffect(() => {
     if (!user) {
@@ -68,6 +69,12 @@ export function SocketProvider({ children }) {
       });
     });
 
+    // Evento de Moedas Recebidas por Mensagem
+    newSocket.on('coins_earned', ({ amount, newBalance, reason }) => {
+      setCoinsAlert({ amount, newBalance, reason, id: Date.now() });
+      setTimeout(() => setCoinsAlert(null), 3500);
+    });
+
     setSocket(newSocket);
 
     return () => {
@@ -87,7 +94,8 @@ export function SocketProvider({ children }) {
         socket,
         connected,
         onlineUsers,
-        isUserOnline
+        isUserOnline,
+        coinsAlert
       }}
     >
       {children}

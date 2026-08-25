@@ -87,6 +87,9 @@ async function handleSendMessage(socket, io, data) {
     // Emite para todos os membros conectados na sala da conversa
     io.to(`conversation:${conversationId}`).emit('new_message', formattedMessage);
 
+    // Recompensa de Economia: +5 Nexus Coins por mensagem enviada (cooldown de 5s para evitar spam)
+    handleMessageCoinReward(senderId, socket, io);
+
     // Emite notificação global de nova mensagem para quem não está na sala ativa
     io.emit('conversation_updated', {
       conversationId,
@@ -250,11 +253,67 @@ async function handleMarkAsRead(socket, io, data) {
   }
 }
 
+// Rastreamento de cooldown de moedas por usuário (5 segundos)
+const lastCoinRewardTimes = new Map();
+
+async function handleMessageCoinReward(userId, socket, io) {
+  try {
+    if (!userId || userId.startsWith('system')) return;
+
+    const now = Date.now();
+    const lastTime = lastCoinRewardTimes.get(userId) || 0;
+
+    // Cooldown de 5 segundos entre mensagens para ganhar moedas
+    if (now - lastTime < 5000) return;
+    lastCoinRewardTimes.set(userId, now);
+
+    const rewardAmount = 5;
+
+    if (isConfigured && supabase) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('nexus_coins')
+        .eq('id', userId)
+        .single();
+
+      const newBalance = (profile?.nexus_coins || 0) + rewardAmount;
+
+      await supabase
+        .from('profiles')
+        .update({ nexus_coins: newBalance })
+        .eq('id', userId);
+
+      await supabase.from('nexus_transactions').insert({
+        user_id: userId,
+        amount: rewardAmount,
+        type: 'message_reward',
+        description: 'Recompensa por envio de mensagem'
+      });
+
+      // Notifica o cliente específico com o saldo atualizado e a animação de moedas
+      io.to(`user:${userId}`).emit('coins_earned', {
+        amount: rewardAmount,
+        newBalance,
+        reason: 'Mensagem enviada (+5 🪙)'
+      });
+    } else {
+      socket.emit('coins_earned', {
+        amount: rewardAmount,
+        newBalance: 355,
+        reason: 'Mensagem enviada (+5 🪙)'
+      });
+    }
+  } catch (err) {
+    console.error('Erro ao premiar moedas por mensagem:', err);
+  }
+}
+
 module.exports = {
   handleSendMessage,
   handleEditMessage,
   handleDeleteMessage,
   handlePinMessage,
   handleReactMessage,
-  handleMarkAsRead
+  handleMarkAsRead,
+  handleMessageCoinReward
 };

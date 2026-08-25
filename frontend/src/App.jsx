@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { SocketProvider } from './context/SocketContext';
+import { SocketProvider, useSocket } from './context/SocketContext';
 import { ChatProvider, useChat } from './context/ChatContext';
 import { Sidebar } from './components/sidebar/Sidebar';
 import { ChatArea } from './components/chat/ChatArea';
@@ -8,21 +8,22 @@ import { AuthModal } from './components/auth/AuthModal';
 import { NewChatModal } from './components/sidebar/NewChatModal';
 import { NewGroupModal } from './components/sidebar/NewGroupModal';
 import { SettingsModal } from './components/settings/SettingsModal';
-import { Sparkles, Shield, UserCheck, MessageSquare } from 'lucide-react';
+import { NexusShopModal } from './components/shop/NexusShopModal';
+import { Sparkles, Flame, Check } from 'lucide-react';
 
 function ChatDashboard() {
   const { user, loading } = useAuth();
   const { activeConversation, setActiveConversationId } = useChat();
+  const { coinsAlert } = useSocket();
 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [showNewGroupModal, setShowNewGroupModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showShopModal, setShowShopModal] = useState(false);
 
-  // No mobile, se houver conversa selecionada, mostra o chat em tela cheia; caso contrário, a sidebar.
   const [mobileView, setMobileView] = useState('sidebar'); // 'sidebar' | 'chat'
 
-  // Alterna a visão mobile ao selecionar conversa
   const handleSelectConversation = (convId) => {
     setActiveConversationId(convId);
     setMobileView('chat');
@@ -42,7 +43,16 @@ function ChatDashboard() {
   }
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-background-darker overflow-hidden">
+    <div className="h-screen w-screen flex flex-col bg-background-darker overflow-hidden relative">
+      {/* Toast Flutuante de Ganho de Nexus Coins */}
+      {coinsAlert && (
+        <div className="fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500/90 to-yellow-500/90 text-black font-extrabold text-xs shadow-2xl border border-white/30 backdrop-blur animate-bounceShort select-none">
+          <img src="/nexus-coin.jpg" alt="Moeda" className="w-5 h-5 rounded-full" />
+          <span>+{coinsAlert.amount} NEXUS COINS!</span>
+          <span className="text-[10px] font-semibold text-black/80 ml-1">({coinsAlert.reason})</span>
+        </div>
+      )}
+
       {/* Conteúdo Principal do Chat */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Barra Lateral (Visível em desktop ou em mobile quando mobileView === 'sidebar') */}
@@ -56,6 +66,7 @@ function ChatDashboard() {
             onOpenNewGroup={() => setShowNewGroupModal(true)}
             onOpenSettings={() => setShowSettingsModal(true)}
             onOpenAuth={() => setShowAuthModal(true)}
+            onOpenShop={() => setShowShopModal(true)}
           />
         </div>
 
@@ -94,6 +105,11 @@ function ChatDashboard() {
       <SettingsModal
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
+      />
+
+      <NexusShopModal
+        isOpen={showShopModal}
+        onClose={() => setShowShopModal(false)}
       />
     </div>
   );

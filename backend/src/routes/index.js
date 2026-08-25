@@ -10,6 +10,7 @@ const conversationController = require('../controllers/conversationController');
 const messageController = require('../controllers/messageController');
 const userController = require('../controllers/userController');
 const uploadController = require('../controllers/uploadController');
+const economyController = require('../controllers/economyController');
 
 // --- Health Check ---
 router.get('/health', (req, res) => {
@@ -28,6 +29,12 @@ router.post('/auth/reset-password', authLimiter, authController.resetPassword);
 router.get('/users/search', authenticateUser, userController.searchUsers);
 router.put('/users/profile', authenticateUser, userController.updateProfile);
 router.put('/users/settings', authenticateUser, userController.updateSettings);
+
+// --- Economy & Nexus Shop Routes ---
+router.get('/economy/shop', authenticateUser, economyController.getShopCatalog);
+router.post('/economy/claim-daily', authenticateUser, economyController.claimDailyReward);
+router.post('/economy/buy', authenticateUser, economyController.buyShopItem);
+router.post('/economy/equip', authenticateUser, economyController.equipShopItem);
 
 // --- Conversation Routes ---
 router.get('/conversations', authenticateUser, conversationController.getUserConversations);
