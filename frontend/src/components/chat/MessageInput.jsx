@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { sounds } from '../../lib/sound';
+import confetti from 'canvas-confetti';
 import { ANIMATED_STICKERS, STICKER_PRICE } from '../../lib/animatedStickers';
 import { CreatePollModal } from '../polls/CreatePollModal';
 import {
@@ -149,66 +150,80 @@ export function MessageInput() {
 
   const handleSendNexusBurst = async () => {
     if (!user) return;
-    sounds.playPop();
+    try {
+      sounds.playPop();
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    const lastNexusDate = user.last_nexus_daily || localStorage.getItem(`nexus_daily_${user.id}`);
-    const isFirstToday = lastNexusDate !== todayStr;
+      const todayStr = new Date().toISOString().split('T')[0];
+      const lastNexusDate = user.last_nexus_daily || localStorage.getItem(`nexus_daily_${user.id}`);
+      const isFirstToday = lastNexusDate !== todayStr;
 
-    let earnedCoins = 0;
-    if (isFirstToday) {
-      earnedCoins = 20;
-      confetti({
-        particleCount: 100,
-        spread: 80,
-        origin: { y: 0.6 },
-        colors: ['#38bdf8', '#818cf8', '#fbbf24', '#a855f7', '#ec4899']
-      });
+      let earnedCoins = 0;
+      if (isFirstToday) {
+        earnedCoins = 20;
+        try {
+          if (typeof confetti === 'function') {
+            confetti({
+              particleCount: 100,
+              spread: 80,
+              origin: { y: 0.6 },
+              colors: ['#38bdf8', '#818cf8', '#fbbf24', '#a855f7', '#ec4899']
+            });
+          }
+        } catch (confettiErr) {
+          console.warn('Confetti error:', confettiErr);
+        }
 
-      const newBalance = (user.nexus_coins || 100) + 20;
-      if (updateProfile) {
-        await updateProfile({
-          nexus_coins: newBalance,
-          last_nexus_daily: todayStr
-        });
-      }
-      localStorage.setItem(`nexus_daily_${user.id}`, todayStr);
-
-      if (isSupabaseConfigured && supabase) {
-        await supabase
-          .from('profiles')
-          .update({
+        const newBalance = (user.nexus_coins || 100) + 20;
+        if (updateProfile) {
+          await updateProfile({
             nexus_coins: newBalance,
             last_nexus_daily: todayStr
-          })
-          .eq('id', user.id);
+          });
+        }
+        localStorage.setItem(`nexus_daily_${user.id}`, todayStr);
 
-        await supabase.from('nexus_transactions').insert({
-          user_id: user.id,
-          amount: 20,
-          type: 'nexus_daily_command',
-          description: 'Recompensa diária do comando /nexus ⚡ (+20 Coins)'
-        });
+        if (isSupabaseConfigured && supabase) {
+          try {
+            await supabase
+              .from('profiles')
+              .update({
+                nexus_coins: newBalance,
+                last_nexus_daily: todayStr
+              })
+              .eq('id', user.id);
+
+            await supabase.from('nexus_transactions').insert({
+              user_id: user.id,
+              amount: 20,
+              type: 'nexus_daily_command',
+              description: 'Recompensa diária do comando /nexus ⚡ (+20 Coins)'
+            });
+          } catch (supaErr) {
+            console.warn('Erro ao salvar moedas no Supabase:', supaErr);
+          }
+        }
       }
+
+      const nexusPayload = JSON.stringify({
+        nexus_burst: {
+          senderId: user.id,
+          senderName: user.display_name || user.username,
+          senderUsername: user.username,
+          senderAvatar: user.avatar_url,
+          reward: earnedCoins,
+          alreadyClaimedToday: !isFirstToday,
+          createdAt: new Date().toISOString()
+        }
+      });
+
+      await sendMessage({
+        content: nexusPayload,
+        attachments: [],
+        type: 'nexus_burst'
+      });
+    } catch (err) {
+      console.error('Erro ao enviar /nexus:', err);
     }
-
-    const nexusPayload = JSON.stringify({
-      nexus_burst: {
-        senderId: user.id,
-        senderName: user.display_name || user.username,
-        senderUsername: user.username,
-        senderAvatar: user.avatar_url,
-        reward: earnedCoins,
-        alreadyClaimedToday: !isFirstToday,
-        createdAt: new Date().toISOString()
-      }
-    });
-
-    await sendMessage({
-      content: nexusPayload,
-      attachments: [],
-      type: 'nexus_burst'
-    });
   };
 
   const handleKeyDown = (e) => {
@@ -855,13 +870,13 @@ export function MessageInput() {
               <button
                 type="button"
                 onClick={handleSendNexusBurst}
-                className="p-0.5 rounded-lg hover:scale-110 active:scale-95 transition-all group"
+                className="w-7 h-7 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-brand-500/50 hover:border-amber-400 shadow-sm flex items-center justify-center p-0.5 transition-all hover:scale-110 active:scale-95 group flex-shrink-0"
                 title="Mandar um NEXUS! (/nexus) • +20 Coins 1x ao dia ⚡"
               >
                 <img
                   src="/logo.gif"
                   alt="Nexus"
-                  className="w-5 h-5 rounded-md object-cover border border-brand-500/60 shadow-sm group-hover:border-amber-400"
+                  className="w-5 h-5 rounded-lg object-cover"
                 />
               </button>
             )}
@@ -869,16 +884,16 @@ export function MessageInput() {
             <button
               type="button"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className="p-1 text-slate-400 hover:text-yellow-400 transition-colors"
+              className="p-1.5 text-slate-400 hover:text-yellow-400 transition-colors flex-shrink-0"
               title="Emojis e Figurinhas Animadas"
             >
               <Smile className="w-5 h-5" />
             </button>
 
             {showEmojiPicker && (
-              <div className="absolute bottom-full right-0 mb-3 w-[calc(100vw-2rem)] sm:w-80 max-w-xs sm:max-w-sm bg-background-surface/95 border border-slate-700 rounded-2xl shadow-2xl p-3 z-30 backdrop-blur-md animate-fadeIn">
-                {/* Abas Emojis vs Figurinhas Animadas */}
-                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+              <div className="absolute bottom-full right-0 mb-3 w-[calc(100vw-2rem)] sm:w-84 max-w-xs sm:max-w-sm bg-background-surface/95 border border-slate-700 rounded-2xl shadow-2xl p-3 z-30 backdrop-blur-md animate-fadeIn">
+                {/* Abas Emojis vs Figurinhas Animadas + Atalho /nexus */}
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 gap-1.5">
                   <div className="flex gap-1 bg-background-dark p-0.5 rounded-xl border border-slate-800 text-xs">
                     <button
                       type="button"
@@ -896,12 +911,28 @@ export function MessageInput() {
                         activeEmojiTab === 'stickers' ? 'bg-gradient-to-r from-amber-600 to-rose-600 text-white' : 'text-amber-400/80 hover:text-amber-300'
                       }`}
                     >
-                      <Sparkles className="w-3 h-3" /> Figurinhas Animadas
+                      <Sparkles className="w-3 h-3" /> Figurinhas
                     </button>
                   </div>
-                  <button onClick={() => setShowEmojiPicker(false)} className="text-slate-400 hover:text-white p-1">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowEmojiPicker(false);
+                        handleSendNexusBurst();
+                      }}
+                      className="px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[10px] font-black flex items-center gap-1 transition-all shadow-sm flex-shrink-0"
+                      title="Mandar /nexus no chat e coletar moedas"
+                    >
+                      <span>⚡</span>
+                      <span>/nexus (+20)</span>
+                    </button>
+
+                    <button onClick={() => setShowEmojiPicker(false)} className="text-slate-400 hover:text-white p-1">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* ABA 1: EMOJIS PADRÃO */}
