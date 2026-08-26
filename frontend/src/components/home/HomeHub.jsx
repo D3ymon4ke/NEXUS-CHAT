@@ -172,9 +172,9 @@ export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet, onBack }) {
             <div className="flex items-center gap-4 text-center sm:text-left">
               <div className="relative flex-shrink-0">
                 <img
-                  src="/belmont-logo.jpg"
-                  alt="Nexus Belmont Logo"
-                  className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl object-cover border-2 border-amber-400/80 shadow-xl shadow-amber-500/20"
+                  src="/logo.gif"
+                  alt="Nexus Animated Logo"
+                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-brand-500/80 shadow-2xl shadow-brand-500/30 ring-2 ring-brand-400/30"
                 />
                 <span className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>

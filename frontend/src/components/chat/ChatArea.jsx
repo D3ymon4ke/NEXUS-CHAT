@@ -165,9 +165,15 @@ export function ChatArea({ onBack, onOpenProfile }) {
         className="flex-1 overflow-y-auto px-4 py-4 space-y-1 relative"
       >
         {loadingMessages ? (
-          <div className="flex flex-col items-center justify-center h-full text-slate-400 text-xs gap-2">
-            <div className="w-6 h-6 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
-            <span>Carregando mensagens...</span>
+          <div className="flex flex-col items-center justify-center h-full text-slate-400 text-xs gap-3 select-none">
+            <div className="relative">
+              <img
+                src="/logo.gif"
+                alt="Carregando"
+                className="w-14 h-14 rounded-2xl object-cover border border-brand-500/60 shadow-lg shadow-brand-500/20"
+              />
+            </div>
+            <span className="font-semibold text-slate-300">Carregando mensagens...</span>
           </div>
         ) : displayMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-12 text-slate-400">

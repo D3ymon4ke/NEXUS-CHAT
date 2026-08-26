@@ -525,9 +525,13 @@ export function Sidebar({
         )}
 
         {loadingConversations ? (
-          <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-xs gap-2">
-            <div className="w-6 h-6 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
-            <span>Carregando conversas...</span>
+          <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-xs gap-3 select-none">
+            <img
+              src="/logo.gif"
+              alt="Carregando"
+              className="w-12 h-12 rounded-xl object-cover border border-brand-500/50 shadow-md"
+            />
+            <span className="font-semibold text-slate-300">Carregando conversas...</span>
           </div>
         ) : filteredConversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-xs text-center px-4">

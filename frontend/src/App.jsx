@@ -92,9 +92,24 @@ function ChatDashboard() {
 
   if (loading) {
     return (
-      <div className="h-screen h-[100dvh] w-screen w-[100dvw] flex flex-col items-center justify-center bg-background-darker text-white gap-3">
-        <div className="w-10 h-10 border-4 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
-        <span className="text-sm font-semibold tracking-wide text-slate-300">Iniciando Nexus Chat...</span>
+      <div className="h-screen h-[100dvh] w-screen w-[100dvw] flex flex-col items-center justify-center bg-background-darker text-white gap-4 select-none">
+        <div className="relative flex items-center justify-center">
+          <div className="absolute -inset-2 bg-gradient-to-r from-brand-500 to-indigo-600 rounded-3xl blur-xl opacity-50 animate-pulse pointer-events-none" />
+          <img
+            src="/logo.gif"
+            alt="Nexus Logo"
+            className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl object-cover shadow-2xl border-2 border-brand-500/80 relative z-10"
+          />
+        </div>
+        <div className="flex flex-col items-center gap-1.5 z-10">
+          <span className="text-base font-black tracking-widest bg-gradient-to-r from-brand-400 via-indigo-300 to-amber-300 bg-clip-text text-transparent">
+            NEXUS CHAT
+          </span>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-brand-400 animate-ping" />
+            <span className="text-xs font-semibold text-slate-400">Iniciando ambiente seguro...</span>
+          </div>
+        </div>
       </div>
     );
   }
