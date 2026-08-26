@@ -35,6 +35,7 @@ const EMOJI_CATEGORIES = [
 export function MessageInput() {
   const { user, updateProfile } = useAuth();
   const {
+    activeConversation,
     sendMessage,
     editMessage,
     emitTyping,
@@ -58,6 +59,22 @@ export function MessageInput() {
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
   const typingTimerRef = useRef(null);
+
+  // Verificações de permissão e contexto do chat
+  const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
+  const isBelmont = activeConversation?.id === BELMONT_ID || activeConversation?.name === 'BELMONT CONFERENCE' || activeConversation?.is_permanent;
+  const isGroup = activeConversation?.type === 'group' || isBelmont;
+  const isDirectChat = Boolean(activeConversation && !isGroup);
+  const isAdminUser = Boolean(user?.is_admin || user?.role === 'admin' || user?.username === 'damon');
+  const isGroupAdmin = Boolean(isGroup && (isAdminUser || activeConversation?.created_by === user?.id));
+
+  // Resetar modo fantasma se trocar para um grupo
+  useEffect(() => {
+    if (!isDirectChat) {
+      setGhostMode(null);
+      setShowGhostMenu(false);
+    }
+  }, [activeConversation?.id, isDirectChat]);
 
   // Preencher conteúdo ao entrar em modo de edição
   useEffect(() => {
@@ -110,6 +127,10 @@ export function MessageInput() {
 
   const handleSendCoffeeInvite = async () => {
     if (!user) return;
+    if (!isGroup) {
+      alert('O convite para café está disponível apenas em conversas de grupo.');
+      return;
+    }
     sounds.playPop();
     const invitePayload = JSON.stringify({
       coffee_invite: {
@@ -130,39 +151,56 @@ export function MessageInput() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       const lower = content.trim().toLowerCase();
+
+      // 1. Enquete (/enquete) -> Apenas Administradores em Grupos
       if (lower.startsWith('/enquete')) {
         setContent('');
+        if (!isGroupAdmin) {
+          alert('Apenas administradores de grupo podem criar enquetes.');
+          return;
+        }
         setShowPollModal(true);
         return;
       }
+
+      // 2. Café (/cafe) -> Apenas em Grupos
       if (lower.startsWith('/cafe') || lower.startsWith('/café')) {
         setContent('');
+        if (!isGroup) {
+          alert('O convite para café está disponível apenas em grupos.');
+          return;
+        }
         handleSendCoffeeInvite();
         return;
       }
-      if (lower === '/ghost' || lower === '/fantasma') {
+
+      // 3. Modo Fantasma (/ghost, /fantasma, /1x, /timer) -> Apenas em Chats 1x1
+      if (lower === '/ghost' || lower === '/fantasma' || lower === '/1x' || lower.startsWith('/1x') || lower.startsWith('/timer')) {
         setContent('');
+        if (!isDirectChat) {
+          alert('O Modo Fantasma está disponível exclusivamente em conversas privadas (1x1).');
+          return;
+        }
+        if (lower === '/1x' || lower.startsWith('/1x')) {
+          setGhostMode('view_once');
+          sounds.playPop();
+          return;
+        }
+        if (lower.startsWith('/timer')) {
+          const parts = lower.split(' ');
+          const t = parts[1] || '10s';
+          if (['10s', '1m', '1h', '24h'].includes(t)) {
+            setGhostMode(t);
+          } else {
+            setGhostMode('10s');
+          }
+          sounds.playPop();
+          return;
+        }
         setShowGhostMenu(true);
         return;
       }
-      if (lower === '/1x' || lower.startsWith('/1x')) {
-        setContent('');
-        setGhostMode('view_once');
-        sounds.playPop();
-        return;
-      }
-      if (lower.startsWith('/timer')) {
-        const parts = lower.split(' ');
-        const t = parts[1] || '10s';
-        if (['10s', '1m', '1h', '24h'].includes(t)) {
-          setGhostMode(t);
-        } else {
-          setGhostMode('10s');
-        }
-        setContent('');
-        sounds.playPop();
-        return;
-      }
+
       handleSend();
     }
   };
@@ -440,68 +478,77 @@ export function MessageInput() {
         </div>
       )}
 
-      {/* Banner de Sugestão de Comandos Slash */}
+      {/* Banner de Sugestão de Comandos Slash (filtrado por contexto e permissão) */}
       {content.startsWith('/') && (
         <div className="mb-2 p-1.5 rounded-2xl bg-slate-900/95 border border-brand-500/50 shadow-2xl backdrop-blur-md animate-fadeIn space-y-1">
-          <button
-            type="button"
-            onClick={() => {
-              setContent('');
-              setShowPollModal(true);
-            }}
-            className="w-full px-3 py-2 rounded-xl bg-brand-600/20 hover:bg-brand-600/30 text-left flex items-center justify-between text-xs transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <span className="p-1 rounded-lg bg-brand-500 text-white font-extrabold text-xs">📊</span>
-              <div>
-                <span className="font-extrabold text-brand-300">/enquete</span>
-                <span className="text-slate-300 ml-2">Criar nova enquete com contagem de votos e tempo limite</span>
+          {/* Enquete: apenas Administradores em Grupos */}
+          {isGroupAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                setContent('');
+                setShowPollModal(true);
+              }}
+              className="w-full px-3 py-2 rounded-xl bg-brand-600/20 hover:bg-brand-600/30 text-left flex items-center justify-between text-xs transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <span className="p-1 rounded-lg bg-brand-500 text-white font-extrabold text-xs">📊</span>
+                <div>
+                  <span className="font-extrabold text-brand-300">/enquete</span>
+                  <span className="text-slate-300 ml-2">Criar nova enquete de grupo (Admin)</span>
+                </div>
               </div>
-            </div>
-            <span className="text-[10px] text-brand-400 font-bold bg-brand-500/20 px-2 py-0.5 rounded-lg border border-brand-500/30">
-              Abrir Enquete ↵
-            </span>
-          </button>
+              <span className="text-[10px] text-brand-400 font-bold bg-brand-500/20 px-2 py-0.5 rounded-lg border border-brand-500/30">
+                Abrir Enquete ↵
+              </span>
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={() => {
-              setContent('');
-              handleSendCoffeeInvite();
-            }}
-            className="w-full px-3 py-2 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 text-left flex items-center justify-between text-xs transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <span className="p-1 rounded-lg bg-amber-500 text-white font-extrabold text-xs">☕</span>
-              <div>
-                <span className="font-extrabold text-amber-300">/cafe</span>
-                <span className="text-slate-300 ml-2">Convidar para uma pausa para o café (+30 Nexus Coins)</span>
+          {/* Café: apenas em Grupos */}
+          {isGroup && (
+            <button
+              type="button"
+              onClick={() => {
+                setContent('');
+                handleSendCoffeeInvite();
+              }}
+              className="w-full px-3 py-2 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 text-left flex items-center justify-between text-xs transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <span className="p-1 rounded-lg bg-amber-500 text-white font-extrabold text-xs">☕</span>
+                <div>
+                  <span className="font-extrabold text-amber-300">/cafe</span>
+                  <span className="text-slate-300 ml-2">Convidar para pausa do café no grupo (+30 Coins)</span>
+                </div>
               </div>
-            </div>
-            <span className="text-[10px] text-amber-400 font-bold bg-amber-500/20 px-2 py-0.5 rounded-lg border border-amber-500/30">
-              Enviar Café ↵
-            </span>
-          </button>
+              <span className="text-[10px] text-amber-400 font-bold bg-amber-500/20 px-2 py-0.5 rounded-lg border border-amber-500/30">
+                Enviar Café ↵
+              </span>
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={() => {
-              setContent('');
-              setShowGhostMenu(true);
-            }}
-            className="w-full px-3 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-left flex items-center justify-between text-xs transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <span className="p-1 rounded-lg bg-purple-500 text-white font-extrabold text-xs">👻</span>
-              <div>
-                <span className="font-extrabold text-purple-300">/fantasma ou /ghost</span>
-                <span className="text-slate-300 ml-2">Mensagens efêmeras com autodestruição ou visualização única</span>
+          {/* Modo Fantasma: apenas em conversas privadas 1x1 */}
+          {isDirectChat && (
+            <button
+              type="button"
+              onClick={() => {
+                setContent('');
+                setShowGhostMenu(true);
+              }}
+              className="w-full px-3 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-left flex items-center justify-between text-xs transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <span className="p-1 rounded-lg bg-purple-500 text-white font-extrabold text-xs">👻</span>
+                <div>
+                  <span className="font-extrabold text-purple-300">/fantasma ou /1x</span>
+                  <span className="text-slate-300 ml-2">Mensagens privadas 1x1 com autodestruição ou visualização única</span>
+                </div>
               </div>
-            </div>
-            <span className="text-[10px] text-purple-400 font-bold bg-purple-500/20 px-2 py-0.5 rounded-lg border border-purple-500/30">
-              Ativar Fantasma ↵
-            </span>
-          </button>
+              <span className="text-[10px] text-purple-400 font-bold bg-purple-500/20 px-2 py-0.5 rounded-lg border border-purple-500/30">
+                Ativar Fantasma ↵
+              </span>
+            </button>
+          )}
         </div>
       )}
 
@@ -546,18 +593,22 @@ export function MessageInput() {
               editingMessage
                 ? "Edite sua mensagem..."
                 : ghostMode
-                ? "Digite a mensagem secreta / fantasma..."
+                ? "Digite a mensagem secreta 1x1 / fantasma..."
                 : attachments.length > 0
                 ? "Adicione uma legenda para a imagem... (Enter para enviar)"
-                : "Digite uma mensagem, /fantasma para autodestruição ou /enquete..."
+                : isDirectChat
+                ? "Digite uma mensagem ou /fantasma para autodestruição..."
+                : isGroupAdmin
+                ? "Digite uma mensagem, /cafe ou /enquete..."
+                : "Digite uma mensagem ou /cafe para o grupo..."
             }
             className="w-full bg-transparent px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-32 leading-relaxed"
           />
 
-          {/* Botões de Ação: Fantasma, Café, Enquete & Emojis */}
+          {/* Botões de Ação: Fantasma (1x1), Café (Grupos), Enquete (Admin) & Emojis */}
           <div className="pb-2.5 pr-2 flex items-center gap-0.5 relative">
-            {/* Botão Modo Fantasma 👻 */}
-            {!editingMessage && (
+            {/* Botão Modo Fantasma 👻 (Apenas em chats 1x1) */}
+            {!editingMessage && isDirectChat && (
               <div className="relative">
                 <button
                   type="button"
@@ -567,7 +618,7 @@ export function MessageInput() {
                       ? 'text-purple-400 bg-purple-500/20 ring-1 ring-purple-500 animate-pulse'
                       : 'text-slate-400 hover:text-purple-400'
                   }`}
-                  title="Modo Fantasma & Mensagens Temporárias 👻"
+                  title="Modo Fantasma & Mensagens Temporárias (Exclusivo 1x1) 👻"
                 >
                   <Ghost className="w-5 h-5" />
                   {ghostMode && (
@@ -581,7 +632,7 @@ export function MessageInput() {
                     <div className="flex items-center justify-between pb-2 mb-2 border-b border-purple-900/50">
                       <div className="flex items-center gap-1.5 text-purple-300 font-extrabold text-xs">
                         <Ghost className="w-4 h-4 text-purple-400" />
-                        <span>Modo Fantasma 👻</span>
+                        <span>Modo Fantasma 1x1 👻</span>
                       </div>
                       <button
                         type="button"
@@ -683,25 +734,25 @@ export function MessageInput() {
               </div>
             )}
 
-            {/* Botão Convite de Café */}
-            {!editingMessage && (
+            {/* Botão Convite de Café ☕ (Apenas em Grupos) */}
+            {!editingMessage && isGroup && (
               <button
                 type="button"
                 onClick={handleSendCoffeeInvite}
                 className="p-1 text-slate-400 hover:text-amber-400 transition-colors group"
-                title="Convidar para um Café ☕ (+30 Coins)"
+                title="Convidar o Grupo para um Café ☕ (+30 Coins)"
               >
                 <Coffee className="w-5 h-5 group-hover:rotate-12 transition-transform" />
               </button>
             )}
 
-            {/* Botão Enquete */}
-            {!editingMessage && (
+            {/* Botão Enquete 📊 (Apenas Administradores em Grupos) */}
+            {!editingMessage && isGroupAdmin && (
               <button
                 type="button"
                 onClick={() => setShowPollModal(true)}
                 className="p-1 text-slate-400 hover:text-brand-400 transition-colors"
-                title="Criar Enquete (/enquete)"
+                title="Criar Enquete no Grupo (/enquete)"
               >
                 <BarChart3 className="w-5 h-5" />
               </button>

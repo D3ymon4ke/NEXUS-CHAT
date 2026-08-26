@@ -27,13 +27,20 @@ const DURATION_OPTIONS = [
 
 export function CreatePollModal({ isOpen, onClose }) {
   const { user } = useAuth();
-  const { activeConversationId, sendMessage } = useChat();
+  const { activeConversation, activeConversationId, sendMessage } = useChat();
 
   const [question, setQuestion] = useState('');
   const [options, setOptions] = useState(['', '']);
   const [durationIndex, setDurationIndex] = useState(4); // Default 24h
   const [allowMultiple, setAllowMultiple] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Verificação de Administrador do Grupo
+  const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
+  const isBelmont = activeConversation?.id === BELMONT_ID || activeConversation?.name === 'BELMONT CONFERENCE' || activeConversation?.is_permanent;
+  const isGroup = activeConversation?.type === 'group' || isBelmont;
+  const isAdminUser = Boolean(user?.is_admin || user?.role === 'admin' || user?.username === 'damon');
+  const isGroupAdmin = Boolean(isGroup && (isAdminUser || activeConversation?.created_by === user?.id));
 
   if (!isOpen) return null;
 
@@ -72,6 +79,11 @@ export function CreatePollModal({ isOpen, onClose }) {
 
     if (!activeConversationId) {
       alert('Selecione uma conversa para criar a enquete.');
+      return;
+    }
+
+    if (!isGroupAdmin) {
+      alert('Apenas administradores de grupo podem criar e lançar enquetes.');
       return;
     }
 
