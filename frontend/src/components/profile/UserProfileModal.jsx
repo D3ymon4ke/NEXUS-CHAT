@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { sounds } from '../../lib/sound';
+import { ProfileMusicPlayer } from './ProfileMusicPlayer';
 import confetti from 'canvas-confetti';
 import {
   X,
@@ -17,7 +18,8 @@ import {
   Calendar,
   Layers,
   Heart,
-  Share2
+  Share2,
+  Music
 } from 'lucide-react';
 
 const FRAME_STYLES = {
@@ -40,13 +42,24 @@ const NAME_STYLES = {
   name_electric_cyan: 'text-cyan-400 font-extrabold drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]'
 };
 
-export function UserProfileModal({ targetUser, isOpen, onClose, onStartDirectChat, onOpenUserStories }) {
+export function UserProfileModal({
+  targetUser,
+  isOpen,
+  onClose,
+  onStartDirectChat,
+  onOpenUserStories,
+  onOpenEditProfile
+}) {
   const { user: currentUser } = useAuth();
   const [friendshipStatus, setFriendshipStatus] = useState('none'); // 'none' | 'pending' | 'accepted' | 'incoming'
   const [actionLoading, setActionLoading] = useState(false);
   const [hasActiveStories, setHasActiveStories] = useState(false);
 
   const isOwnProfile = currentUser?.id === targetUser?.id;
+  const userSongUrl = targetUser?.profile_song_url || (isOwnProfile ? currentUser?.profile_song_url : null);
+  const userSongTitle = targetUser?.profile_song_title || (isOwnProfile ? currentUser?.profile_song_title : '');
+  const userSongArtist = targetUser?.profile_song_artist || (isOwnProfile ? currentUser?.profile_song_artist : '');
+  const userSongCover = targetUser?.profile_song_cover || (isOwnProfile ? currentUser?.profile_song_cover : '');
 
   useEffect(() => {
     if (!isOpen || !targetUser || !currentUser) return;
@@ -144,7 +157,7 @@ export function UserProfileModal({ targetUser, isOpen, onClose, onStartDirectCha
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn select-none">
-      <div className="glass-modal w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-700/80 flex flex-col relative overflow-hidden">
+      <div className="glass-modal w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-700/80 flex flex-col relative overflow-hidden max-h-[95vh] overflow-y-auto">
         {/* Glow de Fundo */}
         <div className="absolute -top-20 -right-20 w-48 h-48 bg-brand-500/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-20 -left-20 w-48 h-48 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
@@ -201,8 +214,32 @@ export function UserProfileModal({ targetUser, isOpen, onClose, onStartDirectCha
             </p>
           )}
 
+          {/* MÚSICA TEMA DO PERFIL (PROFILE ANTHEM) */}
+          <div className="w-full mt-3.5">
+            {userSongUrl ? (
+              <ProfileMusicPlayer
+                songUrl={userSongUrl}
+                songTitle={userSongTitle}
+                songArtist={userSongArtist}
+                songCover={userSongCover}
+              />
+            ) : isOwnProfile ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  if (onOpenEditProfile) onOpenEditProfile();
+                }}
+                className="w-full p-2.5 rounded-2xl bg-indigo-950/40 hover:bg-indigo-900/50 border border-indigo-500/30 text-indigo-300 hover:text-indigo-200 text-xs font-bold flex items-center justify-center gap-2 transition-all group"
+              >
+                <Music className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform" />
+                <span>+ Adicionar Música Tema no Perfil</span>
+              </button>
+            ) : null}
+          </div>
+
           {/* Estatísticas do Usuário */}
-          <div className="grid grid-cols-2 gap-2.5 w-full mt-4 p-3 rounded-2xl bg-background-surface/60 border border-slate-800">
+          <div className="grid grid-cols-2 gap-2.5 w-full mt-3.5 p-3 rounded-2xl bg-background-surface/60 border border-slate-800">
             <div className="flex flex-col items-center">
               <div className="flex items-center gap-1 text-amber-300 font-extrabold text-xs">
                 <img src="/nexus-coin.jpg" alt="Moeda" className="w-3.5 h-3.5 rounded-full" />
@@ -220,7 +257,7 @@ export function UserProfileModal({ targetUser, isOpen, onClose, onStartDirectCha
           </div>
 
           {/* Botões de Ação */}
-          {!isOwnProfile && (
+          {!isOwnProfile ? (
             <div className="grid grid-cols-2 gap-2 w-full mt-4">
               {/* Botão de Amizade */}
               {friendshipStatus === 'accepted' ? (
@@ -264,6 +301,18 @@ export function UserProfileModal({ targetUser, isOpen, onClose, onStartDirectCha
                 className="py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 text-black text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-md transition-all hover:scale-105"
               >
                 <MessageSquare className="w-4 h-4" /> Conversar
+              </button>
+            </div>
+          ) : (
+            <div className="w-full mt-3">
+              <button
+                onClick={() => {
+                  onClose();
+                  if (onOpenEditProfile) onOpenEditProfile();
+                }}
+                className="w-full py-2.5 rounded-xl bg-brand-600/30 hover:bg-brand-600/50 border border-brand-500/40 text-brand-300 font-bold text-xs shadow transition-all flex items-center justify-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" /> Editar Meu Perfil & Música
               </button>
             </div>
           )}

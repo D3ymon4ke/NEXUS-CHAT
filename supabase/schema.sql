@@ -18,6 +18,10 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     bio TEXT DEFAULT 'Disponível para conversar',
     status_message TEXT DEFAULT 'online',
     is_online BOOLEAN DEFAULT false,
+    profile_song_url TEXT,
+    profile_song_title TEXT,
+    profile_song_artist TEXT,
+    profile_song_cover TEXT,
     last_seen TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()),
     created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL

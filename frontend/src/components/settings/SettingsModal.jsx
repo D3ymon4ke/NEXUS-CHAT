@@ -4,6 +4,8 @@ import { useChat } from '../../context/ChatContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { SHOP_CATALOG } from '../../lib/shopCatalog';
 import { sounds } from '../../lib/sound';
+import { fetchMusicMetadata } from '../../lib/musicUtils';
+import { ProfileMusicPlayer } from '../profile/ProfileMusicPlayer';
 import {
   Settings,
   X,
@@ -20,7 +22,11 @@ import {
   Layers,
   Palette,
   Upload,
-  Camera
+  Camera,
+  Music,
+  Trash2,
+  Loader2,
+  ExternalLink
 } from 'lucide-react';
 
 export function SettingsModal({ isOpen, onClose }) {
@@ -32,6 +38,14 @@ export function SettingsModal({ isOpen, onClose }) {
   const [bio, setBio] = useState(user?.bio || '');
   const [statusMessage, setStatusMessage] = useState(user?.status_message || 'online');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url || '');
+
+  // Música do Perfil (Profile Anthem)
+  const [songUrl, setSongUrl] = useState(user?.profile_song_url || '');
+  const [songTitle, setSongTitle] = useState(user?.profile_song_title || '');
+  const [songArtist, setSongArtist] = useState(user?.profile_song_artist || '');
+  const [songCover, setSongCover] = useState(user?.profile_song_cover || '');
+  const [loadingMusicMeta, setLoadingMusicMeta] = useState(false);
+
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -40,30 +54,63 @@ export function SettingsModal({ isOpen, onClose }) {
   const unlockedItems = user?.unlocked_items || ['frame_default', 'bubble_default'];
   const myInventoryItems = SHOP_CATALOG.filter(i => unlockedItems.includes(i.id));
 
+  // Puxa automaticamente título, artista e capa do link (YouTube / Spotify / MP3)
+  const handleFetchMusicData = async (urlToFetch) => {
+    const targetUrl = urlToFetch || songUrl;
+    if (!targetUrl || !targetUrl.trim()) return;
+    setLoadingMusicMeta(true);
+    try {
+      const meta = await fetchMusicMetadata(targetUrl);
+      if (meta) {
+        if (meta.title && !songTitle) setSongTitle(meta.title);
+        else if (meta.title) setSongTitle(meta.title);
+
+        if (meta.artist && !songArtist) setSongArtist(meta.artist);
+        else if (meta.artist) setSongArtist(meta.artist);
+
+        if (meta.coverUrl) setSongCover(meta.coverUrl);
+        sounds.playPop();
+      }
+    } catch (err) {
+      console.warn('Erro ao obter metadados da música:', err);
+    } finally {
+      setLoadingMusicMeta(false);
+    }
+  };
+
+  const handleClearSong = () => {
+    setSongUrl('');
+    setSongTitle('');
+    setSongArtist('');
+    setSongCover('');
+  };
+
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     setSaving(true);
     setSavedSuccess(false);
     try {
-      if (isSupabaseConfigured && supabase && user) {
-        await supabase
-          .from('profiles')
-          .update({
-            display_name: displayName,
-            bio,
-            status_message: statusMessage,
-            avatar_url: avatarUrl
-          })
-          .eq('id', user.id);
-      }
-
-      await updateProfile({
+      const updates = {
         display_name: displayName,
         bio,
         status_message: statusMessage,
-        avatar_url: avatarUrl
-      });
+        avatar_url: avatarUrl,
+        profile_song_url: songUrl.trim(),
+        profile_song_title: songTitle.trim(),
+        profile_song_artist: songArtist.trim(),
+        profile_song_cover: songCover.trim()
+      };
+
+      if (isSupabaseConfigured && supabase && user) {
+        await supabase
+          .from('profiles')
+          .update(updates)
+          .eq('id', user.id);
+      }
+
+      await updateProfile(updates);
       setSavedSuccess(true);
+      sounds.playPop();
       setTimeout(() => setSavedSuccess(false), 3000);
     } catch (err) {
       console.error('Erro ao salvar perfil:', err);
@@ -258,6 +305,108 @@ export function SettingsModal({ isOpen, onClose }) {
               />
             </div>
 
+            {/* SEÇÃO: MÚSICA TEMA DO PERFIL (PROFILE ANTHEM) */}
+            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950/40 to-slate-900 border border-brand-500/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-brand-500/20 text-brand-300 flex items-center justify-center border border-brand-500/40">
+                    <Music className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                      <span>Música Tema do Perfil</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300 border border-brand-500/30">Novo</span>
+                    </h4>
+                    <p className="text-[10px] text-slate-400">Cole o link do YouTube, Spotify ou MP3 para tocar no seu perfil</p>
+                  </div>
+                </div>
+
+                {songUrl && (
+                  <button
+                    type="button"
+                    onClick={handleClearSong}
+                    className="p-1 rounded-lg text-slate-400 hover:text-rose-300 hover:bg-rose-500/20 transition-colors"
+                    title="Remover Música"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={songUrl}
+                  onChange={(e) => {
+                    setSongUrl(e.target.value);
+                  }}
+                  onBlur={() => {
+                    if (songUrl && (!songTitle || !songCover)) {
+                      handleFetchMusicData(songUrl);
+                    }
+                  }}
+                  placeholder="https://www.youtube.com/watch?v=... ou Spotify / MP3"
+                  className="flex-1 px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white placeholder-slate-500 focus:border-brand-500"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => handleFetchMusicData(songUrl)}
+                  disabled={!songUrl || loadingMusicMeta}
+                  className="px-3 py-2 rounded-xl bg-brand-600/30 hover:bg-brand-600/50 border border-brand-500/40 text-brand-300 text-xs font-bold transition-all disabled:opacity-40 flex items-center gap-1.5 flex-shrink-0"
+                  title="Puxar Capa e Título Automaticamente"
+                >
+                  {loadingMusicMeta ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-3.5 h-3.5" />
+                  )}
+                  <span className="hidden sm:inline">Puxar Dados</span>
+                </button>
+              </div>
+
+              {/* Campos opcionais de personalização do nome/artista */}
+              {songUrl && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-0.5">Título da Música (Opcional):</label>
+                    <input
+                      type="text"
+                      value={songTitle}
+                      onChange={(e) => setSongTitle(e.target.value)}
+                      placeholder="Ex: Starboy"
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-background-dark border border-slate-800 text-[11px] text-slate-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-0.5">Nome do Artista (Opcional):</label>
+                    <input
+                      type="text"
+                      value={songArtist}
+                      onChange={(e) => setSongArtist(e.target.value)}
+                      placeholder="Ex: The Weeknd"
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-background-dark border border-slate-800 text-[11px] text-slate-200"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Preview do Player de Música */}
+              {songUrl && (
+                <div className="pt-2">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                    <span>Pré-visualização do seu Anthem:</span>
+                  </div>
+                  <ProfileMusicPlayer
+                    songUrl={songUrl}
+                    songTitle={songTitle}
+                    songArtist={songArtist}
+                    songCover={songCover}
+                  />
+                </div>
+              )}
+            </div>
+
             {savedSuccess && (
               <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center gap-1.5">
                 <Check className="w-4 h-4" /> Perfil atualizado com sucesso!
@@ -267,7 +416,7 @@ export function SettingsModal({ isOpen, onClose }) {
             <button
               type="submit"
               disabled={saving}
-              className="w-full py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-extrabold text-xs shadow-lg transition-all"
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-600 hover:from-brand-500 text-white font-extrabold text-xs shadow-lg transition-all active:scale-98"
             >
               {saving ? 'Salvando...' : 'Salvar Alterações do Perfil'}
             </button>

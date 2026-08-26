@@ -14,6 +14,10 @@ const DEMO_USERS = [
     bio: 'Tech Lead & entusiasta de Realtime Web ⚡',
     status_message: 'online',
     is_online: true,
+    profile_song_url: 'https://www.youtube.com/watch?v=fJ9rUzIMcZQ',
+    profile_song_title: 'Bohemian Rhapsody',
+    profile_song_artist: 'Queen',
+    profile_song_cover: 'https://img.youtube.com/vi/fJ9rUzIMcZQ/hqdefault.jpg'
   },
   {
     id: 'demo-user-2',
@@ -24,6 +28,10 @@ const DEMO_USERS = [
     bio: 'Fullstack Developer & UI Specialist 🎨',
     status_message: 'focado no código',
     is_online: true,
+    profile_song_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    profile_song_title: 'Never Gonna Give You Up',
+    profile_song_artist: 'Rick Astley',
+    profile_song_cover: 'https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg'
   },
   {
     id: 'demo-user-3',
@@ -34,6 +42,10 @@ const DEMO_USERS = [
     bio: 'DevOps, Cloud & Segurança 🛡️',
     status_message: 'em reunião',
     is_online: false,
+    profile_song_url: 'https://www.youtube.com/watch?v=kXYiU_JCYtU',
+    profile_song_title: 'Numb',
+    profile_song_artist: 'Linkin Park',
+    profile_song_cover: 'https://img.youtube.com/vi/kXYiU_JCYtU/hqdefault.jpg'
   }
 ];
 

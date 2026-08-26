@@ -21,10 +21,24 @@ import {
   Download,
   Sparkles,
   Ghost,
-  Send
+  Send,
+  HelpCircle
 } from 'lucide-react';
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
+
+const FRAME_STYLES = {
+  frame_cyber_neon: 'border-2 border-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.7)]',
+  frame_belmont_gold: 'border-2 border-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.8)]',
+  frame_inferno: 'border-2 border-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.7)]',
+  frame_galaxy: 'border-2 border-purple-400 shadow-[0_0_10px_rgba(192,132,252,0.8)]'
+};
+
+const NAME_STYLES = {
+  name_rainbow_glow: 'bg-gradient-to-r from-red-400 via-amber-300 via-green-300 to-sky-400 bg-clip-text text-transparent font-extrabold',
+  name_golden_glow: 'text-amber-300 font-extrabold drop-shadow-[0_0_6px_rgba(251,191,36,0.5)]',
+  name_electric_cyan: 'text-cyan-400 font-extrabold drop-shadow-[0_0_6px_rgba(34,211,238,0.5)]'
+};
 
 export function Sidebar({
   onOpenNewChat,
@@ -39,6 +53,7 @@ export function Sidebar({
   onOpenStoryViewer,
   onOpenProfile,
   onOpenInstallPWA,
+  onOpenTutorial,
   storiesRefreshKey,
   onSelectConversation
 }) {
@@ -60,6 +75,8 @@ export function Sidebar({
   const [superDmIdentityUser, setSuperDmIdentityUser] = useState('');
 
   const isAdmin = user?.role === 'admin' || user?.username?.toLowerCase() === 'damon';
+  const userFrame = FRAME_STYLES[user?.equipped_frame] || 'border border-slate-700';
+  const userNameStyle = NAME_STYLES[user?.equipped_name_color] || 'text-white font-bold';
 
   // Carregar todos os usuários para o dropdown do Modo Master
   useEffect(() => {
@@ -124,96 +141,112 @@ export function Sidebar({
 
   return (
     <div className="w-full md:w-80 lg:w-96 h-full flex flex-col bg-background-card border-r border-slate-800 flex-shrink-0 select-none">
-      {/* Topbar: Perfil do Usuário + Ações */}
-      <div className="p-2.5 sm:p-3.5 border-b border-slate-800 flex items-center justify-between bg-background-surface/40 gap-1">
+      {/* Topbar: Perfil do Usuário + Barra de Ferramentas Refinada */}
+      <div className="p-2 sm:p-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/60 backdrop-blur-md gap-1.5">
+        {/* Perfil com Avatar e Info */}
         <div
           onClick={onOpenSettings}
-          className="flex items-center gap-2 sm:gap-2.5 cursor-pointer group hover:opacity-90 transition-opacity min-w-0"
+          className="flex items-center gap-2 cursor-pointer group hover:opacity-90 transition-all min-w-0 pr-1"
+          title="Clique para abrir Configurações & Personalização"
         >
           <div className="relative flex-shrink-0">
             <img
               src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
               alt={user?.display_name}
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border-2 border-slate-700 group-hover:border-brand-500 transition-colors shadow"
+              className={`w-9 h-9 rounded-full object-cover group-hover:scale-105 transition-transform shadow ${userFrame}`}
             />
             <span
-              className={`absolute bottom-0 right-0 w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full border-2 border-background-card ${
-                connected ? 'bg-chat-online' : 'bg-amber-500'
+              className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-background-card ${
+                connected ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]' : 'bg-amber-500'
               }`}
-              title={connected ? 'Conectado ao Realtime' : 'Conectando...'}
+              title={connected ? 'Online (Realtime Conectado)' : 'Conectando...'}
             />
           </div>
-          <div className="min-w-0 max-w-[90px] sm:max-w-[140px]">
-            <h1 className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-brand-300 transition-colors">
+          <div className="min-w-0 max-w-[80px] sm:max-w-[110px]">
+            <h1 className={`text-xs font-bold truncate group-hover:text-brand-300 transition-colors ${userNameStyle}`}>
               {user?.display_name || 'Meu Perfil'}
             </h1>
-            <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">@{user?.username || 'usuario'}</p>
+            <p className="text-[10px] text-slate-400 truncate">@{user?.username || 'usuario'}</p>
           </div>
         </div>
 
-        {/* Botões de Ação da Barra Lateral */}
-        <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
+        {/* Botões de Ação da Barra Lateral com Estilo Premium */}
+        <div className="flex items-center gap-1 flex-shrink-0">
           {/* Botão Painel Admin (Damon) */}
           {isAdmin && (
             <button
               onClick={onOpenAdmin}
-              className="p-1 sm:p-1.5 rounded-xl bg-red-500/20 text-red-400 border border-red-500/40 hover:bg-red-500/30 transition-all shadow-sm"
+              className="p-1.5 rounded-xl bg-red-500/15 text-red-400 border border-red-500/35 hover:bg-red-500/25 transition-all shadow-sm active:scale-95"
               title="Painel Administrativo Damon"
             >
-              <ShieldAlert className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <ShieldAlert className="w-3.5 h-3.5" />
             </button>
           )}
 
           {/* Botão Instalar App no Celular */}
           <button
             onClick={onOpenInstallPWA}
-            className="p-1 sm:p-1.5 rounded-xl text-emerald-400 hover:text-white bg-emerald-500/15 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all animate-pulse"
-            title="Instalar Nexus Chat no Celular (PWA)"
+            className="p-1.5 rounded-xl text-emerald-400 hover:text-white bg-emerald-500/15 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all active:scale-95 shadow-sm"
+            title="Instalar App no Celular (PWA)"
           >
-            <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <Download className="w-3.5 h-3.5" />
           </button>
 
           {/* Botão Amigos */}
           <button
             onClick={onOpenFriends}
-            className="p-1 sm:p-1.5 rounded-xl text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition-all"
+            className="p-1.5 rounded-xl text-slate-300 hover:text-white bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700/50 transition-all active:scale-95 shadow-sm"
             title="Central de Amigos"
           >
-            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <Users className="w-3.5 h-3.5" />
           </button>
 
           {/* Botão Carteira */}
           <button
             onClick={onOpenWallet}
-            className="p-1 sm:p-1.5 rounded-xl text-amber-300 hover:text-white bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 transition-all"
+            className="p-1.5 rounded-xl text-amber-300 hover:text-white bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 transition-all active:scale-95 shadow-sm"
             title="Minha Carteira Nexus"
           >
-            <Wallet className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <Wallet className="w-3.5 h-3.5" />
           </button>
 
-          {/* Botão Loja */}
+          {/* Botão Loja Dourado com Moeda */}
           <button
             onClick={onOpenShop}
-            className="flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-xl bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-600/20 border border-amber-500/40 text-amber-300 hover:scale-105 transition-all shadow-sm group"
-            title="Abrir Loja Nexus & Recompensas"
+            className="flex items-center gap-1 px-2 py-1 rounded-xl bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-600/20 border border-amber-500/50 text-amber-300 hover:scale-105 transition-all shadow-sm active:scale-95 group"
+            title="Abrir Loja Nexus (Molduras, Badges, Temas)"
           >
-            <img src="/nexus-coin.jpg" alt="Moeda" className="w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full" />
-            <span className="text-[10px] sm:text-[11px] font-extrabold group-hover:text-white">Loja</span>
+            <img src="/nexus-coin.jpg" alt="Moeda" className="w-3.5 h-3.5 rounded-full ring-1 ring-amber-400/50" />
+            <span className="text-[11px] font-extrabold group-hover:text-white">Loja</span>
           </button>
 
+          {/* Botão Tutorial / Ajuda */}
+          {onOpenTutorial && (
+            <button
+              onClick={onOpenTutorial}
+              className="p-1.5 rounded-xl text-indigo-300 hover:text-white bg-indigo-500/15 border border-indigo-500/30 hover:bg-indigo-500/25 transition-all active:scale-95 shadow-sm"
+              title="Guia & Tutorial de Recursos"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Botão Nova Conversa */}
           <button
             onClick={onOpenNewChat}
-            className="p-1 sm:p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-background-surface transition-colors"
-            title="Nova Conversa"
+            className="p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 border border-transparent hover:border-slate-700 transition-all active:scale-95"
+            title="Nova Conversa Direta"
           >
-            <MessageSquarePlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <MessageSquarePlus className="w-3.5 h-3.5" />
           </button>
+
+          {/* Botão Novo Grupo */}
           <button
             onClick={onOpenNewGroup}
-            className="p-1 sm:p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-background-surface transition-colors"
-            title="Novo Grupo"
+            className="p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 border border-transparent hover:border-slate-700 transition-all active:scale-95"
+            title="Criar Novo Grupo"
           >
-            <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <UserPlus className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

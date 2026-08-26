@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { FormattedText } from './FormattedText';
 import { PollCard } from '../polls/PollCard';
+import { CoffeeInviteCard } from './CoffeeInviteCard';
 
 const POPULAR_REACTIONS = ['👍', '❤️', '🔥', '😂', '🎉', '👏'];
 
@@ -363,12 +364,14 @@ export function MessageBubble({
             </div>
           )}
 
-          {/* Conteúdo de Texto, Enquete ou Estado Excluído */}
+          {/* Conteúdo de Texto, Enquete, Convite para Café ou Estado Excluído */}
           {isDeleted ? (
             <div className="flex items-center gap-1.5 text-xs text-slate-400 italic py-0.5">
               <Ban className="w-3.5 h-3.5 opacity-70" />
               <span>Esta mensagem foi excluída</span>
             </div>
+          ) : message.type === 'coffee_invite' || (message.content && message.content.includes('"coffee_invite"')) ? (
+            <CoffeeInviteCard message={message} isOwn={isOwn} />
           ) : message.type === 'poll' ? (
             <PollCard message={message} />
           ) : (

@@ -83,6 +83,7 @@ export function AdminModal({ isOpen, onClose }) {
   const [patchVersion, setPatchVersion] = useState('v2.5.0');
   const [patchContent, setPatchContent] = useState('');
   const [patchIsPinned, setPatchIsPinned] = useState(false);
+  const [patchBroadcastToBelmont, setPatchBroadcastToBelmont] = useState(true);
 
   // Substate Chat Master
   const [allMasterConversations, setAllMasterConversations] = useState([]);
@@ -365,23 +366,41 @@ export function AdminModal({ isOpen, onClose }) {
     try {
       setActionLoading(true);
       if (isSupabaseConfigured && supabase) {
+        // 1. Inserir na tabela de patch notes
         await supabase.from('patch_notes').insert({
           tag: patchTag,
           title: patchTitle,
           version: patchVersion || 'v2.5.0',
           content: patchContent,
-          author_name: 'Damon',
+          author_name: user?.display_name || 'Damon',
           is_pinned: patchIsPinned
         });
+
+        // 2. Se marcado para emitir aviso no Belmont Conference, envia mensagem automática na sala geral
+        if (patchBroadcastToBelmont) {
+          const announcementText = `📢 **[ATUALIZAÇÃO OFICIAL • ${patchTag}] ${patchTitle} (${patchVersion || 'v2.5.0'})**\n\n${patchContent}\n\n*— Publicado por ${user?.display_name || 'Admin Damon'} no Painel*`;
+          await supabase.from('messages').insert({
+            conversation_id: BELMONT_ID,
+            sender_id: user?.id,
+            content: announcementText,
+            type: 'text'
+          });
+        }
       }
 
       sounds.playPop();
       confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-      setFeedback({ text: 'Nota de Atualização publicada com sucesso!', type: 'success' });
+      setFeedback({
+        text: patchBroadcastToBelmont
+          ? 'Nota publicada e aviso transmitido no Belmont Conference!'
+          : 'Nota de Atualização publicada com sucesso!',
+        type: 'success'
+      });
       setPatchTitle('');
       setPatchContent('');
       setPatchIsPinned(false);
       loadPatchNotes();
+      if (loadConversations) loadConversations();
     } catch (err) {
       setFeedback({ text: 'Erro ao publicar patch note.', type: 'error' });
     } finally {
@@ -981,7 +1000,7 @@ export function AdminModal({ isOpen, onClose }) {
                     />
                   </div>
 
-                  <div className="sm:col-span-2 flex items-center pt-4">
+                  <div className="sm:col-span-2 flex flex-wrap items-center gap-4 pt-3">
                     <label className="flex items-center gap-2 text-xs text-amber-300 font-semibold cursor-pointer">
                       <input
                         type="checkbox"
@@ -989,7 +1008,17 @@ export function AdminModal({ isOpen, onClose }) {
                         onChange={(e) => setPatchIsPinned(e.target.checked)}
                         className="rounded border-slate-700 bg-background-dark text-amber-500 focus:ring-0"
                       />
-                      <span>Fixar no topo como Destaque 📌</span>
+                      <span>Fixar no topo 📌</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 text-xs text-emerald-400 font-bold cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={patchBroadcastToBelmont}
+                        onChange={(e) => setPatchBroadcastToBelmont(e.target.checked)}
+                        className="rounded border-slate-700 bg-background-dark text-emerald-500 focus:ring-0"
+                      />
+                      <span>📢 Emitir aviso no Belmont Conference</span>
                     </label>
                   </div>
                 </div>

@@ -17,6 +17,7 @@ import { FriendsModal } from './components/friends/FriendsModal';
 import { CreateStoryModal } from './components/stories/CreateStoryModal';
 import { StoryViewerModal } from './components/stories/StoryViewerModal';
 import { InstallAppModal } from './components/pwa/InstallAppModal';
+import { OnboardingTutorialModal } from './components/auth/OnboardingTutorialModal';
 import { apiRequest } from './lib/api';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 
@@ -35,6 +36,7 @@ function ChatDashboard() {
   const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [showCreateStoryModal, setShowCreateStoryModal] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
+  const [showTutorialModal, setShowTutorialModal] = useState(false);
 
   // Perfil e Stories Viewer States
   const [targetUserProfile, setTargetUserProfile] = useState(null);
@@ -119,6 +121,7 @@ function ChatDashboard() {
             onOpenStoryViewer={(group) => setActiveStoryGroup(group)}
             onOpenProfile={(u) => setTargetUserProfile(u)}
             onOpenInstallPWA={() => setShowInstallModal(true)}
+            onOpenTutorial={() => setShowTutorialModal(true)}
             storiesRefreshKey={storiesRefreshKey}
             onSelectConversation={handleSelectConversation}
           />
@@ -153,6 +156,7 @@ function ChatDashboard() {
       <AuthModal
         isOpen={showAuthModal || !user}
         onClose={() => setShowAuthModal(false)}
+        onOpenTutorial={() => setShowTutorialModal(true)}
       />
 
       <NewChatModal
@@ -203,6 +207,10 @@ function ChatDashboard() {
         isOpen={Boolean(targetUserProfile)}
         onClose={() => setTargetUserProfile(null)}
         onStartDirectChat={(target) => handleStartDirectChat(target)}
+        onOpenEditProfile={() => {
+          setTargetUserProfile(null);
+          setShowSettingsModal(true);
+        }}
         onOpenUserStories={async (userId) => {
           setTargetUserProfile(null);
           // Buscar stories do usuário e abrir viewer
@@ -238,6 +246,11 @@ function ChatDashboard() {
       <InstallAppModal
         isOpen={showInstallModal}
         onClose={() => setShowInstallModal(false)}
+      />
+
+      <OnboardingTutorialModal
+        isOpen={showTutorialModal}
+        onClose={() => setShowTutorialModal(false)}
       />
     </div>
   );

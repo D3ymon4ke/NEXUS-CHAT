@@ -19,7 +19,8 @@ import {
   Sparkles,
   Flame,
   Coins,
-  BarChart3
+  BarChart3,
+  Coffee
 } from 'lucide-react';
 
 const EMOJI_CATEGORIES = [
@@ -91,12 +92,35 @@ export function MessageInput() {
     }, 2000);
   };
 
+  const handleSendCoffeeInvite = async () => {
+    if (!user) return;
+    sounds.playPop();
+    const invitePayload = JSON.stringify({
+      coffee_invite: {
+        senderId: user.id,
+        senderName: user.display_name || user.username,
+        senderAvatar: user.avatar_url,
+        rewardAmount: 30,
+        acceptedBy: null,
+        acceptedByName: null,
+        acceptedAt: null,
+        createdAt: new Date().toISOString()
+      }
+    });
+    await sendMessage(invitePayload, [], 'coffee_invite');
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (content.trim().toLowerCase().startsWith('/enquete')) {
         setContent('');
         setShowPollModal(true);
+        return;
+      }
+      if (content.trim().toLowerCase().startsWith('/cafe') || content.trim().toLowerCase().startsWith('/café')) {
+        setContent('');
+        handleSendCoffeeInvite();
         return;
       }
       handleSend();
@@ -325,9 +349,9 @@ export function MessageInput() {
         </div>
       )}
 
-      {/* Banner de Sugestão de Comando Slash /enquete */}
+      {/* Banner de Sugestão de Comando Slash (/enquete ou /cafe) */}
       {content.startsWith('/') && (
-        <div className="mb-2 p-1.5 rounded-2xl bg-slate-900/95 border border-brand-500/50 shadow-2xl backdrop-blur-md animate-fadeIn">
+        <div className="mb-2 p-1.5 rounded-2xl bg-slate-900/95 border border-brand-500/50 shadow-2xl backdrop-blur-md animate-fadeIn space-y-1">
           <button
             type="button"
             onClick={() => {
@@ -345,6 +369,26 @@ export function MessageInput() {
             </div>
             <span className="text-[10px] text-brand-400 font-bold bg-brand-500/20 px-2 py-0.5 rounded-lg border border-brand-500/30">
               Abrir Enquete ↵
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setContent('');
+              handleSendCoffeeInvite();
+            }}
+            className="w-full px-3 py-2 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 text-left flex items-center justify-between text-xs transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <span className="p-1 rounded-lg bg-amber-500 text-white font-extrabold text-xs">☕</span>
+              <div>
+                <span className="font-extrabold text-amber-300">/cafe</span>
+                <span className="text-slate-300 ml-2">Convidar para uma pausa para o café (+30 Nexus Coins)</span>
+              </div>
+            </div>
+            <span className="text-[10px] text-amber-400 font-bold bg-amber-500/20 px-2 py-0.5 rounded-lg border border-amber-500/30">
+              Enviar Café ↵
             </span>
           </button>
         </div>
@@ -388,13 +432,25 @@ export function MessageInput() {
                 ? "Edite sua mensagem..."
                 : attachments.length > 0
                 ? "Adicione uma legenda para a imagem... (Enter para enviar)"
-                : "Digite uma mensagem ou /enquete para criar votação..."
+                : "Digite uma mensagem, /cafe para convidar ou /enquete..."
             }
             className="w-full bg-transparent px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-32 leading-relaxed"
           />
 
-          {/* Botão de Enquete & Emojis */}
+          {/* Botões de Ação: Enquete, Café & Emojis */}
           <div className="pb-2.5 pr-2 flex items-center gap-0.5 relative">
+            {/* Botão Convite de Café */}
+            {!editingMessage && (
+              <button
+                type="button"
+                onClick={handleSendCoffeeInvite}
+                className="p-1 text-slate-400 hover:text-amber-400 transition-colors group"
+                title="Convidar para um Café ☕ (+30 Coins)"
+              >
+                <Coffee className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+              </button>
+            )}
+
             {/* Botão Enquete */}
             {!editingMessage && (
               <button
@@ -406,6 +462,7 @@ export function MessageInput() {
                 <BarChart3 className="w-5 h-5" />
               </button>
             )}
+
             <button
               type="button"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
