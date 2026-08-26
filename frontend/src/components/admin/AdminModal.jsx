@@ -40,7 +40,9 @@ import {
   Zap,
   Flame,
   Globe,
-  Sliders
+  Sliders,
+  Crown,
+  Award
 } from 'lucide-react';
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';

@@ -81,25 +81,25 @@ export function ChatProvider({ children }) {
       try {
         setLoadingMessages(true);
         if (isSupabaseConfigured && supabase) {
-          const { data: dbMsgs, error: dbErr } = await supabase
-            .from('messages')
-            .select(`
-              *,
-              sender:profiles(id, display_name, username, avatar_url, equipped_frame, equipped_bubble, equipped_badge, equipped_name_color, role, custom_title),
-              attachments:message_attachments(*),
-              reactions:message_reactions(id, emoji, user_id),
-              reply_to:messages!reply_to_id(
-                id, content, type, sender_id,
-                sender:profiles(id, display_name, username)
-              )
-            `)
-            .eq('conversation_id', activeConversationId)
-            .order('created_at', { ascending: true })
-            .limit(150);
+          try {
+            const { data: dbMsgs, error: dbErr } = await supabase
+              .from('messages')
+              .select(`
+                *,
+                sender:profiles(*),
+                attachments:message_attachments(*),
+                reactions:message_reactions(id, emoji, user_id)
+              `)
+              .eq('conversation_id', activeConversationId)
+              .order('created_at', { ascending: true })
+              .limit(150);
 
-          if (dbMsgs && !dbErr) {
-            setMessages(dbMsgs);
-            return;
+            if (dbMsgs && !dbErr) {
+              setMessages(dbMsgs);
+              return;
+            }
+          } catch (supaErr) {
+            console.warn('Fallback para API de mensagens:', supaErr);
           }
         }
 

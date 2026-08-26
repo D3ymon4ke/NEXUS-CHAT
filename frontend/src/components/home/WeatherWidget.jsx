@@ -1,55 +1,105 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Cloud, Sun, CloudRain, Wind, MapPin } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Sun, Cloud, CloudRain, Wind, Droplets, MapPin, Sparkles } from 'lucide-react';
 
 export function WeatherWidget() {
-  const containerRef = useRef(null);
-  const [loadError, setLoadError] = useState(false);
+  const [weather, setWeather] = useState({
+    city: 'Rio de Janeiro',
+    temp: 26,
+    condition: 'Ensolarado',
+    humidity: 65,
+    wind: 14,
+    code: 0
+  });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let script = null;
-    try {
-      const widgetDiv = document.getElementById('ww_215c38aacc48b');
-      if (widgetDiv) {
-        script = document.createElement('script');
-        script.src = 'https://app3.weatherwidget.org/js/?id=ww_215c38aacc48b';
-        script.async = true;
-        script.onerror = () => setLoadError(true);
-        document.body.appendChild(script);
+    let mounted = true;
+    async function fetchWeather() {
+      try {
+        // Coordenadas Rio de Janeiro (-22.9068, -43.1729) via Open-Meteo Free API
+        const res = await fetch(
+          'https://api.open-meteo.com/v1/forecast?latitude=-22.9068&longitude=-43.1729&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&timezone=America%2FSao_Paulo'
+        );
+        if (!res.ok) throw new Error('Falha ao buscar clima');
+        const data = await res.json();
+        if (mounted && data?.current) {
+          const code = data.current.weather_code || 0;
+          let cond = 'Ensolarado';
+          if (code >= 1 && code <= 3) cond = 'Parcialmente Nublado';
+          else if (code >= 45 && code <= 48) cond = 'Nevoeiro';
+          else if (code >= 51 && code <= 67) cond = 'Chuva Leve';
+          else if (code >= 80 && code <= 99) cond = 'Tempestade / Chuva';
+
+          setWeather({
+            city: 'Rio de Janeiro',
+            temp: Math.round(data.current.temperature_2m),
+            condition: cond,
+            humidity: data.current.relative_humidity_2m || 65,
+            wind: Math.round(data.current.wind_speed_10m || 14),
+            code
+          });
+        }
+      } catch (err) {
+        // Fallback gracioso estático
+      } finally {
+        if (mounted) setLoading(false);
       }
-    } catch (err) {
-      console.warn('Widget de clima externo indisponível:', err);
-      setLoadError(true);
     }
 
+    fetchWeather();
+    const timer = setInterval(fetchWeather, 10 * 60 * 1000); // Atualizar a cada 10 minutos
     return () => {
-      if (script && script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
+      mounted = false;
+      clearInterval(timer);
     };
   }, []);
 
+  const getWeatherIcon = (code) => {
+    if (code >= 51) return <CloudRain className="w-7 h-7 text-sky-400 animate-pulse" />;
+    if (code >= 1) return <Cloud className="w-7 h-7 text-slate-300 animate-pulse" />;
+    return <Sun className="w-7 h-7 text-amber-400 animate-spin [animation-duration:20s]" />;
+  };
+
   return (
-    <div ref={containerRef} className="w-full rounded-2xl overflow-hidden shadow-lg border border-slate-700/50 bg-slate-900/90 min-h-[90px] flex items-center justify-center relative p-2">
-      <div
-        id="ww_215c38aacc48b"
-        v="1.3"
-        loc="id"
-        a='{"t":"horizontal","lang":"pt","sl_lpl":1,"ids":["wl5106"],"font":"Arial","sl_ics":"one_a","sl_sot":"celsius","cl_bkg":"image","cl_font":"#FFFFFF","cl_cloud":"#FFFFFF","cl_persp":"#81D4FA","cl_sun":"#FFC107","cl_moon":"#FFC107","cl_thund":"#FF5722"}'
-        className="w-full text-center"
-      >
-        <div className="flex items-center justify-center gap-3 py-2 text-slate-300">
-          <Sun className="w-6 h-6 text-amber-400 animate-spin [animation-duration:12s]" />
-          <div className="text-left">
-            <div className="flex items-center gap-1 text-xs font-bold text-white">
-              <MapPin className="w-3 h-3 text-brand-400" />
-              <span>Rio de Janeiro, BR • 26°C</span>
+    <div className="w-full rounded-2xl overflow-hidden shadow-xl border border-slate-700/60 bg-gradient-to-r from-slate-900/95 via-background-dark/95 to-slate-900/95 p-3 relative backdrop-blur-md">
+      <div className="flex items-center justify-between gap-3">
+        {/* Esquerda: Ícone & Cidade */}
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-slate-800/80 border border-slate-700/50 shadow-inner flex items-center justify-center">
+            {getWeatherIcon(weather.code)}
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-extrabold text-white">
+              <MapPin className="w-3.5 h-3.5 text-brand-400" />
+              <span>{weather.city}, BR</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-brand-500/20 text-brand-300 font-bold border border-brand-500/30">
+                Ao Vivo
+              </span>
             </div>
-            <span className="text-[10px] text-slate-400">Tempo Limpo & Conectado ao Nexus</span>
+            <span className="text-[11px] text-slate-300 font-medium">
+              {weather.condition}
+            </span>
           </div>
         </div>
-        <a href="https://tempolongo.com/rio_de_janeiro_tempo_25_dias/" id="ww_215c38aacc48b_u" target="_blank" rel="noreferrer" className="hidden">
-          Weather Rio de Janeiro
-        </a>
+
+        {/* Direita: Temperatura & Métricas */}
+        <div className="flex items-center gap-4 text-right">
+          <div className="hidden sm:flex flex-col text-[10px] text-slate-400 font-semibold gap-0.5">
+            <span className="flex items-center justify-end gap-1">
+              <Droplets className="w-3 h-3 text-sky-400" /> {weather.humidity}%
+            </span>
+            <span className="flex items-center justify-end gap-1">
+              <Wind className="w-3 h-3 text-teal-400" /> {weather.wind} km/h
+            </span>
+          </div>
+
+          <div className="flex items-start">
+            <span className="text-2xl font-black text-amber-300 drop-shadow-[0_0_8px_rgba(251,191,36,0.4)]">
+              {weather.temp}
+            </span>
+            <span className="text-xs font-extrabold text-amber-400 mt-0.5">°C</span>
+          </div>
+        </div>
       </div>
     </div>
   );
