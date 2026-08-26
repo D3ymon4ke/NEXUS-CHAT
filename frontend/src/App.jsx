@@ -19,6 +19,7 @@ import { StoryViewerModal } from './components/stories/StoryViewerModal';
 import { InstallAppModal } from './components/pwa/InstallAppModal';
 import { OnboardingTutorialModal } from './components/auth/OnboardingTutorialModal';
 import { CreatePollModal } from './components/polls/CreatePollModal';
+import { TitlePromotionModal } from './components/profile/TitlePromotionModal';
 import { apiRequest } from './lib/api';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 
@@ -265,6 +266,8 @@ function ChatDashboard() {
         isOpen={showPollModal}
         onClose={() => setShowPollModal(false)}
       />
+
+      <TitlePromotionModal />
     </div>
   );
 }

@@ -85,6 +85,16 @@ export function AdminModal({ isOpen, onClose }) {
   const [patchIsPinned, setPatchIsPinned] = useState(false);
   const [patchBroadcastToBelmont, setPatchBroadcastToBelmont] = useState(true);
 
+  // Substate Nomeação de Cargos & Condecoração de Usuários 👑
+  const [promoUserId, setPromoUserId] = useState('');
+  const [promoTitle, setPromoTitle] = useState('Coordenador');
+  const [promoCustomTitle, setPromoCustomTitle] = useState('');
+  const [promoBadge, setPromoBadge] = useState('badge_coordinator');
+  const [promoRole, setPromoRole] = useState('moderator');
+  const [promoBonusCoins, setPromoBonusCoins] = useState('250');
+  const [promoMessage, setPromoMessage] = useState('Parabéns pela sua dedicação e contribuição exemplar na comunidade!');
+  const [promoBroadcast, setPromoBroadcast] = useState(true);
+
   // Substate Chat Master
   const [allMasterConversations, setAllMasterConversations] = useState([]);
   const [selectedMasterConvId, setSelectedMasterConvId] = useState(BELMONT_ID);
@@ -450,6 +460,172 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
+  const PROMOTION_PRESETS = [
+    {
+      title: 'Coordenador',
+      badge: 'badge_coordinator',
+      role: 'moderator',
+      icon: '⭐',
+      label: '⭐ Coordenador Geral',
+      desc: 'Liderança comunitária e apoio geral',
+      coins: '250'
+    },
+    {
+      title: 'Moderador',
+      badge: 'badge_moderator',
+      role: 'moderator',
+      icon: '🛡️',
+      label: '🛡️ Moderador Oficial',
+      desc: 'Gestão de salas e moderação de membros',
+      coins: '200'
+    },
+    {
+      title: 'BETA TESTER',
+      badge: 'badge_beta_tester',
+      role: 'member',
+      icon: '🧪',
+      label: '🧪 BETA TESTER VIP',
+      desc: 'Acesso prioritário a recursos experimentais',
+      coins: '150'
+    },
+    {
+      title: 'Embaixador',
+      badge: 'badge_ambassador',
+      role: 'member',
+      icon: '🌟',
+      label: '🌟 Embaixador da Comunidade',
+      desc: 'Representante oficial e acolhimento',
+      coins: '150'
+    },
+    {
+      title: 'Pioneiro',
+      badge: 'badge_early_adopter',
+      role: 'member',
+      icon: '⚡',
+      label: '⚡ Pioneiro Nexus',
+      desc: 'Membro fundador da primeira geração',
+      coins: '100'
+    },
+    {
+      title: 'VIP Honorário',
+      badge: 'badge_vip_honor',
+      role: 'member',
+      icon: '💎',
+      label: '💎 Membro Honorário',
+      desc: 'Título de prestígio e mérito especial',
+      coins: '300'
+    },
+    {
+      title: 'custom',
+      badge: 'badge_coordinator',
+      role: 'member',
+      icon: '✍️',
+      label: '✍️ Título Personalizado...',
+      desc: 'Digite qualquer título exclusivo desejado',
+      coins: '100'
+    }
+  ];
+
+  const handleBestowPromotion = async (e) => {
+    e.preventDefault();
+    if (!promoUserId) {
+      setFeedback({ text: 'Selecione um usuário para condecorar.', type: 'error' });
+      return;
+    }
+
+    const effectiveTitle = promoTitle === 'custom' ? promoCustomTitle.trim() : promoTitle;
+    if (!effectiveTitle) {
+      setFeedback({ text: 'Digite o nome do cargo/título a ser concedido.', type: 'error' });
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      const targetUser = users.find(u => u.id === promoUserId);
+      if (!targetUser) return;
+
+      const bonus = parseInt(promoBonusCoins, 10) || 0;
+      const newCoins = (targetUser.nexus_coins || 0) + bonus;
+
+      const pendingReward = {
+        title: effectiveTitle,
+        badge: promoBadge,
+        bonus: bonus,
+        message: promoMessage.trim(),
+        adminName: user?.display_name || user?.username || 'Damon',
+        grantedAt: new Date().toISOString()
+      };
+
+      if (isSupabaseConfigured && supabase) {
+        const { error: updErr } = await supabase
+          .from('profiles')
+          .update({
+            custom_title: effectiveTitle,
+            equipped_badge: promoBadge,
+            role: promoRole,
+            nexus_coins: newCoins,
+            title_reward_pending: JSON.stringify(pendingReward)
+          })
+          .eq('id', promoUserId);
+
+        if (updErr) throw updErr;
+
+        if (bonus > 0) {
+          await supabase.from('nexus_transactions').insert({
+            user_id: promoUserId,
+            amount: bonus,
+            type: 'promotion_reward',
+            description: `Bônus por condecoração ao cargo de ${effectiveTitle} 👑`
+          });
+        }
+
+        if (promoBroadcast) {
+          const broadcastMsg = `👑 **CONDECORAÇÃO OFICIAL NEXUS**\n\n🎉 O membro **@${targetUser.username}** (${targetUser.display_name || targetUser.username}) foi condecorado pelo Administrador com o título de **⭐ ${effectiveTitle}**!\n\n💬 *"${promoMessage.trim()}"*`;
+          await supabase.from('messages').insert({
+            conversation_id: BELMONT_ID,
+            sender_id: user.id,
+            content: broadcastMsg,
+            type: 'text'
+          });
+        }
+      }
+
+      sounds.playPop();
+      confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
+      setFeedback({
+        text: `🎉 @${targetUser.username} foi condecorado como ${effectiveTitle}! Um popup de parabéns aparecerá para ele.`,
+        type: 'success'
+      });
+
+      loadAdminData();
+    } catch (err) {
+      console.error('Erro ao condecorar usuário:', err);
+      setFeedback({ text: 'Erro ao condecorar usuário.', type: 'error' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRevokePromotion = async (userId) => {
+    if (!window.confirm('Deseja revogar o título deste usuário?')) return;
+    try {
+      if (isSupabaseConfigured && supabase) {
+        await supabase
+          .from('profiles')
+          .update({
+            custom_title: null,
+            role: 'member',
+            title_reward_pending: null
+          })
+          .eq('id', userId);
+      }
+      setFeedback({ text: 'Título e condecoração revogados.', type: 'success' });
+      loadAdminData();
+    } catch (err) {
+      console.error('Erro ao revogar título:', err);
+    }
+  };
+
   if (!isOpen) return null;
 
   const filteredUsers = users.filter(u =>
@@ -467,6 +643,7 @@ export function AdminModal({ isOpen, onClose }) {
 
   const navTabs = [
     { id: 'stats', label: 'Estatísticas', icon: Activity, badge: 'Live' },
+    { id: 'promotions', label: 'Nomear Cargos', icon: Crown, badge: 'VIP' },
     { id: 'chat_master', label: 'Super DM Master', icon: Ghost, badge: 'Secreto' },
     { id: 'users', label: 'Usuários & Coins', icon: Users },
     { id: 'shop', label: 'Gerenciar Loja', icon: ShoppingBag },
@@ -623,6 +800,234 @@ export function AdminModal({ isOpen, onClose }) {
                   <span className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/40 shadow-sm">
                     Uptime: {stats.serverUptime}
                   </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ABA: NOMEAR CARGOS & CONDECORAÇÃO OFICIAL 👑 */}
+          {activeTab === 'promotions' && (
+            <div className="space-y-4">
+              {/* Banner de Apresentação */}
+              <div className="p-4 rounded-3xl bg-gradient-to-r from-amber-950/50 via-slate-900 to-yellow-950/50 border border-amber-500/40 flex items-center justify-between gap-3 shadow-xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-300 flex items-center justify-center border border-amber-500/40">
+                    <Crown className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-extrabold text-amber-300 uppercase tracking-wide">
+                      Concessão de Cargos, Títulos & Badges de Honra
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      Ao nomear um membro, um popup festivo com confetes e parabéns aparecerá na tela dele ao entrar!
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Formulário de Condecoração */}
+              <form onSubmit={handleBestowPromotion} className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-4">
+                <h4 className="text-xs font-extrabold text-white flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span>1. Selecionar Membro & Cargo a ser Concedido</span>
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {/* Escolha do Usuário */}
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-300 uppercase block mb-1.5">
+                      Membro a ser Condecorado:
+                    </label>
+                    <select
+                      value={promoUserId}
+                      onChange={(e) => setPromoUserId(e.target.value)}
+                      required
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500 font-semibold"
+                    >
+                      <option value="">Selecione um usuário...</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.display_name || u.username} (@{u.username}) {u.custom_title ? `[${u.custom_title}]` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Bônus de Moedas */}
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-300 uppercase block mb-1.5">
+                      Bônus de Moedas de Reconhecimento:
+                    </label>
+                    <div className="flex gap-2">
+                      {['100', '250', '500'].map((amt) => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => setPromoBonusCoins(amt)}
+                          className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                            promoBonusCoins === amt
+                              ? 'bg-amber-500 text-black border-amber-400 shadow'
+                              : 'bg-background-dark text-slate-300 border-slate-700'
+                          }`}
+                        >
+                          +{amt} 🪙
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seleção de Presets de Títulos */}
+                <div>
+                  <label className="text-[10px] font-bold text-slate-300 uppercase block mb-1.5">
+                    Escolha o Cargo / Título Oficial:
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {PROMOTION_PRESETS.map((preset) => {
+                      const isSelected = promoTitle === preset.title;
+                      return (
+                        <button
+                          key={preset.title}
+                          type="button"
+                          onClick={() => {
+                            setPromoTitle(preset.title);
+                            setPromoBadge(preset.badge);
+                            setPromoRole(preset.role);
+                            if (preset.coins) setPromoBonusCoins(preset.coins);
+                          }}
+                          className={`p-3 rounded-2xl text-left border transition-all ${
+                            isSelected
+                              ? 'bg-amber-500/20 border-amber-400 text-amber-200 shadow-lg shadow-amber-500/10 ring-1 ring-amber-400'
+                              : 'bg-background-dark/80 border-slate-800 text-slate-300 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 font-bold text-xs">
+                            <span>{preset.icon}</span>
+                            <span>{preset.title === 'custom' ? 'Customizado' : preset.title}</span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 mt-1">{preset.desc}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Campo se for Título Customizado */}
+                {promoTitle === 'custom' && (
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-300 uppercase block mb-1.5">
+                      Nome do Título Customizado:
+                    </label>
+                    <input
+                      type="text"
+                      value={promoCustomTitle}
+                      onChange={(e) => setPromoCustomTitle(e.target.value)}
+                      placeholder="Ex: Mestre Supremo, Guardião, Diretor..."
+                      required
+                      className="w-full px-3.5 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500 font-bold"
+                    />
+                  </div>
+                )}
+
+                {/* Mensagem Personalizada de Condecoração */}
+                <div>
+                  <label className="text-[10px] font-bold text-slate-300 uppercase block mb-1.5">
+                    Mensagem de Condecoração (Aparecerá no Popup de Parabéns):
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={promoMessage}
+                    onChange={(e) => setPromoMessage(e.target.value)}
+                    placeholder="Escreva a mensagem congratulatória..."
+                    className="w-full px-3.5 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500 resize-none"
+                  />
+                </div>
+
+                {/* Opção de Anúncio no Belmont Conference */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="promoBroadcast"
+                    checked={promoBroadcast}
+                    onChange={(e) => setPromoBroadcast(e.target.checked)}
+                    className="rounded border-slate-700 text-amber-500 focus:ring-amber-400"
+                  />
+                  <label htmlFor="promoBroadcast" className="text-xs text-slate-300 cursor-pointer">
+                    Emitir anúncio de condecoração no Belmont Conference para todos os membros
+                  </label>
+                </div>
+
+                {/* Botão de Envio */}
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs shadow-xl shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
+                >
+                  <Award className="w-4 h-4" />
+                  <span>Conceder Cargo & Emitir Popup de Parabéns 🎉</span>
+                </button>
+              </form>
+
+              {/* Tabela de Usuários Condecorados com Cargos Atuais */}
+              <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
+                <h4 className="text-xs font-extrabold text-white flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Crown className="w-4 h-4 text-amber-400" />
+                    <span>Membros Atualmente Condecorados</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400">
+                    {users.filter(u => u.custom_title || u.role === 'moderator').length} condecorados
+                  </span>
+                </h4>
+
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {users.filter(u => u.custom_title || u.role === 'moderator' || u.role === 'admin').map((u) => (
+                    <div
+                      key={u.id}
+                      className="p-3 rounded-2xl bg-background-dark border border-slate-800 flex items-center justify-between text-xs"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <img
+                          src={u.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${u.id}`}
+                          alt="avatar"
+                          className="w-8 h-8 rounded-full object-cover border border-slate-700"
+                        />
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-white">{u.display_name || u.username}</span>
+                            <span className="text-[10px] text-slate-400">@{u.username}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {u.custom_title && (
+                              <span className="text-[9px] px-2 py-0.2 rounded-full bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30">
+                                ⭐ {u.custom_title}
+                              </span>
+                            )}
+                            {u.role === 'moderator' && !u.custom_title && (
+                              <span className="text-[9px] px-2 py-0.2 rounded-full bg-indigo-500/20 text-indigo-300 font-extrabold border border-indigo-500/30">
+                                🛡️ Moderador
+                              </span>
+                            )}
+                            {u.role === 'admin' && (
+                              <span className="text-[9px] px-2 py-0.2 rounded-full bg-rose-500/20 text-rose-300 font-extrabold border border-rose-500/30">
+                                👑 Admin Damon
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {u.username !== 'damon' && (u.custom_title || u.role === 'moderator') && (
+                        <button
+                          type="button"
+                          onClick={() => handleRevokePromotion(u.id)}
+                          className="px-2.5 py-1 rounded-xl text-[10px] font-bold text-rose-400 hover:text-white bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition-colors"
+                        >
+                          Revogar Cargo
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

@@ -45,10 +45,15 @@ const NAME_STYLES = {
 };
 
 const BADGE_LABELS = {
-  badge_belmont_vip: { icon: '👑', label: 'VIP Belmont' },
-  badge_early_adopter: { icon: '⚡', label: 'Pioneiro' },
-  badge_diamond: { icon: '💎', label: 'Diamante' },
-  badge_chat_master: { icon: '🔥', label: 'Chat Master' }
+  badge_coordinator: { icon: '⭐', label: 'Coordenador', color: 'text-amber-300 bg-amber-500/20 border-amber-500/40' },
+  badge_moderator: { icon: '🛡️', label: 'Moderador', color: 'text-indigo-300 bg-indigo-500/20 border-indigo-500/40' },
+  badge_beta_tester: { icon: '🧪', label: 'BETA TESTER', color: 'text-cyan-300 bg-cyan-500/20 border-cyan-500/40' },
+  badge_ambassador: { icon: '🌟', label: 'Embaixador', color: 'text-emerald-300 bg-emerald-500/20 border-emerald-500/40' },
+  badge_vip_honor: { icon: '💎', label: 'VIP Honorário', color: 'text-rose-300 bg-rose-500/20 border-rose-500/40' },
+  badge_belmont_vip: { icon: '👑', label: 'VIP Belmont', color: 'text-amber-300 bg-amber-500/20 border-amber-500/40' },
+  badge_early_adopter: { icon: '⚡', label: 'Pioneiro', color: 'text-amber-300 bg-amber-500/20 border-amber-500/40' },
+  badge_diamond: { icon: '💎', label: 'Diamante', color: 'text-sky-300 bg-sky-500/20 border-sky-500/40' },
+  badge_chat_master: { icon: '🔥', label: 'Chat Master', color: 'text-rose-300 bg-rose-500/20 border-rose-500/40' }
 };
 
 export function MessageBubble({
@@ -121,7 +126,7 @@ export function MessageBubble({
       )}
 
       <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-[70%]`}>
-        {/* Nome do Remetente e Badges de Cargo (Admin / Mod / Badges) */}
+        {/* Nome do Remetente e Badges de Cargo (Admin / Mod / Títulos Nomeados / Badges) */}
         {!isOwn && showSenderInfo && !isDeleted && (
           <div
             onClick={() => onOpenProfile && onOpenProfile(sender)}
@@ -140,17 +145,25 @@ export function MessageBubble({
               </span>
             )}
 
+            {/* Título Customizado Nomeado (ex: Coordenador, BETA TESTER, etc) */}
+            {sender.custom_title && (
+              <span className="px-2 py-0.2 rounded-full bg-gradient-to-r from-cyan-500/25 to-blue-600/25 text-cyan-300 text-[9px] font-extrabold border border-cyan-400/50 shadow-[0_0_8px_rgba(6,182,212,0.4)] flex items-center gap-0.5">
+                <span>⭐</span>
+                <span>{sender.custom_title}</span>
+              </span>
+            )}
+
             {/* Badge de Moderador */}
-            {isModerator && !isAdmin && (
+            {isModerator && !isAdmin && !sender.custom_title && (
               <span className="px-2 py-0.2 rounded-full bg-indigo-600/30 text-indigo-300 text-[9px] font-bold border border-indigo-500/40 flex items-center gap-0.5">
                 <span>🛡️</span>
                 <span>MOD</span>
               </span>
             )}
 
-            {/* Badge da Loja Equipado */}
+            {/* Badge da Loja / Condecoração */}
             {badgeInfo && (
-              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-0.5">
+              <span className={`text-[9px] px-1.5 py-0.2 rounded-full border flex items-center gap-0.5 ${badgeInfo.color || 'bg-amber-500/20 text-amber-300 border-amber-500/30'}`}>
                 <span>{badgeInfo.icon}</span>
                 <span>{badgeInfo.label}</span>
               </span>

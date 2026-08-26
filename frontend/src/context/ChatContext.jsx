@@ -80,6 +80,29 @@ export function ChatProvider({ children }) {
     async function loadMessages() {
       try {
         setLoadingMessages(true);
+        if (isSupabaseConfigured && supabase) {
+          const { data: dbMsgs, error: dbErr } = await supabase
+            .from('messages')
+            .select(`
+              *,
+              sender:profiles(id, display_name, username, avatar_url, equipped_frame, equipped_bubble, equipped_badge, equipped_name_color, role, custom_title),
+              attachments:message_attachments(*),
+              reactions:message_reactions(id, emoji, user_id),
+              reply_to:messages!reply_to_id(
+                id, content, type, sender_id,
+                sender:profiles(id, display_name, username)
+              )
+            `)
+            .eq('conversation_id', activeConversationId)
+            .order('created_at', { ascending: true })
+            .limit(150);
+
+          if (dbMsgs && !dbErr) {
+            setMessages(dbMsgs);
+            return;
+          }
+        }
+
         const res = await apiRequest(`/conversations/${activeConversationId}/messages`);
         if (res.success && res.messages) {
           setMessages(res.messages);
@@ -250,11 +273,12 @@ export function ChatProvider({ children }) {
     // 1. Inserir no Supabase
     if (isSupabaseConfigured && supabase) {
       try {
+        const safeType = (type === 'coffee_invite' || type === 'ghost' || type === 'poll') ? 'text' : (type || 'text');
         const { data: insertedMsg, error: insertErr } = await supabase.from('messages').insert({
           conversation_id: activeConversationId,
           sender_id: effectiveSenderId,
           content: content || '',
-          type,
+          type: safeType,
           reply_to_id: optimisticMessage.reply_to_id
         }).select().single();
 
@@ -264,6 +288,8 @@ export function ChatProvider({ children }) {
           // +5 moedas por envio
           const newBalance = (user.nexus_coins || 100) + 5;
           await supabase.from('profiles').update({ nexus_coins: newBalance }).eq('id', user.id);
+        } else if (insertErr) {
+          console.warn('Erro ao inserir mensagem no Supabase:', insertErr);
         }
       } catch (err) {
         console.error('Erro ao persistir mensagem no Supabase:', err);
