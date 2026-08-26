@@ -31,12 +31,21 @@ const EMOJI_CATEGORIES = [
 
 export function MessageInput() {
   const { user, updateProfile } = useAuth();
-  const { sendMessage, editMessage, emitTyping, replyingTo, setReplyingTo, editingMessage, setEditingMessage } = useChat();
+  const {
+    sendMessage,
+    editMessage,
+    emitTyping,
+    replyingTo,
+    setReplyingTo,
+    editingMessage,
+    setEditingMessage,
+    showPollModal,
+    setShowPollModal
+  } = useChat();
   const [content, setContent] = useState('');
   const [attachments, setAttachments] = useState([]); // Array<{ file_name, file_url, file_type, file_size }>
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [activeEmojiTab, setActiveEmojiTab] = useState('emojis'); // 'emojis' | 'stickers'
-  const [showPollModal, setShowPollModal] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   const fileInputRef = useRef(null);
@@ -107,7 +116,7 @@ export function MessageInput() {
         createdAt: new Date().toISOString()
       }
     });
-    await sendMessage(invitePayload, [], 'coffee_invite');
+    await sendMessage({ content: invitePayload, attachments: [], type: 'coffee_invite' });
   };
 
   const handleKeyDown = (e) => {
@@ -582,12 +591,6 @@ export function MessageInput() {
           {editingMessage ? <Check className="w-5 h-5" /> : <Send className="w-5 h-5" />}
         </button>
       </div>
-
-      {/* Modal de Criação de Enquetes (/enquete) */}
-      <CreatePollModal
-        isOpen={showPollModal}
-        onClose={() => setShowPollModal(false)}
-      />
     </div>
   );
 }

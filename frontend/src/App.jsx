@@ -18,12 +18,20 @@ import { CreateStoryModal } from './components/stories/CreateStoryModal';
 import { StoryViewerModal } from './components/stories/StoryViewerModal';
 import { InstallAppModal } from './components/pwa/InstallAppModal';
 import { OnboardingTutorialModal } from './components/auth/OnboardingTutorialModal';
+import { CreatePollModal } from './components/polls/CreatePollModal';
 import { apiRequest } from './lib/api';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 
 function ChatDashboard() {
   const { user, loading } = useAuth();
-  const { activeConversation, activeConversationId, setActiveConversationId, loadConversations } = useChat();
+  const {
+    activeConversation,
+    activeConversationId,
+    setActiveConversationId,
+    loadConversations,
+    showPollModal,
+    setShowPollModal
+  } = useChat();
   const { coinsAlert } = useSocket();
 
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -251,6 +259,11 @@ function ChatDashboard() {
       <OnboardingTutorialModal
         isOpen={showTutorialModal}
         onClose={() => setShowTutorialModal(false)}
+      />
+
+      <CreatePollModal
+        isOpen={showPollModal}
+        onClose={() => setShowPollModal(false)}
       />
     </div>
   );

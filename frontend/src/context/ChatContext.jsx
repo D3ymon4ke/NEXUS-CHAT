@@ -183,8 +183,27 @@ export function ChatProvider({ children }) {
     };
   }, [activeConversationId, user?.id]);
 
-  // Enviar Mensagem
-  const sendMessage = async ({ content, attachments = [], type = 'text', replyToId = null }) => {
+  const [showPollModal, setShowPollModal] = useState(false);
+
+  // Enviar Mensagem (Suporta tanto objeto { content, ... } quanto argumentos posicionais)
+  const sendMessage = async (param1, param2 = [], param3 = 'text', param4 = null) => {
+    let content = '';
+    let attachments = [];
+    let type = 'text';
+    let replyToId = null;
+
+    if (param1 && typeof param1 === 'object' && !Array.isArray(param1)) {
+      content = param1.content || '';
+      attachments = param1.attachments || [];
+      type = param1.type || 'text';
+      replyToId = param1.replyToId || null;
+    } else {
+      content = typeof param1 === 'string' ? param1 : '';
+      attachments = Array.isArray(param2) ? param2 : [];
+      type = typeof param3 === 'string' ? param3 : 'text';
+      replyToId = param4 || null;
+    }
+
     if (!user || (!content.trim() && attachments.length === 0)) return;
 
     const activeMasterUser = masterIdentities.get(activeConversationId);
@@ -409,6 +428,8 @@ export function ChatProvider({ children }) {
         masterIdentities,
         setMasterIdentityForConv,
         clearMasterIdentityForConv,
+        showPollModal,
+        setShowPollModal,
         setMessages,
         clearMessages: () => setMessages([])
       }}
