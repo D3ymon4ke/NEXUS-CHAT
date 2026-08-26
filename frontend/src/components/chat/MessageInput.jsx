@@ -4,6 +4,7 @@ import { useChat } from '../../context/ChatContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { sounds } from '../../lib/sound';
 import { ANIMATED_STICKERS, STICKER_PRICE } from '../../lib/animatedStickers';
+import { CreatePollModal } from '../polls/CreatePollModal';
 import {
   Send,
   Paperclip,
@@ -17,7 +18,8 @@ import {
   Check,
   Sparkles,
   Flame,
-  Coins
+  Coins,
+  BarChart3
 } from 'lucide-react';
 
 const EMOJI_CATEGORIES = [
@@ -33,6 +35,7 @@ export function MessageInput() {
   const [attachments, setAttachments] = useState([]); // Array<{ file_name, file_url, file_type, file_size }>
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [activeEmojiTab, setActiveEmojiTab] = useState('emojis'); // 'emojis' | 'stickers'
+  const [showPollModal, setShowPollModal] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   const fileInputRef = useRef(null);
@@ -91,6 +94,11 @@ export function MessageInput() {
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      if (content.trim().toLowerCase().startsWith('/enquete')) {
+        setContent('');
+        setShowPollModal(true);
+        return;
+      }
       handleSend();
     }
   };
@@ -121,6 +129,14 @@ export function MessageInput() {
     if ((!content.trim() && attachments.length === 0) || uploading) return;
 
     const messageContent = content.trim();
+
+    // Se for o comando /enquete, abre o modal de criação de enquetes
+    if (messageContent.toLowerCase() === '/enquete' || messageContent.toLowerCase().startsWith('/enquete')) {
+      setContent('');
+      setShowPollModal(true);
+      return;
+    }
+
     const messageAttachments = [...attachments];
 
     setContent('');
@@ -309,6 +325,31 @@ export function MessageInput() {
         </div>
       )}
 
+      {/* Banner de Sugestão de Comando Slash /enquete */}
+      {content.startsWith('/') && (
+        <div className="mb-2 p-1.5 rounded-2xl bg-slate-900/95 border border-brand-500/50 shadow-2xl backdrop-blur-md animate-fadeIn">
+          <button
+            type="button"
+            onClick={() => {
+              setContent('');
+              setShowPollModal(true);
+            }}
+            className="w-full px-3 py-2 rounded-xl bg-brand-600/20 hover:bg-brand-600/30 text-left flex items-center justify-between text-xs transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <span className="p-1 rounded-lg bg-brand-500 text-white font-extrabold text-xs">📊</span>
+              <div>
+                <span className="font-extrabold text-brand-300">/enquete</span>
+                <span className="text-slate-300 ml-2">Criar nova enquete com contagem de votos e tempo limite</span>
+              </div>
+            </div>
+            <span className="text-[10px] text-brand-400 font-bold bg-brand-500/20 px-2 py-0.5 rounded-lg border border-brand-500/30">
+              Abrir Enquete ↵
+            </span>
+          </button>
+        </div>
+      )}
+
       {/* Caixa de Texto e Controles */}
       <div className="flex items-end gap-2">
         {/* Anexar Arquivo ou Imagem */}
@@ -347,13 +388,24 @@ export function MessageInput() {
                 ? "Edite sua mensagem..."
                 : attachments.length > 0
                 ? "Adicione uma legenda para a imagem... (Enter para enviar)"
-                : "Digite uma mensagem... (Cole com Ctrl+V ou Enter para enviar)"
+                : "Digite uma mensagem ou /enquete para criar votação..."
             }
             className="w-full bg-transparent px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-32 leading-relaxed"
           />
 
-          {/* Emoji & Animated Stickers Picker */}
-          <div className="pb-2.5 pr-2 relative">
+          {/* Botão de Enquete & Emojis */}
+          <div className="pb-2.5 pr-2 flex items-center gap-0.5 relative">
+            {/* Botão Enquete */}
+            {!editingMessage && (
+              <button
+                type="button"
+                onClick={() => setShowPollModal(true)}
+                className="p-1 text-slate-400 hover:text-brand-400 transition-colors"
+                title="Criar Enquete (/enquete)"
+              >
+                <BarChart3 className="w-5 h-5" />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -473,6 +525,12 @@ export function MessageInput() {
           {editingMessage ? <Check className="w-5 h-5" /> : <Send className="w-5 h-5" />}
         </button>
       </div>
+
+      {/* Modal de Criação de Enquetes (/enquete) */}
+      <CreatePollModal
+        isOpen={showPollModal}
+        onClose={() => setShowPollModal(false)}
+      />
     </div>
   );
 }
