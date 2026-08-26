@@ -147,10 +147,81 @@ export function MessageInput() {
     await sendMessage({ content: invitePayload, attachments: [], type: 'coffee_invite' });
   };
 
+  const handleSendNexusBurst = async () => {
+    if (!user) return;
+    sounds.playPop();
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const lastNexusDate = user.last_nexus_daily || localStorage.getItem(`nexus_daily_${user.id}`);
+    const isFirstToday = lastNexusDate !== todayStr;
+
+    let earnedCoins = 0;
+    if (isFirstToday) {
+      earnedCoins = 20;
+      confetti({
+        particleCount: 100,
+        spread: 80,
+        origin: { y: 0.6 },
+        colors: ['#38bdf8', '#818cf8', '#fbbf24', '#a855f7', '#ec4899']
+      });
+
+      const newBalance = (user.nexus_coins || 100) + 20;
+      if (updateProfile) {
+        await updateProfile({
+          nexus_coins: newBalance,
+          last_nexus_daily: todayStr
+        });
+      }
+      localStorage.setItem(`nexus_daily_${user.id}`, todayStr);
+
+      if (isSupabaseConfigured && supabase) {
+        await supabase
+          .from('profiles')
+          .update({
+            nexus_coins: newBalance,
+            last_nexus_daily: todayStr
+          })
+          .eq('id', user.id);
+
+        await supabase.from('nexus_transactions').insert({
+          user_id: user.id,
+          amount: 20,
+          type: 'nexus_daily_command',
+          description: 'Recompensa diária do comando /nexus ⚡ (+20 Coins)'
+        });
+      }
+    }
+
+    const nexusPayload = JSON.stringify({
+      nexus_burst: {
+        senderId: user.id,
+        senderName: user.display_name || user.username,
+        senderUsername: user.username,
+        senderAvatar: user.avatar_url,
+        reward: earnedCoins,
+        alreadyClaimedToday: !isFirstToday,
+        createdAt: new Date().toISOString()
+      }
+    });
+
+    await sendMessage({
+      content: nexusPayload,
+      attachments: [],
+      type: 'nexus_burst'
+    });
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       const lower = content.trim().toLowerCase();
+
+      // 0. Comando /nexus (Mandar logo animado + 20 moedas 1x ao dia)
+      if (lower === '/nexus' || lower.startsWith('/nexus')) {
+        setContent('');
+        handleSendNexusBurst();
+        return;
+      }
 
       // 1. Enquete (/enquete) -> Apenas Administradores em Grupos
       if (lower.startsWith('/enquete')) {
@@ -481,6 +552,27 @@ export function MessageInput() {
       {/* Banner de Sugestão de Comandos Slash (filtrado por contexto e permissão) */}
       {content.startsWith('/') && (
         <div className="mb-2 p-1.5 rounded-2xl bg-slate-900/95 border border-brand-500/50 shadow-2xl backdrop-blur-md animate-fadeIn space-y-1">
+          {/* Comando /nexus (Mandar logo animado + 20 moedas 1x ao dia) */}
+          <button
+            type="button"
+            onClick={() => {
+              setContent('');
+              handleSendNexusBurst();
+            }}
+            className="w-full px-3 py-2 rounded-xl bg-gradient-to-r from-brand-600/25 via-indigo-600/25 to-purple-600/25 hover:from-brand-600/35 text-left flex items-center justify-between text-xs transition-colors border border-brand-500/30"
+          >
+            <div className="flex items-center gap-2">
+              <img src="/logo.gif" alt="Nexus" className="w-5 h-5 rounded-lg object-cover border border-brand-400" />
+              <div>
+                <span className="font-extrabold text-amber-300">/nexus</span>
+                <span className="text-slate-300 ml-2">Mandar o logo animado no chat (+20 Coins 1x ao dia) 🔥</span>
+              </div>
+            </div>
+            <span className="text-[10px] text-amber-300 font-bold bg-amber-500/20 px-2 py-0.5 rounded-lg border border-amber-500/30">
+              Mandar NEXUS ↵
+            </span>
+          </button>
+
           {/* Enquete: apenas Administradores em Grupos */}
           {isGroupAdmin && (
             <button
@@ -755,6 +847,22 @@ export function MessageInput() {
                 title="Criar Enquete no Grupo (/enquete)"
               >
                 <BarChart3 className="w-5 h-5" />
+              </button>
+            )}
+
+            {/* Botão Comando /nexus ⚡ */}
+            {!editingMessage && (
+              <button
+                type="button"
+                onClick={handleSendNexusBurst}
+                className="p-0.5 rounded-lg hover:scale-110 active:scale-95 transition-all group"
+                title="Mandar um NEXUS! (/nexus) • +20 Coins 1x ao dia ⚡"
+              >
+                <img
+                  src="/logo.gif"
+                  alt="Nexus"
+                  className="w-5 h-5 rounded-md object-cover border border-brand-500/60 shadow-sm group-hover:border-amber-400"
+                />
               </button>
             )}
 

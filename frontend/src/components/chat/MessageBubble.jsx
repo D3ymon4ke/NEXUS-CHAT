@@ -21,6 +21,7 @@ import { FormattedText } from './FormattedText';
 import { PollCard } from '../polls/PollCard';
 import { CoffeeInviteCard } from './CoffeeInviteCard';
 import { GhostMessageCard } from './GhostMessageCard';
+import { NexusBurstCard } from './NexusBurstCard';
 
 const POPULAR_REACTIONS = ['👍', '❤️', '🔥', '😂', '🎉', '👏'];
 
@@ -386,6 +387,8 @@ export function MessageBubble({
             </div>
           ) : message.type === 'ghost' || (message.content && message.content.includes('"ghost_message"')) ? (
             <GhostMessageCard message={message} isOwn={isOwn} />
+          ) : message.type === 'nexus_burst' || (message.content && message.content.includes('"nexus_burst"')) ? (
+            <NexusBurstCard message={message} isOwn={isOwn} />
           ) : message.type === 'coffee_invite' || (message.content && message.content.includes('"coffee_invite"')) ? (
             <CoffeeInviteCard message={message} isOwn={isOwn} />
           ) : message.type === 'poll' ? (

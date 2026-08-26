@@ -273,7 +273,7 @@ export function ChatProvider({ children }) {
     // 1. Inserir no Supabase
     if (isSupabaseConfigured && supabase) {
       try {
-        const safeType = (type === 'coffee_invite' || type === 'ghost' || type === 'poll') ? 'text' : (type || 'text');
+        const safeType = (type === 'coffee_invite' || type === 'ghost' || type === 'poll' || type === 'nexus_burst') ? 'text' : (type || 'text');
         const { data: insertedMsg, error: insertErr } = await supabase.from('messages').insert({
           conversation_id: activeConversationId,
           sender_id: effectiveSenderId,

@@ -54,6 +54,11 @@ const PLATFORM_TIPS = [
     text: 'No seu perfil, abra o Inventário para equipar e alternar suas molduras e temas de balão a qualquer momento.'
   },
   {
+    icon: '⚡',
+    title: 'Comando Especial /nexus',
+    text: 'Digite /nexus no chat para enviar o logo animado da comunidade e faturar +20 Nexus Coins diárias (1x ao dia)!'
+  },
+  {
     icon: '✨',
     title: 'Figurinhas Animadas',
     text: 'No seletor de emojis da conversa, use a aba Figurinhas Animadas para enviar stickers animados em alta definição.'
