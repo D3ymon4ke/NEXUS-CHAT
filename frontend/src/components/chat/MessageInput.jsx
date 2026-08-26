@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
-import { ANIMATED_STICKERS } from '../../lib/animatedStickers';
+import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
+import { sounds } from '../../lib/sound';
+import { ANIMATED_STICKERS, STICKER_PRICE } from '../../lib/animatedStickers';
 import {
   Send,
   Paperclip,
@@ -13,7 +16,8 @@ import {
   Edit2,
   Check,
   Sparkles,
-  Flame
+  Flame,
+  Coins
 } from 'lucide-react';
 
 const EMOJI_CATEGORIES = [
@@ -23,6 +27,7 @@ const EMOJI_CATEGORIES = [
 ];
 
 export function MessageInput() {
+  const { user, updateProfile } = useAuth();
   const { sendMessage, editMessage, emitTyping, replyingTo, setReplyingTo, editingMessage, setEditingMessage } = useChat();
   const [content, setContent] = useState('');
   const [attachments, setAttachments] = useState([]); // Array<{ file_name, file_url, file_type, file_size }>
@@ -141,7 +146,39 @@ export function MessageInput() {
   };
 
   const handleSendSticker = async (sticker) => {
+    const cost = sticker.price || STICKER_PRICE || 10;
+    const currentCoins = user?.nexus_coins || 0;
+
+    if (currentCoins < cost) {
+      sounds.playError?.();
+      alert(`Saldo insuficiente! Você precisa de ${cost} Nexus Coins para enviar a figurinha "${sticker.name}". Ganhe moedas conversando ou resgatando o bônus diário na Loja!`);
+      return;
+    }
+
     setShowEmojiPicker(false);
+
+    // Debitar moedas do usuário
+    const newCoins = currentCoins - cost;
+    if (updateProfile) {
+      updateProfile({ nexus_coins: newCoins });
+    }
+
+    if (isSupabaseConfigured && supabase && user) {
+      try {
+        await supabase.from('profiles').update({ nexus_coins: newCoins }).eq('id', user.id);
+        await supabase.from('nexus_transactions').insert({
+          user_id: user.id,
+          amount: -cost,
+          type: 'sticker_purchase',
+          description: `Envio de figurinha animada: ${sticker.name}`
+        });
+      } catch (err) {
+        console.error('Erro ao debitar moedas da figurinha:', err);
+      }
+    }
+
+    sounds.playPop();
+
     await sendMessage({
       content: '',
       type: 'image',
@@ -382,19 +419,36 @@ export function MessageInput() {
 
                 {/* ABA 2: FIGURINHAS ANIMADAS (ANIMATED STICKERS) */}
                 {activeEmojiTab === 'stickers' && (
-                  <div className="grid grid-cols-3 gap-2 max-h-52 overflow-y-auto p-1">
-                    {ANIMATED_STICKERS.map(sticker => (
-                      <button
-                        key={sticker.id}
-                        type="button"
-                        onClick={() => handleSendSticker(sticker)}
-                        title={sticker.name}
-                        className="p-2 rounded-xl bg-background-dark/60 hover:bg-amber-500/10 border border-slate-800 hover:border-amber-500/40 transition-all flex flex-col items-center justify-center gap-1 group hover:scale-105"
-                      >
-                        <img src={sticker.url} alt={sticker.name} className="w-10 h-10 object-contain drop-shadow" />
-                        <span className="text-[9px] text-slate-400 truncate max-w-full font-medium">{sticker.name}</span>
-                      </button>
-                    ))}
+                  <div className="space-y-2 max-h-56 overflow-y-auto p-1">
+                    {/* Header de Saldo de Moedas */}
+                    <div className="flex items-center justify-between px-2 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[10px]">
+                      <span className="text-amber-300 font-extrabold flex items-center gap-1">
+                        <img src="/nexus-coin.jpg" alt="Moeda" className="w-3 h-3 rounded-full" />
+                        <span>Meu Saldo: {user?.nexus_coins || 0}</span>
+                      </span>
+                      <span className="text-slate-400 font-semibold">Preço por envio</span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      {ANIMATED_STICKERS.map(sticker => (
+                        <button
+                          key={sticker.id}
+                          type="button"
+                          onClick={() => handleSendSticker(sticker)}
+                          title={`${sticker.name} (${sticker.price || 10} Nexus Coins)`}
+                          className="p-2 rounded-xl bg-background-dark/80 hover:bg-amber-500/15 border border-slate-800 hover:border-amber-500/50 transition-all flex flex-col items-center justify-center gap-1 group hover:scale-105 relative shadow-sm"
+                        >
+                          <img src={sticker.url} alt={sticker.name} className="w-10 h-10 object-contain drop-shadow" />
+                          <span className="text-[9px] text-slate-300 truncate max-w-full font-bold">{sticker.name}</span>
+
+                          {/* Preço da Figurinha */}
+                          <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-extrabold flex items-center gap-0.5">
+                            <img src="/nexus-coin.jpg" alt="Moeda" className="w-2.5 h-2.5 rounded-full" />
+                            <span>{sticker.price || 10}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
