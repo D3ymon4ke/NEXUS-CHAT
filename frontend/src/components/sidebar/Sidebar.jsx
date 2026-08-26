@@ -22,10 +22,55 @@ import {
   Sparkles,
   Ghost,
   Send,
-  HelpCircle
+  HelpCircle,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
+
+const STATUS_CONFIG = {
+  online: {
+    label: 'Disponível',
+    color: 'bg-emerald-500',
+    glow: 'shadow-[0_0_8px_rgba(16,185,129,0.9)] ring-emerald-400',
+    textColor: 'text-emerald-400',
+    emoji: '🟢',
+    description: 'Online e pronto para conversar'
+  },
+  away: {
+    label: 'Ausente',
+    color: 'bg-amber-400',
+    glow: 'shadow-[0_0_8px_rgba(251,191,36,0.9)] ring-amber-300',
+    textColor: 'text-amber-400',
+    emoji: '🟡',
+    description: 'Temporariamente ausente'
+  },
+  dnd: {
+    label: 'Ocupado',
+    color: 'bg-rose-500',
+    glow: 'shadow-[0_0_8px_rgba(244,63,94,0.9)] ring-rose-400',
+    textColor: 'text-rose-400',
+    emoji: '🔴',
+    description: 'Não perturbe / Em reunião'
+  },
+  focus: {
+    label: 'Modo Foco',
+    color: 'bg-purple-500',
+    glow: 'shadow-[0_0_8px_rgba(168,85,247,0.9)] ring-purple-400',
+    textColor: 'text-purple-400',
+    emoji: '🟣',
+    description: 'Focado / Jogando'
+  },
+  invisible: {
+    label: 'Invisível',
+    color: 'bg-slate-400',
+    glow: 'shadow-[0_0_8px_rgba(148,163,184,0.6)] ring-slate-300',
+    textColor: 'text-slate-400',
+    emoji: '⚪',
+    description: 'Aparecer como desconectado'
+  }
+};
 
 const FRAME_STYLES = {
   frame_cyber_neon: 'border-2 border-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.7)]',
@@ -57,7 +102,7 @@ export function Sidebar({
   storiesRefreshKey,
   onSelectConversation
 }) {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const {
     conversations,
     activeConversationId,
@@ -73,10 +118,29 @@ export function Sidebar({
   const [allUsersList, setAllUsersList] = useState([]);
   const [superDmTargetConv, setSuperDmTargetConv] = useState('');
   const [superDmIdentityUser, setSuperDmIdentityUser] = useState('');
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
 
   const isAdmin = user?.role === 'admin' || user?.username?.toLowerCase() === 'damon';
   const userFrame = FRAME_STYLES[user?.equipped_frame] || 'border border-slate-700';
   const userNameStyle = NAME_STYLES[user?.equipped_name_color] || 'text-white font-bold';
+
+  const currentStatusKey = user?.status_message || (connected ? 'online' : 'away');
+  const currentStatus = STATUS_CONFIG[currentStatusKey] || STATUS_CONFIG.online;
+
+  const handleUpdateStatus = async (statusKey) => {
+    try {
+      setShowStatusMenu(false);
+      sounds.playPop();
+      if (updateProfile) {
+        await updateProfile({ status_message: statusKey });
+      }
+      if (isSupabaseConfigured && supabase && user) {
+        await supabase.from('profiles').update({ status_message: statusKey }).eq('id', user.id);
+      }
+    } catch (err) {
+      console.warn('Erro ao atualizar status:', err);
+    }
+  };
 
   // Carregar todos os usuários para o dropdown do Modo Master
   useEffect(() => {
@@ -141,112 +205,186 @@ export function Sidebar({
 
   return (
     <div className="w-full md:w-80 lg:w-96 h-full flex flex-col bg-background-card border-r border-slate-800 flex-shrink-0 select-none">
-      {/* Topbar: Perfil do Usuário + Barra de Ferramentas Refinada */}
-      <div className="p-2 sm:p-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/60 backdrop-blur-md gap-1.5">
-        {/* Perfil com Avatar e Info */}
-        <div
-          onClick={onOpenSettings}
-          className="flex items-center gap-2 cursor-pointer group hover:opacity-90 transition-all min-w-0 pr-1"
-          title="Clique para abrir Configurações & Personalização"
-        >
-          <div className="relative flex-shrink-0">
-            <img
-              src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
-              alt={user?.display_name}
-              className={`w-9 h-9 rounded-full object-cover group-hover:scale-105 transition-transform shadow ${userFrame}`}
-            />
-            <span
-              className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-background-card ${
-                connected ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]' : 'bg-amber-500'
-              }`}
-              title={connected ? 'Online (Realtime Conectado)' : 'Conectando...'}
-            />
+      {/* Topbar Reestruturada: Perfil do Usuário na Linha 1 + Menu de Ações na Linha 2 (Abaixo da Foto) */}
+      <div className="p-3 border-b border-slate-800 bg-slate-900/80 backdrop-blur-md space-y-2.5">
+        {/* LINHA 1: Avatar, Nome Completo, Seletor de Status e Configurações */}
+        <div className="flex items-center justify-between gap-2">
+          {/* Avatar + Info do Usuário */}
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            {/* Avatar com bolinha de status interativa */}
+            <div className="relative flex-shrink-0">
+              <img
+                src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
+                alt={user?.display_name}
+                onClick={onOpenSettings}
+                className={`w-10 h-10 rounded-full object-cover cursor-pointer hover:scale-105 transition-transform shadow ${userFrame}`}
+                title="Clique para abrir Configurações & Personalização"
+              />
+              {/* Bolinha de Status Clicável com Efeito Neon */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowStatusMenu(!showStatusMenu);
+                }}
+                className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-slate-900 ${currentStatus.color} ${currentStatus.glow} transition-all hover:scale-125 cursor-pointer z-10`}
+                title={`Status atual: ${currentStatus.label}. Clique para alterar.`}
+              />
+            </div>
+
+            {/* Nome, @user e Botão de Status */}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <h1
+                  onClick={onOpenSettings}
+                  className={`text-sm font-extrabold truncate cursor-pointer hover:text-brand-300 transition-colors ${userNameStyle}`}
+                  title={user?.display_name || 'Meu Perfil'}
+                >
+                  {user?.display_name || 'Meu Perfil'}
+                </h1>
+                {isAdmin && (
+                  <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-red-500/20 text-red-400 font-extrabold border border-red-500/30 flex-shrink-0">
+                    ADMIN
+                  </span>
+                )}
+              </div>
+
+              {/* Seletor de Status Interativo */}
+              <div className="flex items-center gap-1.5 mt-0.5 relative">
+                <button
+                  type="button"
+                  onClick={() => setShowStatusMenu(!showStatusMenu)}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-750 px-2 py-0.5 rounded-lg border border-slate-700/60 transition-all group"
+                  title="Alterar seu status de disponibilidade"
+                >
+                  <span className={`w-2 h-2 rounded-full ${currentStatus.color} inline-block flex-shrink-0`} />
+                  <span className="truncate">{currentStatus.label}</span>
+                  <ChevronDown className="w-3 h-3 text-slate-400 group-hover:text-white transition-transform" />
+                </button>
+                <span className="text-[10px] text-slate-500 truncate">@{user?.username || 'usuario'}</span>
+              </div>
+            </div>
           </div>
-          <div className="min-w-0 max-w-[80px] sm:max-w-[110px]">
-            <h1 className={`text-xs font-bold truncate group-hover:text-brand-300 transition-colors ${userNameStyle}`}>
-              {user?.display_name || 'Meu Perfil'}
-            </h1>
-            <p className="text-[10px] text-slate-400 truncate">@{user?.username || 'usuario'}</p>
-          </div>
+
+          {/* Botão Configurações */}
+          <button
+            onClick={onOpenSettings}
+            className="p-2 rounded-xl text-slate-400 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 transition-all flex-shrink-0 shadow-sm"
+            title="Configurações & Personalização"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
         </div>
 
-        {/* Botões de Ação da Barra Lateral com Estilo Premium */}
-        <div className="flex items-center gap-1 flex-shrink-0">
+        {/* POPOVER DO SELETOR DE STATUS */}
+        {showStatusMenu && (
+          <div className="relative z-30 animate-fadeIn">
+            <div className="p-2 rounded-2xl bg-slate-950/95 border border-slate-700 shadow-2xl space-y-1 backdrop-blur-xl">
+              <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-2 py-1 flex items-center justify-between border-b border-slate-800">
+                <span>Definir Meu Status</span>
+                <button onClick={() => setShowStatusMenu(false)} className="text-slate-500 hover:text-white">✕</button>
+              </div>
+              {Object.entries(STATUS_CONFIG).map(([key, st]) => (
+                <button
+                  key={key}
+                  onClick={() => handleUpdateStatus(key)}
+                  className={`w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between text-xs transition-all ${
+                    currentStatusKey === key
+                      ? 'bg-slate-800 text-white font-bold border border-slate-600'
+                      : 'text-slate-300 hover:bg-slate-900/80'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`w-2.5 h-2.5 rounded-full ${st.color} ${st.glow} flex-shrink-0`} />
+                    <div className="min-w-0">
+                      <span className="block font-bold">{st.label}</span>
+                      <span className="text-[10px] text-slate-400 block truncate">{st.description}</span>
+                    </div>
+                  </div>
+                  {currentStatusKey === key && <Check className="w-4 h-4 text-brand-400 flex-shrink-0 ml-2" />}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* LINHA 2: Barra de Atalhos e Ferramentas Organizada Abaixo da Foto */}
+        <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 gap-1 overflow-x-auto no-scrollbar">
           {/* Botão Painel Admin (Damon) */}
           {isAdmin && (
             <button
               onClick={onOpenAdmin}
-              className="p-1.5 rounded-xl bg-red-500/15 text-red-400 border border-red-500/35 hover:bg-red-500/25 transition-all shadow-sm active:scale-95"
+              className="p-2 rounded-xl bg-red-500/15 text-red-400 border border-red-500/35 hover:bg-red-500/25 transition-all shadow-sm active:scale-95 flex-shrink-0"
               title="Painel Administrativo Damon"
             >
-              <ShieldAlert className="w-3.5 h-3.5" />
+              <ShieldAlert className="w-4 h-4" />
             </button>
           )}
 
           {/* Botão Instalar App no Celular */}
           <button
             onClick={onOpenInstallPWA}
-            className="p-1.5 rounded-xl text-emerald-400 hover:text-white bg-emerald-500/15 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all active:scale-95 shadow-sm"
+            className="p-2 rounded-xl text-emerald-400 hover:text-white bg-emerald-500/15 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all active:scale-95 shadow-sm flex-shrink-0"
             title="Instalar App no Celular (PWA)"
           >
-            <Download className="w-3.5 h-3.5" />
+            <Download className="w-4 h-4" />
           </button>
 
           {/* Botão Amigos */}
           <button
             onClick={onOpenFriends}
-            className="p-1.5 rounded-xl text-slate-300 hover:text-white bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700/50 transition-all active:scale-95 shadow-sm"
+            className="p-2 rounded-xl text-slate-300 hover:text-white bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700/50 transition-all active:scale-95 shadow-sm flex-shrink-0"
             title="Central de Amigos"
           >
-            <Users className="w-3.5 h-3.5" />
+            <Users className="w-4 h-4" />
           </button>
 
           {/* Botão Carteira */}
           <button
             onClick={onOpenWallet}
-            className="p-1.5 rounded-xl text-amber-300 hover:text-white bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 transition-all active:scale-95 shadow-sm"
+            className="p-2 rounded-xl text-amber-300 hover:text-white bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 transition-all active:scale-95 shadow-sm flex-shrink-0"
             title="Minha Carteira Nexus"
           >
-            <Wallet className="w-3.5 h-3.5" />
+            <Wallet className="w-4 h-4" />
           </button>
 
           {/* Botão Loja Dourado com Moeda */}
           <button
             onClick={onOpenShop}
-            className="flex items-center gap-1 px-2 py-1 rounded-xl bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-600/20 border border-amber-500/50 text-amber-300 hover:scale-105 transition-all shadow-sm active:scale-95 group"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-600/20 border border-amber-500/50 text-amber-300 hover:scale-105 transition-all shadow-sm active:scale-95 group flex-shrink-0"
             title="Abrir Loja Nexus (Molduras, Badges, Temas)"
           >
             <img src="/nexus-coin.jpg" alt="Moeda" className="w-3.5 h-3.5 rounded-full ring-1 ring-amber-400/50" />
-            <span className="text-[11px] font-extrabold group-hover:text-white">Loja</span>
+            <span className="text-xs font-extrabold group-hover:text-white">Loja</span>
           </button>
 
           {/* Botão Tutorial / Ajuda */}
           {onOpenTutorial && (
             <button
               onClick={onOpenTutorial}
-              className="p-1.5 rounded-xl text-indigo-300 hover:text-white bg-indigo-500/15 border border-indigo-500/30 hover:bg-indigo-500/25 transition-all active:scale-95 shadow-sm"
+              className="p-2 rounded-xl text-indigo-300 hover:text-white bg-indigo-500/15 border border-indigo-500/30 hover:bg-indigo-500/25 transition-all active:scale-95 shadow-sm flex-shrink-0"
               title="Guia & Tutorial de Recursos"
             >
-              <HelpCircle className="w-3.5 h-3.5" />
+              <HelpCircle className="w-4 h-4" />
             </button>
           )}
 
           {/* Botão Nova Conversa */}
           <button
             onClick={onOpenNewChat}
-            className="p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 border border-transparent hover:border-slate-700 transition-all active:scale-95"
+            className="p-2 rounded-xl text-brand-300 hover:text-white bg-brand-600/20 hover:bg-brand-600/30 border border-brand-500/30 transition-all active:scale-95 flex-shrink-0"
             title="Nova Conversa Direta"
           >
-            <MessageSquarePlus className="w-3.5 h-3.5" />
+            <MessageSquarePlus className="w-4 h-4" />
           </button>
 
           {/* Botão Novo Grupo */}
           <button
             onClick={onOpenNewGroup}
-            className="p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 border border-transparent hover:border-slate-700 transition-all active:scale-95"
+            className="p-2 rounded-xl text-cyan-300 hover:text-white bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/30 transition-all active:scale-95 flex-shrink-0"
             title="Criar Novo Grupo"
           >
-            <UserPlus className="w-3.5 h-3.5" />
+            <UserPlus className="w-4 h-4" />
           </button>
         </div>
       </div>
