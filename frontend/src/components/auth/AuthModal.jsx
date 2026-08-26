@@ -67,8 +67,8 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
         confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
         onClose();
       } else if (tab === 'register') {
-        if (!displayName.trim()) throw new Error('Por favor, informe seu nome de exibição.');
-        if (password.length < 6) throw new Error('A senha deve ter pelo menos 6 caracteres.');
+        if (!(displayName || '').trim()) throw new Error('Por favor, informe seu nome de exibição.');
+        if ((password || '').length < 6) throw new Error('A senha deve ter pelo menos 6 caracteres.');
         if (password !== confirmPassword) throw new Error('As senhas digitadas não coincidem.');
 
         await register(email, password, displayName, username);
@@ -83,7 +83,7 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
           }, 400);
         }
       } else if (tab === 'forgot') {
-        if (!email.trim()) throw new Error('Por favor, informe seu e-mail cadastrado.');
+        if (!(email || '').trim()) throw new Error('Por favor, informe seu e-mail cadastrado.');
         if (isSupabaseConfigured && supabase) {
           const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
             redirectTo: window.location.origin

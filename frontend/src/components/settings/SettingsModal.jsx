@@ -49,6 +49,20 @@ export function SettingsModal({ isOpen, onClose }) {
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
+  // Sincronizar dados do usuário sempre que o modal for aberto ou o usuário mudar
+  useEffect(() => {
+    if (user && isOpen) {
+      setDisplayName(user.display_name || '');
+      setBio(user.bio || '');
+      setStatusMessage(user.status_message || 'online');
+      setAvatarUrl(user.avatar_url || '');
+      setSongUrl(user.profile_song_url || '');
+      setSongTitle(user.profile_song_title || '');
+      setSongArtist(user.profile_song_artist || '');
+      setSongCover(user.profile_song_cover || '');
+    }
+  }, [user, isOpen]);
+
   if (!isOpen) return null;
 
   const unlockedItems = user?.unlocked_items || ['frame_default', 'bubble_default'];
@@ -56,8 +70,9 @@ export function SettingsModal({ isOpen, onClose }) {
 
   // Puxa automaticamente título, artista e capa do link (YouTube / Spotify / MP3)
   const handleFetchMusicData = async (urlToFetch) => {
-    const targetUrl = urlToFetch || songUrl;
-    if (!targetUrl || !targetUrl.trim()) return;
+    const rawUrl = typeof urlToFetch === 'string' ? urlToFetch : (songUrl || '');
+    const targetUrl = (rawUrl || '').trim();
+    if (!targetUrl) return;
     setLoadingMusicMeta(true);
     try {
       const meta = await fetchMusicMetadata(targetUrl);
@@ -91,14 +106,14 @@ export function SettingsModal({ isOpen, onClose }) {
     setSavedSuccess(false);
     try {
       const updates = {
-        display_name: displayName,
-        bio,
-        status_message: statusMessage,
-        avatar_url: avatarUrl,
-        profile_song_url: songUrl.trim(),
-        profile_song_title: songTitle.trim(),
-        profile_song_artist: songArtist.trim(),
-        profile_song_cover: songCover.trim()
+        display_name: (displayName || '').trim(),
+        bio: bio || '',
+        status_message: statusMessage || 'online',
+        avatar_url: avatarUrl || '',
+        profile_song_url: (songUrl || '').trim(),
+        profile_song_title: (songTitle || '').trim(),
+        profile_song_artist: (songArtist || '').trim(),
+        profile_song_cover: (songCover || '').trim()
       };
 
       if (isSupabaseConfigured && supabase && user) {
