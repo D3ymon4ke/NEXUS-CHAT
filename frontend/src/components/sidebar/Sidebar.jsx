@@ -664,11 +664,13 @@ export function Sidebar({
               ? directUser?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${directUser?.id}`
               : conv.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${conv.id}`;
 
+            const hasUnread = conv.unread_count > 0 && !isActive;
+
             return (
               <div
                 key={conv.id}
                 onClick={() => handleSelect(conv.id)}
-                className={`p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-all border ${
+                className={`p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-all border relative overflow-hidden ${
                   activeMasterIdentity
                     ? 'bg-gradient-to-r from-rose-950/40 via-slate-900 to-slate-900 border-rose-500/50 shadow-md'
                     : isBelmont
@@ -677,9 +679,16 @@ export function Sidebar({
                       : 'bg-gradient-to-r from-amber-950/30 via-slate-900/50 to-slate-900/30 border-amber-500/40 hover:border-amber-500/70 shadow-sm'
                     : isActive
                     ? 'bg-brand-600/20 border-brand-500/60 shadow-sm'
+                    : hasUnread
+                    ? 'bg-gradient-to-r from-rose-950/60 via-purple-950/40 to-slate-900 border-rose-500/70 shadow-lg shadow-rose-900/25 ring-1 ring-rose-500/40'
                     : 'bg-background-surface/50 border-slate-800/80 hover:border-slate-700/80 hover:bg-background-surface'
                 }`}
               >
+                {/* Barra Indicadora de Mensagem Nova Não Lida */}
+                {hasUnread && (
+                  <span className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-rose-500 via-pink-500 to-red-600 shadow-[0_0_10px_rgba(244,63,94,0.9)] animate-pulse" />
+                )}
+
                 <div className="relative flex-shrink-0">
                   <img
                     src={convAvatar}
@@ -689,15 +698,14 @@ export function Sidebar({
                         ? 'border-2 border-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.6)]'
                         : isBelmont
                         ? 'border-2 border-amber-400'
+                        : hasUnread
+                        ? 'border-2 border-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]'
                         : 'border border-slate-700'
                     }`}
                   />
-                  {/* Ponto Vermelho Indicador de Notificação / Modo Master */}
-                  {(conv.unread_count > 0 || activeMasterIdentity) && (
-                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-rose-600 border-2 border-slate-900 shadow-md animate-ping" />
-                  )}
-                  {conv.unread_count > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.2 rounded-full bg-rose-600 border-2 border-slate-900 text-white text-[10px] font-extrabold shadow-[0_0_12px_rgba(225,29,72,0.9)] animate-bounce z-10">
+                  {/* Ponto ou Badge no Avatar */}
+                  {hasUnread && (
+                    <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.2 rounded-full bg-gradient-to-r from-rose-600 to-red-600 text-white text-[10px] font-black border-2 border-slate-950 shadow-lg shadow-rose-600/80 animate-bounce z-10">
                       {conv.unread_count > 99 ? '99+' : conv.unread_count}
                     </span>
                   )}
@@ -718,7 +726,15 @@ export function Sidebar({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-0.5">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span className={`text-xs font-bold truncate ${isBelmont ? 'text-amber-300 font-extrabold tracking-wide' : 'text-slate-100'}`}>
+                      <span
+                        className={`text-xs truncate ${
+                          isBelmont
+                            ? 'text-amber-300 font-extrabold tracking-wide'
+                            : hasUnread
+                            ? 'text-white font-extrabold drop-shadow-[0_0_6px_rgba(244,63,94,0.4)]'
+                            : 'text-slate-100 font-bold'
+                        }`}
+                      >
                         {convName}
                       </span>
                       {isBelmont && (
@@ -728,7 +744,7 @@ export function Sidebar({
                       )}
                     </div>
                     {conv.last_message && (
-                      <span className="text-[10px] text-slate-500 font-medium">
+                      <span className={`text-[10px] font-medium ${hasUnread ? 'text-rose-300 font-bold' : 'text-slate-500'}`}>
                         {formatLastMessageTime(conv.last_message.created_at)}
                       </span>
                     )}
@@ -744,8 +760,12 @@ export function Sidebar({
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between">
-                    <p className="text-[11px] text-slate-400 truncate max-w-[170px]">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <p
+                      className={`text-[11px] truncate max-w-[170px] ${
+                        hasUnread ? 'text-rose-200 font-semibold' : 'text-slate-400'
+                      }`}
+                    >
                       {conv.last_message ? (
                         <span>{conv.last_message.content || 'Anexo'}</span>
                       ) : isBelmont ? (
@@ -755,9 +775,9 @@ export function Sidebar({
                       )}
                     </p>
 
-                    {/* Badge Vermelho Luminoso */}
-                    {conv.unread_count > 0 && (
-                      <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-600 to-red-600 text-white text-[10px] font-extrabold min-w-[20px] text-center shadow-lg shadow-rose-600/40 animate-pulse border border-rose-400/50">
+                    {/* Badge Vermelho Luminoso de Não Lidas */}
+                    {hasUnread && (
+                      <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-500 via-red-500 to-pink-500 text-white text-[10px] font-black min-w-[22px] text-center shadow-lg shadow-rose-600/50 animate-pulse border border-rose-300/80 flex-shrink-0">
                         {conv.unread_count > 99 ? '99+' : conv.unread_count}
                       </span>
                     )}
