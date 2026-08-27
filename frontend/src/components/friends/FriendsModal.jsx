@@ -118,7 +118,7 @@ export function FriendsModal({ isOpen, onClose, onStartChat, onOpenProfile }) {
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !user) return null;
 
   const filteredUsers = allUsers.filter(
     (u) =>

@@ -325,7 +325,7 @@ export function NexusShopModal({ isOpen, onClose }) {
     sounds.playPop();
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !user) return null;
 
   const filteredItems = catalog.filter((i) => i.category === activeTab);
   const userInventoryItems = catalog.filter((i) => unlockedItems.includes(i.id));

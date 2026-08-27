@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketProvider, useSocket } from './context/SocketContext';
 import { ChatProvider, useChat } from './context/ChatContext';
@@ -53,6 +53,23 @@ function ChatDashboard() {
   const [storiesRefreshKey, setStoriesRefreshKey] = useState(Date.now());
 
   const [mobileView, setMobileView] = useState('sidebar'); // 'sidebar' | 'chat'
+
+  // Fechar todos os popups/modais de usuário caso a sessão seja encerrada (logout)
+  useEffect(() => {
+    if (!user) {
+      setShowSettingsModal(false);
+      setShowNewChatModal(false);
+      setShowNewGroupModal(false);
+      setShowShopModal(false);
+      setShowWalletModal(false);
+      setShowAdminModal(false);
+      setShowFriendsModal(false);
+      setShowCreateStoryModal(false);
+      setTargetUserProfile(null);
+      setActiveStoryGroup(null);
+      if (setShowPollModal) setShowPollModal(false);
+    }
+  }, [user, setShowPollModal]);
 
   const handleSelectConversation = (convId) => {
     setActiveConversationId(convId);
@@ -184,7 +201,7 @@ function ChatDashboard() {
       />
 
       <NewChatModal
-        isOpen={showNewChatModal}
+        isOpen={Boolean(user && showNewChatModal)}
         onClose={() => {
           setShowNewChatModal(false);
           setMobileView('chat');
@@ -192,7 +209,7 @@ function ChatDashboard() {
       />
 
       <NewGroupModal
-        isOpen={showNewGroupModal}
+        isOpen={Boolean(user && showNewGroupModal)}
         onClose={() => {
           setShowNewGroupModal(false);
           setMobileView('chat');
@@ -200,27 +217,27 @@ function ChatDashboard() {
       />
 
       <SettingsModal
-        isOpen={showSettingsModal}
+        isOpen={Boolean(user && showSettingsModal)}
         onClose={() => setShowSettingsModal(false)}
       />
 
       <NexusShopModal
-        isOpen={showShopModal}
+        isOpen={Boolean(user && showShopModal)}
         onClose={() => setShowShopModal(false)}
       />
 
       <NexusWalletModal
-        isOpen={showWalletModal}
+        isOpen={Boolean(user && showWalletModal)}
         onClose={() => setShowWalletModal(false)}
       />
 
       <AdminModal
-        isOpen={showAdminModal}
+        isOpen={Boolean(user && showAdminModal)}
         onClose={() => setShowAdminModal(false)}
       />
 
       <FriendsModal
-        isOpen={showFriendsModal}
+        isOpen={Boolean(user && showFriendsModal)}
         onClose={() => setShowFriendsModal(false)}
         onStartChat={(target) => handleStartDirectChat(target)}
         onOpenProfile={(target) => setTargetUserProfile(target)}
@@ -228,7 +245,7 @@ function ChatDashboard() {
 
       <UserProfileModal
         targetUser={targetUserProfile}
-        isOpen={Boolean(targetUserProfile)}
+        isOpen={Boolean(user && targetUserProfile)}
         onClose={() => setTargetUserProfile(null)}
         onStartDirectChat={(target) => handleStartDirectChat(target)}
         onOpenEditProfile={() => {

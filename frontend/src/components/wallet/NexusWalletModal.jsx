@@ -87,7 +87,7 @@ export function NexusWalletModal({ isOpen, onClose }) {
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !user) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn select-none">

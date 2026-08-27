@@ -63,7 +63,16 @@ export function SettingsModal({ isOpen, onClose }) {
     }
   }, [user, isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !user) return null;
+
+  const handleLogout = async () => {
+    try {
+      onClose?.();
+      await logout();
+    } catch (err) {
+      console.error('Erro ao sair:', err);
+    }
+  };
 
   const unlockedItems = user?.unlocked_items || ['frame_default', 'bubble_default'];
   const myInventoryItems = SHOP_CATALOG.filter(i => unlockedItems.includes(i.id));
@@ -533,8 +542,8 @@ export function SettingsModal({ isOpen, onClose }) {
               </div>
               <button
                 type="button"
-                onClick={logout}
-                className="px-3.5 py-1.5 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30 text-xs font-bold flex items-center gap-1.5"
+                onClick={handleLogout}
+                className="px-3.5 py-1.5 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
               >
                 <LogOut className="w-3.5 h-3.5" /> Sair
               </button>

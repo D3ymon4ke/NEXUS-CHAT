@@ -628,7 +628,7 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !user) return null;
 
   const filteredUsers = users.filter(u =>
     (u.display_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
