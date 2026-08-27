@@ -131,41 +131,48 @@ export function ChatProvider({ children }) {
     };
   }, [activeConversationId, socket, connected]);
 
-  // --- SUPABASE REALTIME (INSERTs e UPDATEs de Edição/Exclusão em Tempo Real) ---
+  // --- SUPABASE REALTIME (Mensagens Globais & Notificações de Conversas em Tempo Real) ---
   useEffect(() => {
-    if (!isSupabaseConfigured || !supabase || !activeConversationId) return;
+    if (!isSupabaseConfigured || !supabase || !user) return;
 
     const channel = supabase
-      .channel(`chat:room:${activeConversationId}`)
+      .channel('chat_global_messages_listener')
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${activeConversationId}`
+          table: 'messages'
         },
         async (payload) => {
           const newMsg = payload.new;
-          if (newMsg.sender_id !== user?.id) {
-            const { data: sender } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', newMsg.sender_id)
-              .single();
+          if (newMsg) {
+            // Recarregar conversas para atualizar o último snippet, avatar e ordenação no sidebar
+            if (loadConversations) loadConversations();
 
-            const formatted = {
-              ...newMsg,
-              sender: sender || { id: newMsg.sender_id, display_name: 'Usuário' },
-              attachments: [],
-              reactions: []
-            };
+            // Se for na conversa ativa e de outro usuário, adicionar à lista atual
+            if (newMsg.conversation_id === activeConversationId && newMsg.sender_id !== user.id) {
+              const { data: sender } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', newMsg.sender_id)
+                .single();
 
-            setMessages(prev => {
-              if (prev.some(m => m.id === formatted.id || (m.tempId && m.tempId === formatted.id))) return prev;
-              return [...prev, formatted];
-            });
-            sounds.playReceive();
+              const formatted = {
+                ...newMsg,
+                sender: sender || { id: newMsg.sender_id, display_name: 'Usuário' },
+                attachments: [],
+                reactions: []
+              };
+
+              setMessages((prev) => {
+                if (prev.some((m) => m.id === formatted.id || (m.tempId && m.tempId === formatted.id))) return prev;
+                return [...prev, formatted];
+              });
+              sounds.playReceive();
+            } else if (newMsg.conversation_id !== activeConversationId && newMsg.sender_id !== user.id) {
+              sounds.playReceive();
+            }
           }
         }
       )
@@ -174,12 +181,14 @@ export function ChatProvider({ children }) {
         {
           event: 'UPDATE',
           schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${activeConversationId}`
+          table: 'messages'
         },
         (payload) => {
           const updated = payload.new;
-          setMessages(prev => prev.map(m => m.id === updated.id ? { ...m, ...updated } : m));
+          if (updated && updated.conversation_id === activeConversationId) {
+            setMessages((prev) => prev.map((m) => (m.id === updated.id ? { ...m, ...updated } : m)));
+          }
+          if (loadConversations) loadConversations();
         }
       )
       .on(
@@ -187,16 +196,15 @@ export function ChatProvider({ children }) {
         {
           event: 'DELETE',
           schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${activeConversationId}`
+          table: 'messages'
         },
         (payload) => {
           if (payload.old?.id) {
-            setMessages(prev => prev.filter(m => m.id !== payload.old.id));
+            setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
           } else {
-            // Se for limpeza em massa
             setMessages([]);
           }
+          if (loadConversations) loadConversations();
         }
       )
       .subscribe();
@@ -204,7 +212,7 @@ export function ChatProvider({ children }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeConversationId, user?.id]);
+  }, [activeConversationId, user?.id, loadConversations]);
 
   const [showPollModal, setShowPollModal] = useState(false);
 
