@@ -261,12 +261,20 @@ export function SettingsModal({ isOpen, onClose }) {
                   type="file"
                   id="avatar-file-upload"
                   accept="image/*"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (file) {
                       const reader = new FileReader();
-                      reader.onload = (ev) => {
-                        if (ev.target?.result) setAvatarUrl(ev.target.result);
+                      reader.onload = async (ev) => {
+                        const newUrl = ev.target?.result;
+                        if (newUrl) {
+                          setAvatarUrl(newUrl);
+                          if (isSupabaseConfigured && supabase && user) {
+                            await supabase.from('profiles').update({ avatar_url: newUrl }).eq('id', user.id);
+                            if (updateProfile) updateProfile({ avatar_url: newUrl });
+                            sounds.playPop();
+                          }
+                        }
                       };
                       reader.readAsDataURL(file);
                     }
@@ -278,7 +286,7 @@ export function SettingsModal({ isOpen, onClose }) {
                   <button
                     type="button"
                     onClick={() => document.getElementById('avatar-file-upload')?.click()}
-                    className="px-3.5 py-1.5 rounded-xl bg-brand-600/30 text-brand-300 hover:bg-brand-600/50 border border-brand-500/40 text-xs font-bold flex items-center gap-1.5 shadow transition-all"
+                    className="px-3.5 py-1.5 rounded-xl bg-brand-600/30 text-brand-300 hover:bg-brand-600/50 border border-brand-500/40 text-xs font-bold flex items-center gap-1.5 shadow transition-all active:scale-95"
                   >
                     <Upload className="w-3.5 h-3.5" /> Escolher Foto do Dispositivo
                   </button>
