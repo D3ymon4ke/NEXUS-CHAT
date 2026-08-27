@@ -109,7 +109,8 @@ export function Sidebar({
     setActiveConversationId,
     loadingConversations,
     masterIdentities,
-    setMasterIdentityForConv
+    setMasterIdentityForConv,
+    loadConversations
   } = useChat();
   const { isUserOnline, connected } = useSocket();
 
