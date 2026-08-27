@@ -28,6 +28,37 @@ export function FriendsModal({ isOpen, onClose, onStartChat, onOpenProfile }) {
   useEffect(() => {
     if (!isOpen || !user) return;
     loadFriendsData();
+
+    if (isSupabaseConfigured && supabase) {
+      const channel = supabase
+        .channel('friends_modal_realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'profiles' },
+          (payload) => {
+            if (payload.new) {
+              setFriendsList((prev) =>
+                prev.map((f) => (f.id === payload.new.id ? { ...f, ...payload.new } : f))
+              );
+              setAllUsers((prev) =>
+                prev.map((u) => (u.id === payload.new.id ? { ...u, ...payload.new } : u))
+              );
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'friendships' },
+          () => {
+            loadFriendsData();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, [isOpen, user?.id]);
 
   const loadFriendsData = async () => {
@@ -42,7 +73,7 @@ export function FriendsModal({ isOpen, onClose, onStartChat, onOpenProfile }) {
       ] = await Promise.all([
         supabase
           .from('friendships')
-          .select('*, user:profiles!friendships_user_id_fkey(*), friend:profiles!friendships_friend_id_fkey(*)')
+          .select('user_id, friend_id, status')
           .eq('status', 'accepted')
           .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`),
         supabase
@@ -54,12 +85,28 @@ export function FriendsModal({ isOpen, onClose, onStartChat, onOpenProfile }) {
           .from('profiles')
           .select('*')
           .neq('id', user.id)
-          .limit(30)
+          .order('display_name', { ascending: true })
+          .limit(100)
       ]);
 
-      if (accepted) {
-        const list = accepted.map((f) => (f.user_id === user.id ? f.friend : f.user)).filter(Boolean);
-        setFriendsList(list);
+      if (accepted && accepted.length > 0) {
+        const friendIds = accepted
+          .map((f) => (f.user_id === user.id ? f.friend_id : f.user_id))
+          .filter(Boolean);
+
+        if (friendIds.length > 0) {
+          const { data: freshProfiles } = await supabase
+            .from('profiles')
+            .select('*')
+            .in('id', friendIds)
+            .order('display_name', { ascending: true });
+
+          setFriendsList(freshProfiles || []);
+        } else {
+          setFriendsList([]);
+        }
+      } else {
+        setFriendsList([]);
       }
 
       if (requests) {

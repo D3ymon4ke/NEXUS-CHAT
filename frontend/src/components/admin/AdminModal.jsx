@@ -191,6 +191,41 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
+  const handleSelectUserForChatMaster = async (targetUser) => {
+    if (!targetUser || !user) return;
+    try {
+      const existingConv = allMasterConversations.find(
+        (c) =>
+          c.type === 'direct' &&
+          c.participants?.some((p) => p.user?.id === targetUser.id)
+      );
+
+      if (existingConv) {
+        setSelectedMasterConvId(existingConv.id);
+        return;
+      }
+
+      if (isSupabaseConfigured && supabase) {
+        const { data: newConv } = await supabase
+          .from('conversations')
+          .insert({ type: 'direct' })
+          .select()
+          .single();
+
+        if (newConv) {
+          await supabase.from('conversation_participants').insert([
+            { conversation_id: newConv.id, user_id: user.id, role: 'member' },
+            { conversation_id: newConv.id, user_id: targetUser.id, role: 'member' }
+          ]);
+          await loadChatMasterData();
+          setSelectedMasterConvId(newConv.id);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao abrir conversa com usuário:', err);
+    }
+  };
+
   const loadMasterConversationMessages = async (convId) => {
     if (!isSupabaseConfigured || !supabase || !convId) return;
     try {
@@ -1078,38 +1113,78 @@ export function AdminModal({ isOpen, onClose }) {
                   </div>
 
                   <div className="p-4 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-2.5">
-                    <label className="text-[10px] font-extrabold text-slate-300 uppercase block">
-                      💬 2. Escolha a Conversa do Sistema:
-                    </label>
-                    <div className="space-y-1.5 max-h-[190px] overflow-y-auto pr-1">
-                      {allMasterConversations.map((conv) => {
-                        const isBelmont = conv.id === BELMONT_ID || conv.is_permanent;
-                        const isSelected = selectedMasterConvId === conv.id;
-                        const participantNames = (conv.participants || [])
-                          .map((p) => p.user?.display_name || p.user?.username)
-                          .filter(Boolean)
-                          .join(', ');
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-extrabold text-slate-300 uppercase block">
+                        💬 2. Escolha o Alvo (Conversa ou Usuário):
+                      </label>
+                      <button
+                        type="button"
+                        onClick={loadChatMasterData}
+                        className="text-[10px] text-purple-400 hover:text-purple-300 font-semibold"
+                      >
+                        🔄 Atualizar
+                      </button>
+                    </div>
 
-                        return (
-                          <div
-                            key={conv.id}
-                            onClick={() => setSelectedMasterConvId(conv.id)}
-                            className={`p-2.5 rounded-2xl border text-xs cursor-pointer transition-all ${
-                              isSelected
-                                ? 'bg-purple-600/30 border-purple-500 text-white font-bold shadow-md'
-                                : 'bg-background-dark/80 border-slate-800 text-slate-300 hover:border-slate-700'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="truncate">{isBelmont ? '👑 BELMONT CONFERENCE' : conv.name || 'Conversa Direta'}</span>
-                              <span className="text-[9px] text-slate-500 uppercase font-bold">{conv.type}</span>
+                    <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
+                      <div className="text-[9px] font-extrabold text-slate-400 uppercase px-1 pt-1">Salas & Grupos</div>
+                      {allMasterConversations
+                        .filter(c => c.type === 'group' || c.id === BELMONT_ID || c.is_permanent)
+                        .map((conv) => {
+                          const isBelmont = conv.id === BELMONT_ID || conv.is_permanent;
+                          const isSelected = selectedMasterConvId === conv.id;
+
+                          return (
+                            <div
+                              key={conv.id}
+                              onClick={() => setSelectedMasterConvId(conv.id)}
+                              className={`p-2.5 rounded-2xl border text-xs cursor-pointer transition-all ${
+                                isSelected
+                                  ? 'bg-purple-600/30 border-purple-500 text-white font-bold shadow-md'
+                                  : 'bg-background-dark/80 border-slate-800 text-slate-300 hover:border-slate-700'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="truncate">{isBelmont ? '👑 BELMONT CONFERENCE' : conv.name || 'Sala Geral'}</span>
+                                <span className="text-[9px] text-amber-400 uppercase font-extrabold">{isBelmont ? 'OFICIAL' : 'GRUPO'}</span>
+                              </div>
                             </div>
-                            <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                              {participantNames || 'Membros do chat'}
-                            </p>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+
+                      <div className="text-[9px] font-extrabold text-slate-400 uppercase px-1 pt-2">👥 Usuários (Chat Privado Direto)</div>
+                      {users
+                        .filter(u => u.id !== user?.id)
+                        .map((targetU) => {
+                          const existingConv = allMasterConversations.find(
+                            c => c.type === 'direct' && c.participants?.some(p => p.user?.id === targetU.id)
+                          );
+                          const isSelected = existingConv && selectedMasterConvId === existingConv.id;
+
+                          return (
+                            <div
+                              key={targetU.id}
+                              onClick={() => handleSelectUserForChatMaster(targetU)}
+                              className={`p-2 rounded-2xl border text-xs cursor-pointer transition-all flex items-center justify-between gap-2 ${
+                                isSelected
+                                  ? 'bg-purple-600/30 border-purple-500 text-white font-bold shadow-md'
+                                  : 'bg-background-dark/80 border-slate-800 text-slate-300 hover:border-slate-700'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <img
+                                  src={targetU.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${targetU.id}`}
+                                  alt="Avatar"
+                                  className="w-6 h-6 rounded-lg object-cover border border-slate-700 flex-shrink-0"
+                                />
+                                <span className="truncate text-[11px] font-semibold">{targetU.display_name || targetU.username}</span>
+                              </div>
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold">
+                                {existingConv ? 'Chat Aberto' : 'Iniciar'}
+                              </span>
+                            </div>
+                          );
+                        })}
                     </div>
                   </div>
                 </div>

@@ -142,7 +142,9 @@ export function Sidebar({
     }
   };
 
-  // Carregar todos os usuários para o dropdown do Modo Master
+  const [startingSuperDm, setStartingSuperDm] = useState(false);
+
+  // Carregar todos os usuários para o dropdown do Modo Master e manter atualizado em tempo real
   useEffect(() => {
     if (!isAdmin) return;
     async function loadUsers() {
@@ -152,21 +154,108 @@ export function Sidebar({
       }
     }
     loadUsers();
-  }, [isAdmin]);
+
+    if (isSupabaseConfigured && supabase) {
+      const channel = supabase
+        .channel('sidebar_profiles_realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, (payload) => {
+          if (payload.new) {
+            setAllUsersList((prev) =>
+              prev.map((u) => (u.id === payload.new.id ? { ...u, ...payload.new } : u))
+            );
+            if (loadConversations) loadConversations();
+          }
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [isAdmin, loadConversations]);
 
   const handleSelect = (convId) => {
     setActiveConversationId(convId);
     if (onSelectConversation) onSelectConversation(convId);
   };
 
-  const handleStartSuperDm = () => {
-    if (!superDmTargetConv || !superDmIdentityUser) return;
+  const handleStartSuperDm = async () => {
+    if (!superDmTargetConv || !superDmIdentityUser || startingSuperDm) return;
     const selectedProfile = allUsersList.find((u) => u.id === superDmIdentityUser);
-    if (selectedProfile && setMasterIdentityForConv) {
-      setMasterIdentityForConv(superDmTargetConv, selectedProfile);
-      sounds.playPop();
-      confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
-      handleSelect(superDmTargetConv);
+    if (!selectedProfile) return;
+
+    setStartingSuperDm(true);
+    try {
+      let targetConvId = null;
+
+      if (superDmTargetConv.startsWith('user:')) {
+        const targetUserId = superDmTargetConv.replace('user:', '');
+
+        // 1. Procurar nas conversas já carregadas
+        const existingConv = conversations.find(
+          (c) => c.type === 'direct' && c.direct_user?.id === targetUserId
+        );
+
+        if (existingConv) {
+          targetConvId = existingConv.id;
+        } else if (isSupabaseConfigured && supabase && user) {
+          // 2. Verificar no Supabase se já existe conversa direta entre os dois
+          const { data: myParts } = await supabase
+            .from('conversation_participants')
+            .select('conversation_id')
+            .eq('user_id', user.id);
+
+          let foundId = null;
+          if (myParts && myParts.length > 0) {
+            const myConvIds = myParts.map((p) => p.conversation_id);
+            const { data: directPart } = await supabase
+              .from('conversation_participants')
+              .select('conversation_id, conversations!inner(type)')
+              .eq('user_id', targetUserId)
+              .eq('conversations.type', 'direct')
+              .in('conversation_id', myConvIds)
+              .maybeSingle();
+
+            if (directPart) {
+              foundId = directPart.conversation_id;
+            }
+          }
+
+          if (foundId) {
+            targetConvId = foundId;
+          } else {
+            // 3. Criar nova conversa direta
+            const { data: newConv, error: createConvErr } = await supabase
+              .from('conversations')
+              .insert({ type: 'direct' })
+              .select()
+              .single();
+
+            if (newConv && !createConvErr) {
+              await supabase.from('conversation_participants').insert([
+                { conversation_id: newConv.id, user_id: user.id, role: 'member' },
+                { conversation_id: newConv.id, user_id: targetUserId, role: 'member' }
+              ]);
+              targetConvId = newConv.id;
+            }
+          }
+
+          if (loadConversations) await loadConversations();
+        }
+      } else {
+        targetConvId = superDmTargetConv.replace('conv:', '');
+      }
+
+      if (targetConvId && setMasterIdentityForConv) {
+        setMasterIdentityForConv(targetConvId, selectedProfile);
+        sounds.playPop();
+        confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+        handleSelect(targetConvId);
+      }
+    } catch (err) {
+      console.error('Erro ao iniciar Super DM:', err);
+    } finally {
+      setStartingSuperDm(false);
     }
   };
 
@@ -456,14 +545,30 @@ export function Sidebar({
               <select
                 value={superDmTargetConv}
                 onChange={(e) => setSuperDmTargetConv(e.target.value)}
-                className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-rose-500"
+                className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-rose-500 font-medium"
               >
-                <option value="">Selecione a conversa...</option>
-                {conversations.map((c) => {
-                  const isB = c.id === BELMONT_ID || c.is_permanent;
-                  const name = isB ? '👑 BELMONT CONFERENCE' : c.type === 'direct' ? c.direct_user?.display_name || c.direct_user?.username : c.name;
-                  return <option key={c.id} value={c.id}>{name}</option>;
-                })}
+                <option value="">Selecione quem você quer contatar...</option>
+
+                <optgroup label="👥 Qualquer Usuário (Chat Direto / Privado)">
+                  {allUsersList
+                    .filter((u) => u.id !== user?.id)
+                    .map((u) => (
+                      <option key={`user:${u.id}`} value={`user:${u.id}`}>
+                        👤 {u.display_name || u.username} (@{u.username})
+                      </option>
+                    ))}
+                </optgroup>
+
+                <optgroup label="💬 Salas e Grupos Oficiais">
+                  <option value={`conv:${BELMONT_ID}`}>👑 BELMONT CONFERENCE</option>
+                  {conversations
+                    .filter((c) => c.type === 'group' && c.id !== BELMONT_ID)
+                    .map((c) => (
+                      <option key={`conv:${c.id}`} value={`conv:${c.id}`}>
+                        👥 {c.name || 'Grupo'}
+                      </option>
+                    ))}
+                </optgroup>
               </select>
             </div>
 
