@@ -174,6 +174,24 @@ export async function apiRequest(endpoint, options = {}) {
           }
         };
       }
+
+      // 6. /users/profile (Atualização direta do Perfil via Supabase)
+      if (cleanEndpoint === '/users/profile' && options.method === 'PUT') {
+        const body = typeof options.body === 'string' ? JSON.parse(options.body) : (options.body || {});
+        const { data: updatedProfile, error: updErr } = await supabase
+          .from('profiles')
+          .update(body)
+          .eq('id', currentUser.id)
+          .select()
+          .single();
+
+        if (updErr) {
+          console.error('Erro ao atualizar perfil no Supabase:', updErr);
+          throw updErr;
+        }
+
+        return { success: true, profile: updatedProfile };
+      }
     } catch (supaErr) {
       console.error('Erro no fallback Supabase:', supaErr);
     }
