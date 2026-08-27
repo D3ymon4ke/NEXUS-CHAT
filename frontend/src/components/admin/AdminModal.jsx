@@ -42,7 +42,8 @@ import {
   Globe,
   Sliders,
   Crown,
-  Award
+  Award,
+  Upload
 } from 'lucide-react';
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
