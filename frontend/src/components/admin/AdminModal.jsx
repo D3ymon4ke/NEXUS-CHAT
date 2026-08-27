@@ -226,6 +226,29 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
+  const handleAdminChangeUserAvatar = async (targetUserId, file) => {
+    if (!file || !targetUserId) return;
+    try {
+      setActionLoading(true);
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        const newUrl = ev.target?.result;
+        if (newUrl && isSupabaseConfigured && supabase) {
+          await supabase.from('profiles').update({ avatar_url: newUrl }).eq('id', targetUserId);
+          setUsers(prev => prev.map(u => u.id === targetUserId ? { ...u, avatar_url: newUrl } : u));
+          sounds.playPop();
+          setFeedback({ text: 'Foto de perfil do usuário atualizada com sucesso!', type: 'success' });
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Erro ao atualizar foto pelo admin:', err);
+      setFeedback({ text: 'Erro ao atualizar foto.', type: 'error' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const loadMasterConversationMessages = async (convId) => {
     if (!isSupabaseConfigured || !supabase || !convId) return;
     try {
@@ -1285,12 +1308,30 @@ export function AdminModal({ isOpen, onClose }) {
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => setSelectedUserForCoins(u)}
-                      className="px-3.5 py-2 rounded-xl bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm"
-                    >
-                      <PlusCircle className="w-3.5 h-3.5" /> Conceder Moedas
-                    </button>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <label
+                        className="px-3 py-2 rounded-xl bg-purple-600/20 text-purple-300 hover:bg-purple-600/30 border border-purple-500/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+                        title="Trocar a foto de perfil deste usuário"
+                      >
+                        <Upload className="w-3.5 h-3.5" /> Mudar Foto
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleAdminChangeUserAvatar(u.id, file);
+                          }}
+                        />
+                      </label>
+
+                      <button
+                        onClick={() => setSelectedUserForCoins(u)}
+                        className="px-3.5 py-2 rounded-xl bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+                      >
+                        <PlusCircle className="w-3.5 h-3.5" /> Conceder Moedas
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
