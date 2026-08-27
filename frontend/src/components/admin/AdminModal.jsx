@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { sounds } from '../../lib/sound';
+import { compressImageFile } from '../../lib/imageCompressor';
 import confetti from 'canvas-confetti';
 import {
   ShieldAlert,
@@ -231,20 +232,26 @@ export function AdminModal({ isOpen, onClose }) {
     if (!file || !targetUserId) return;
     try {
       setActionLoading(true);
-      const reader = new FileReader();
-      reader.onload = async (ev) => {
-        const newUrl = ev.target?.result;
-        if (newUrl && isSupabaseConfigured && supabase) {
-          await supabase.from('profiles').update({ avatar_url: newUrl }).eq('id', targetUserId);
-          setUsers(prev => prev.map(u => u.id === targetUserId ? { ...u, avatar_url: newUrl } : u));
-          sounds.playPop();
-          setFeedback({ text: 'Foto de perfil do usuário atualizada com sucesso!', type: 'success' });
-        }
-      };
-      reader.readAsDataURL(file);
+      const compressedBase64 = await compressImageFile(file, 512, 512, 0.88);
+
+      if (compressedBase64 && isSupabaseConfigured && supabase) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .update({ avatar_url: compressedBase64 })
+          .eq('id', targetUserId)
+          .select();
+
+        if (error) throw error;
+
+        setUsers((prev) =>
+          prev.map((u) => (u.id === targetUserId ? { ...u, avatar_url: compressedBase64 } : u))
+        );
+        sounds.playPop();
+        setFeedback({ text: 'Foto de perfil do usuário atualizada e salva com sucesso!', type: 'success' });
+      }
     } catch (err) {
       console.error('Erro ao atualizar foto pelo admin:', err);
-      setFeedback({ text: 'Erro ao atualizar foto.', type: 'error' });
+      setFeedback({ text: 'Erro ao atualizar foto: ' + (err.message || ''), type: 'error' });
     } finally {
       setActionLoading(false);
     }

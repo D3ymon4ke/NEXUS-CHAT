@@ -6,6 +6,7 @@ import { SHOP_CATALOG } from '../../lib/shopCatalog';
 import { sounds } from '../../lib/sound';
 import { fetchMusicMetadata } from '../../lib/musicUtils';
 import { ProfileMusicPlayer } from '../profile/ProfileMusicPlayer';
+import { compressImageFile } from '../../lib/imageCompressor';
 import {
   Settings,
   X,
@@ -264,19 +265,19 @@ export function SettingsModal({ isOpen, onClose }) {
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                      const reader = new FileReader();
-                      reader.onload = async (ev) => {
-                        const newUrl = ev.target?.result;
-                        if (newUrl) {
-                          setAvatarUrl(newUrl);
+                      try {
+                        const compressedUrl = await compressImageFile(file, 512, 512, 0.88);
+                        if (compressedUrl) {
+                          setAvatarUrl(compressedUrl);
                           if (isSupabaseConfigured && supabase && user) {
-                            await supabase.from('profiles').update({ avatar_url: newUrl }).eq('id', user.id);
-                            if (updateProfile) updateProfile({ avatar_url: newUrl });
+                            await supabase.from('profiles').update({ avatar_url: compressedUrl }).eq('id', user.id);
+                            if (updateProfile) updateProfile({ avatar_url: compressedUrl });
                             sounds.playPop();
                           }
                         }
-                      };
-                      reader.readAsDataURL(file);
+                      } catch (err) {
+                        console.error('Erro ao processar imagem:', err);
+                      }
                     }
                   }}
                   className="hidden"
