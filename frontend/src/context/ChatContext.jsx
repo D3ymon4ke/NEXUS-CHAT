@@ -119,6 +119,19 @@ export function ChatProvider({ children }) {
     setEditingMessage(null);
     setTypingUsers(new Map());
 
+    // Limpar badge de não lidas para a conversa selecionada
+    if (activeConversationId) {
+      setConversations(prev => prev.map(c => c.id === activeConversationId ? { ...c, unread_count: 0 } : c));
+      if (isSupabaseConfigured && supabase && user) {
+        supabase
+          .from('conversation_participants')
+          .update({ unread_count: 0 })
+          .eq('conversation_id', activeConversationId)
+          .eq('user_id', user.id)
+          .then(() => {});
+      }
+    }
+
     if (socket && connected) {
       socket.emit('join_conversation', activeConversationId);
       socket.emit('mark_as_read', { conversationId: activeConversationId });
@@ -129,7 +142,7 @@ export function ChatProvider({ children }) {
         socket.emit('leave_conversation', activeConversationId);
       }
     };
-  }, [activeConversationId, socket, connected]);
+  }, [activeConversationId, socket, connected, user?.id]);
 
   // --- SUPABASE REALTIME (Mensagens Globais & Notificações de Conversas em Tempo Real) ---
   useEffect(() => {
@@ -147,10 +160,43 @@ export function ChatProvider({ children }) {
         async (payload) => {
           const newMsg = payload.new;
           if (newMsg) {
-            // Recarregar conversas para atualizar o último snippet, avatar e ordenação no sidebar
-            if (loadConversations) loadConversations();
+            // Atualizar lista local de conversas com snippet e badge de não lidas
+            setConversations((prev) => {
+              const isCurrentActive = newMsg.conversation_id === activeConversationId;
+              let found = false;
+              const next = prev.map((c) => {
+                if (c.id === newMsg.conversation_id) {
+                  found = true;
+                  return {
+                    ...c,
+                    last_message: {
+                      id: newMsg.id,
+                      content: newMsg.content,
+                      type: newMsg.type,
+                      sender_id: newMsg.sender_id,
+                      created_at: newMsg.created_at
+                    },
+                    unread_count: isCurrentActive ? 0 : (c.unread_count || 0) + 1
+                  };
+                }
+                return c;
+              });
 
-            // Se for na conversa ativa e de outro usuário, adicionar à lista atual
+              // Se a conversa não estava na lista (ex: primeiro contato), recarrega via API
+              if (!found && loadConversations) {
+                loadConversations();
+              }
+
+              return next.sort((a, b) => {
+                if (a.id === BELMONT_ID) return -1;
+                if (b.id === BELMONT_ID) return 1;
+                const timeA = a.last_message ? new Date(a.last_message.created_at).getTime() : 0;
+                const timeB = b.last_message ? new Date(b.last_message.created_at).getTime() : 0;
+                return timeB - timeA;
+              });
+            });
+
+            // Se for na conversa ativa e de outro usuário, adicionar à lista de mensagens visíveis
             if (newMsg.conversation_id === activeConversationId && newMsg.sender_id !== user.id) {
               const { data: sender } = await supabase
                 .from('profiles')
