@@ -5,6 +5,7 @@ import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { sounds } from '../../lib/sound';
 import { compressImageFile } from '../../lib/imageCompressor';
 import { SHOP_CATALOG, registerDynamicFrames, getFrameAsset, getFrameStyle } from '../../lib/shopCatalog';
+import { MarkdownRenderer } from '../common/MarkdownRenderer';
 import confetti from 'canvas-confetti';
 import {
   ShieldAlert,
@@ -2370,15 +2371,103 @@ export function AdminModal({ isOpen, onClose }) {
                 </div>
 
                 <div>
-                  <label className="text-[10px] text-slate-400 font-bold block mb-1">Conteúdo</label>
+                  <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+                    <label className="text-[10px] text-slate-400 font-bold flex items-center gap-1.5">
+                      <span>Conteúdo (Suporta Markdown: **negrito**, *itálico*, listas, títulos)</span>
+                    </label>
+
+                    {/* Toolbar Rápida de Markdown */}
+                    <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPatchContent(prev => prev ? `${prev} **texto em negrito**` : '**texto em negrito**');
+                        }}
+                        className="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-amber-500/20 text-amber-300 font-black border border-slate-800 hover:border-amber-500/40 transition-colors"
+                        title="Negrito (**texto**)"
+                      >
+                        B
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPatchContent(prev => prev ? `${prev} *texto em itálico*` : '*texto em itálico*');
+                        }}
+                        className="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 italic border border-slate-800 transition-colors"
+                        title="Itálico (*texto*)"
+                      >
+                        I
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPatchContent(prev => prev ? `${prev} ~~texto riscado~~` : '~~texto riscado~~');
+                        }}
+                        className="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 line-through border border-slate-800 transition-colors"
+                        title="Riscado (~~texto~~)"
+                      >
+                        S
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPatchContent(prev => prev ? `${prev} \`código\`` : '`código`');
+                        }}
+                        className="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-cyan-500/20 text-cyan-300 font-mono border border-slate-800 hover:border-cyan-500/40 transition-colors"
+                        title="Código inline (`código`)"
+                      >
+                        {"</>"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPatchContent(prev => prev ? `${prev}\n- Item da lista\n- Outro item` : '- Item da lista\n- Outro item');
+                        }}
+                        className="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold border border-slate-800 transition-colors"
+                        title="Lista com marcadores (- item)"
+                      >
+                        • Lista
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPatchContent(prev => prev ? `${prev}\n### Subtítulo` : '### Subtítulo');
+                        }}
+                        className="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-cyan-300 font-bold border border-slate-800 transition-colors"
+                        title="Subtítulo (### título)"
+                      >
+                        H3
+                      </button>
+                    </div>
+                  </div>
+
                   <textarea
-                    rows={3}
+                    rows={4}
                     required
                     value={patchContent}
                     onChange={(e) => setPatchContent(e.target.value)}
-                    placeholder="Descreva as novidades desta versão..."
-                    className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-brand-500 resize-none"
+                    placeholder="Descreva as novidades usando markdown:&#10;**Novidade em destaque**&#10;- Item de melhoria 1&#10;- Item de melhoria 2"
+                    className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-brand-500 resize-none font-mono"
                   />
+
+                  {/* Live Markdown Preview da Nota */}
+                  {patchContent.trim() && (
+                    <div className="mt-2 p-3 rounded-2xl bg-slate-950 border border-slate-800 space-y-1">
+                      <div className="flex items-center justify-between text-[10px] font-extrabold text-amber-300 uppercase">
+                        <span>👁️ Pré-visualização ao Vivo (Como aparecerá no Hub)</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800/80">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 font-bold text-[9px]">
+                            {patchTag}
+                          </span>
+                          <span className="font-bold text-white text-xs">{patchTitle || 'Título da Atualização'}</span>
+                          <span className="text-[9px] text-slate-500">{patchVersion || 'v2.5.0'}</span>
+                        </div>
+                        <MarkdownRenderer content={patchContent} className="text-xs text-slate-300" />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <button
@@ -2392,18 +2481,18 @@ export function AdminModal({ isOpen, onClose }) {
 
               <div>
                 <h4 className="text-xs font-bold text-slate-300 mb-2 truncate">Patch Notes Publicadas ({patchNotesList.length})</h4>
-                <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
                   {patchNotesList.map((patch) => (
-                    <div key={patch.id} className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-slate-900/90 border border-slate-800 flex items-center justify-between text-xs shadow gap-2 min-w-0">
-                      <div className="min-w-0 pr-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
+                    <div key={patch.id} className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 flex items-start justify-between text-xs shadow gap-3 min-w-0">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap mb-1">
                           <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 font-bold text-[9px]">
                             {patch.tag}
                           </span>
-                          <span className="font-bold text-white truncate">{patch.title}</span>
+                          <span className="font-bold text-white truncate text-xs">{patch.title}</span>
                           <span className="text-[9px] text-slate-500">{patch.version}</span>
                         </div>
-                        <p className="text-[10px] sm:text-[11px] text-slate-400 truncate mt-0.5">{patch.content}</p>
+                        <MarkdownRenderer content={patch.content} className="text-[11px] text-slate-300" />
                       </div>
                       <button
                         onClick={() => handleDeletePatchNote(patch.id)}

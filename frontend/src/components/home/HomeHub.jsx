@@ -6,6 +6,7 @@ import { WeatherWidget } from './WeatherWidget';
 import { HubPollCard } from './HubPollCard';
 import { CreateHubPollModal } from './CreateHubPollModal';
 import GradientWaves from '../common/GradientWaves';
+import { MarkdownRenderer } from '../common/MarkdownRenderer';
 import {
   Sparkles,
   Flame,
@@ -466,10 +467,11 @@ export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet, onBack }) {
                       </span>
                     </div>
 
-                    <h3 className="text-xs sm:text-sm font-bold text-white mb-1">{patch.title}</h3>
-                    <p className="text-[11px] sm:text-xs text-slate-300 leading-relaxed whitespace-pre-line break-words">
-                      {patch.content}
-                    </p>
+                    <h3 className="text-xs sm:text-sm font-bold text-white mb-1.5">{patch.title}</h3>
+                    <MarkdownRenderer
+                      content={patch.content}
+                      className="text-[11px] sm:text-xs text-slate-300"
+                    />
                   </div>
                 );
               })}
