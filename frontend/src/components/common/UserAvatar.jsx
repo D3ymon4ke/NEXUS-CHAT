@@ -1,5 +1,5 @@
 import React from 'react';
-import { FRAME_ANIMATED_ASSETS, FRAME_CSS_STYLES } from '../../lib/shopCatalog';
+import { getFrameAsset, getFrameStyle } from '../../lib/shopCatalog';
 
 export function UserAvatar({
   src,
@@ -12,8 +12,8 @@ export function UserAvatar({
   onClick,
   showZoomIcon
 }) {
-  const animatedFrame = FRAME_ANIMATED_ASSETS[frame];
-  const cssFrame = FRAME_CSS_STYLES[frame] || (!animatedFrame ? 'border border-slate-700/80' : '');
+  const animatedFrame = getFrameAsset(frame);
+  const cssFrame = getFrameStyle(frame) || (!animatedFrame ? 'border border-slate-700/80' : '');
 
   const sizeClasses = {
     xs: 'w-6 h-6',

@@ -32,9 +32,7 @@ import {
   Check
 } from 'lucide-react';
 
-import { FRAME_ANIMATED_ASSETS, FRAME_CSS_STYLES } from '../../lib/shopCatalog';
-
-const FRAME_STYLES = FRAME_CSS_STYLES;
+import { getFrameAsset, getFrameStyle } from '../../lib/shopCatalog';
 
 const BADGE_LABELS = {
   badge_coordinator: { icon: '⭐', label: 'Coordenador', color: 'text-amber-300 bg-amber-500/20 border-amber-500/40' },
@@ -225,8 +223,8 @@ export function UserProfileModal({
   if (!isOpen || !targetUser) return null;
 
   const equippedFrameKey = isOwnProfile ? (currentUser?.equipped_frame || targetUser?.equipped_frame) : targetUser?.equipped_frame;
-  const animatedFrameUrl = FRAME_ANIMATED_ASSETS[equippedFrameKey];
-  const frameClass = FRAME_STYLES[equippedFrameKey] || (!animatedFrameUrl ? 'border-2 border-slate-700' : '');
+  const animatedFrameUrl = getFrameAsset(equippedFrameKey);
+  const frameClass = getFrameStyle(equippedFrameKey) || (!animatedFrameUrl ? 'border-2 border-slate-700' : '');
   const badgeInfo = BADGE_LABELS[targetUser.equipped_badge];
   const nameStyle = NAME_STYLES[targetUser.equipped_name_color] || 'text-white font-extrabold';
 

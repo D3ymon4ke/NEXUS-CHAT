@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { sounds } from '../../lib/sound';
+import { getFrameAsset } from '../../lib/shopCatalog';
 import confetti from 'canvas-confetti';
 import {
   Crown,
@@ -13,7 +14,8 @@ import {
   Star,
   Zap,
   Flame,
-  X
+  X,
+  PackageCheck
 } from 'lucide-react';
 
 const TITLE_ICONS = {
@@ -42,7 +44,7 @@ export function TitlePromotionModal() {
       }
     }
 
-    if (pending && pending.title) {
+    if (pending && (pending.title || pending.frame)) {
       setRewardData(pending);
       sounds.playPop();
 
@@ -84,23 +86,28 @@ export function TitlePromotionModal() {
         origin: { y: 0.6 }
       });
 
+      const currentUnlocked = user?.unlocked_items || ['frame_default', 'bubble_default'];
+      const updatedUnlocked = rewardData.frame && !currentUnlocked.includes(rewardData.frame)
+        ? [...currentUnlocked, rewardData.frame]
+        : currentUnlocked;
+
+      const updates = {
+        title_reward_pending: null,
+        custom_title: rewardData.title || user?.custom_title,
+        equipped_badge: rewardData.badge || user?.equipped_badge,
+        unlocked_items: updatedUnlocked,
+        ...(rewardData.frame ? { equipped_frame: rewardData.frame } : {})
+      };
+
       if (isSupabaseConfigured && supabase && user) {
         await supabase
           .from('profiles')
-          .update({
-            title_reward_pending: null,
-            custom_title: rewardData.title,
-            equipped_badge: rewardData.badge || user.equipped_badge
-          })
+          .update(updates)
           .eq('id', user.id);
       }
 
       if (updateProfile) {
-        await updateProfile({
-          title_reward_pending: null,
-          custom_title: rewardData.title,
-          equipped_badge: rewardData.badge || user.equipped_badge
-        });
+        await updateProfile(updates);
       }
 
       setRewardData(null);
@@ -169,6 +176,35 @@ export function TitlePromotionModal() {
             </div>
           )}
 
+          {/* Se houver Moldura Concedida (ex: BETA TESTER) */}
+          {rewardData.frame && (
+            <div className="border-t border-slate-800/80 pt-2.5 mt-2 flex items-center gap-3 bg-cyan-950/40 p-2.5 rounded-xl border border-cyan-500/30">
+              <div className="relative w-12 h-12 flex-shrink-0 inline-flex items-center justify-center">
+                <img
+                  src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
+                  alt="Avatar com moldura"
+                  className="w-10 h-10 rounded-full object-cover bg-slate-900 shadow"
+                />
+                <img
+                  src={getFrameAsset(rewardData.frame) || '/frames/beta.gif'}
+                  alt="Moldura Beta"
+                  className="absolute -inset-[22%] w-[144%] h-[144%] max-w-none pointer-events-none object-contain z-10 select-none drop-shadow-lg"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[9px] font-extrabold text-cyan-300 uppercase block tracking-wide">
+                  🎁 MOLDURA EXCLUSIVA CONCEDIDA!
+                </span>
+                <span className="text-xs font-extrabold text-white block truncate">
+                  {rewardData.frameName || 'Moldura BETA TESTER 🧪'}
+                </span>
+                <span className="text-[10px] text-cyan-200/80 block mt-0.5">
+                  ✅ Já disponível no seu inventário de cosméticos!
+                </span>
+              </div>
+            </div>
+          )}
+
           {rewardData.message && (
             <div className="border-t border-slate-800/80 pt-2">
               <span className="text-[10px] font-bold text-slate-500 block mb-0.5">Mensagem do Admin:</span>
@@ -186,7 +222,7 @@ export function TitlePromotionModal() {
           className="w-full py-3 px-6 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm shadow-xl shadow-amber-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
         >
           <Award className="w-5 h-5" />
-          <span>Equipar Condecoração & Celebrar 🎉</span>
+          <span>Equipar {rewardData.frame ? 'Cargo & Moldura Beta' : 'Condecoração'} & Celebrar 🎉</span>
         </button>
       </div>
     </div>

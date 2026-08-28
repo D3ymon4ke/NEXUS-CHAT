@@ -25,9 +25,7 @@ import { NexusBurstCard } from './NexusBurstCard';
 
 const POPULAR_REACTIONS = ['👍', '❤️', '🔥', '😂', '🎉', '👏'];
 
-import { FRAME_ANIMATED_ASSETS, FRAME_CSS_STYLES } from '../../lib/shopCatalog';
-
-const FRAME_STYLES = FRAME_CSS_STYLES;
+import { getFrameAsset, getFrameStyle } from '../../lib/shopCatalog';
 
 const BUBBLE_STYLES = {
   bubble_cyber_violet: 'bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white shadow-lg shadow-purple-500/20',
@@ -74,8 +72,8 @@ export function MessageBubble({
   const isDeleted = Boolean(message.is_deleted);
   const badgeInfo = BADGE_LABELS[sender.equipped_badge];
   const nameStyle = NAME_STYLES[sender.equipped_name_color] || 'text-brand-400 font-bold';
-  const animatedFrameUrl = FRAME_ANIMATED_ASSETS[sender.equipped_frame];
-  const frameClass = FRAME_STYLES[sender.equipped_frame] || (!animatedFrameUrl ? 'border border-slate-700' : '');
+  const animatedFrameUrl = getFrameAsset(sender.equipped_frame);
+  const frameClass = getFrameStyle(sender.equipped_frame) || (!animatedFrameUrl ? 'border border-slate-700' : '');
 
   const isAdmin = sender.role === 'admin' || sender.username?.toLowerCase() === 'damon';
   const isModerator = sender.role === 'moderator';

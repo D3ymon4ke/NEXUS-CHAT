@@ -4,6 +4,7 @@ import { useChat } from '../../context/ChatContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { sounds } from '../../lib/sound';
 import { compressImageFile } from '../../lib/imageCompressor';
+import { SHOP_CATALOG, registerDynamicFrames, getFrameAsset, getFrameStyle } from '../../lib/shopCatalog';
 import confetti from 'canvas-confetti';
 import {
   ShieldAlert,
@@ -44,7 +45,13 @@ import {
   Sliders,
   Crown,
   Award,
-  Upload
+  Upload,
+  Gift,
+  Link,
+  RefreshCw,
+  SlidersHorizontal,
+  FolderUp,
+  ExternalLink
 } from 'lucide-react';
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
@@ -54,13 +61,14 @@ export function AdminModal({ isOpen, onClose }) {
   const { user } = useAuth();
   const { loadConversations, clearMessages } = useChat();
 
-  const [activeTab, setActiveTab] = useState('stats'); // 'stats' | 'chat_master' | 'users' | 'shop' | 'patches' | 'cleanup' | 'broadcast'
+  const [activeTab, setActiveTab] = useState('shop'); // 'stats' | 'shop' | 'promotions' | 'chat_master' | 'users' | 'patches' | 'cleanup' | 'broadcast'
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [shopItems, setShopItems] = useState([]);
   const [patchNotesList, setPatchNotesList] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [shopSearchQuery, setShopSearchQuery] = useState('');
+  const [shopCategoryFilter, setShopCategoryFilter] = useState('frames'); // 'frames' | 'all' | 'wallpapers' | 'bubbles' | 'badges' | 'name_colors'
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [feedback, setFeedback] = useState({ text: '', type: '' });
@@ -73,13 +81,28 @@ export function AdminModal({ isOpen, onClose }) {
   const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastMessage, setBroadcastMessage] = useState('');
 
-  // Substate Criar Item na Loja
+  // Substate Criar/Editar Moldura & Itens na Loja
   const [newItemName, setNewItemName] = useState('');
   const [newItemCategory, setNewItemCategory] = useState('frames');
   const [newItemDesc, setNewItemDesc] = useState('');
-  const [newItemPrice, setNewItemPrice] = useState(200);
+  const [newItemPrice, setNewItemPrice] = useState(250);
   const [newItemIcon, setNewItemIcon] = useState('✨');
   const [newItemCss, setNewItemCss] = useState('');
+  const [editingItemId, setEditingItemId] = useState(null);
+
+  // Substate Upload de Molduras & Live Simulator
+  const [frameUploadType, setFrameUploadType] = useState('upload'); // 'upload' | 'url' | 'css'
+  const [frameImageFile, setFrameImageFile] = useState(null);
+  const [frameImagePreview, setFrameImagePreview] = useState('');
+  const [frameImageUrl, setFrameImageUrl] = useState('');
+  const [frameCssClass, setFrameCssClass] = useState('border-2 border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.8)] animate-pulse');
+  const [isDraggingFrame, setIsDraggingFrame] = useState(false);
+  const [previewSimulatorSize, setPreviewSimulatorSize] = useState('lg'); // 'sm' | 'md' | 'lg' | 'xl'
+  const [previewSimulatorAvatarIndex, setPreviewSimulatorAvatarIndex] = useState(0);
+
+  // Substate Concessão de Moldura Direta
+  const [grantModalItem, setGrantModalItem] = useState(null);
+  const [grantTargetUserId, setGrantTargetUserId] = useState('all');
 
   // Substate Criar Patch Note
   const [patchTag, setPatchTag] = useState('ATUALIZAÇÃO');
@@ -162,6 +185,7 @@ export function AdminModal({ isOpen, onClose }) {
       try {
         const { data } = await supabase.from('shop_items').select('*').order('created_at', { ascending: false });
         setShopItems(data || []);
+        if (data) registerDynamicFrames(data);
       } catch (err) {
         console.error('Erro ao carregar itens da loja:', err);
       }
@@ -372,40 +396,222 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
-  const handleCreateShopItem = async (e) => {
+  const handleFrameFileSelect = (file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setFeedback({ text: 'Por favor, selecione um arquivo de imagem válido (.gif, .png, .webp, .svg)', type: 'error' });
+      return;
+    }
+
+    setFrameImageFile(file);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setFrameImagePreview(e.target.result);
+      if (!newItemName.trim()) {
+        const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+        setNewItemName(cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
+      }
+      if (file.type.includes('gif')) {
+        setNewItemIcon('✨');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveShopItem = async (e) => {
     e.preventDefault();
-    if (!newItemName.trim()) return;
+    if (!newItemName.trim()) {
+      setFeedback({ text: 'Por favor, informe o nome do item ou moldura.', type: 'error' });
+      return;
+    }
 
     try {
       setActionLoading(true);
-      const id = `item_${Date.now()}`;
+      let finalImageUrl = null;
 
-      if (isSupabaseConfigured && supabase) {
-        await supabase.from('shop_items').insert({
-          id,
-          name: newItemName,
-          category: newItemCategory,
-          description: newItemDesc || 'Item oficial da Loja Nexus',
-          price: parseInt(newItemPrice, 10) || 100,
-          icon: newItemIcon || '✨',
-          css_class: newItemCss || 'border-2 border-amber-400 shadow-md',
-          is_active: true
-        });
+      if (newItemCategory === 'frames') {
+        if (frameUploadType === 'upload') {
+          if (frameImageFile) {
+            // Tentar upload para o bucket chat-media do Supabase
+            if (isSupabaseConfigured && supabase) {
+              try {
+                const ext = frameImageFile.name.split('.').pop() || 'png';
+                const cleanFileName = `frames/${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+                const { data: uploadData, error: uploadErr } = await supabase.storage
+                  .from('chat-media')
+                  .upload(cleanFileName, frameImageFile, {
+                    contentType: frameImageFile.type || 'image/png',
+                    upsert: true
+                  });
+
+                if (!uploadErr && uploadData) {
+                  const { data: pubData } = supabase.storage
+                    .from('chat-media')
+                    .getPublicUrl(cleanFileName);
+                  finalImageUrl = pubData?.publicUrl;
+                }
+              } catch (storageErr) {
+                console.warn('Storage upload falhou, usando fallback em DataURL:', storageErr);
+              }
+            }
+
+            if (!finalImageUrl) {
+              finalImageUrl = frameImagePreview;
+            }
+          } else if (frameImagePreview) {
+            finalImageUrl = frameImagePreview;
+          }
+        } else if (frameUploadType === 'url') {
+          finalImageUrl = frameImageUrl.trim();
+        }
+      }
+
+      const itemPayload = {
+        name: newItemName.trim(),
+        category: newItemCategory,
+        description: newItemDesc.trim() || (newItemCategory === 'frames' ? 'Moldura animada exclusiva do Nexus Chat' : 'Item oficial da Loja Nexus'),
+        price: Math.max(0, parseInt(newItemPrice, 10) || 0),
+        icon: newItemIcon.trim() || '✨',
+        css_class: frameUploadType === 'css' || newItemCategory !== 'frames' ? (newItemCss.trim() || frameCssClass.trim()) : null,
+        image_url: finalImageUrl || (frameUploadType === 'url' ? frameImageUrl : null),
+        is_active: true
+      };
+
+      if (editingItemId) {
+        if (isSupabaseConfigured && supabase) {
+          const { error } = await supabase
+            .from('shop_items')
+            .update(itemPayload)
+            .eq('id', editingItemId);
+          if (error) throw error;
+        }
+
+        setFeedback({ text: `Item "${newItemName}" atualizado com sucesso!`, type: 'success' });
+      } else {
+        const newId = newItemCategory === 'frames' ? `frame_${Date.now()}` : `item_${Date.now()}`;
+        if (isSupabaseConfigured && supabase) {
+          const { error } = await supabase
+            .from('shop_items')
+            .insert({ id: newId, ...itemPayload });
+          if (error) throw error;
+        }
+
+        setFeedback({ text: `Moldura / Item "${newItemName}" publicado na Loja com sucesso!`, type: 'success' });
       }
 
       sounds.playPop();
       confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
-      setFeedback({ text: `Item "${newItemName}" adicionado à Loja Nexus com sucesso!`, type: 'success' });
 
-      setNewItemName('');
-      setNewItemDesc('');
-      setNewItemPrice(200);
-      setNewItemCss('');
+      handleCancelEdit();
       loadShopItems();
     } catch (err) {
-      setFeedback({ text: 'Erro ao criar item na loja.', type: 'error' });
+      console.error('Erro ao salvar item:', err);
+      setFeedback({ text: 'Erro ao salvar item: ' + (err.message || ''), type: 'error' });
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleStartEditItem = (item) => {
+    setEditingItemId(item.id);
+    setNewItemName(item.name || '');
+    setNewItemCategory(item.category || 'frames');
+    setNewItemDesc(item.description || '');
+    setNewItemPrice(item.price ?? 200);
+    setNewItemIcon(item.icon || '✨');
+    setNewItemCss(item.css_class || item.cssClass || '');
+    setFrameCssClass(item.css_class || item.cssClass || '');
+
+    const img = item.image_url || item.imageUrl || item.image;
+    if (img) {
+      setFrameImagePreview(img);
+      if (img.startsWith('http')) {
+        setFrameUploadType('url');
+        setFrameImageUrl(img);
+      } else {
+        setFrameUploadType('upload');
+      }
+    } else if (item.css_class || item.cssClass) {
+      setFrameUploadType('css');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingItemId(null);
+    setNewItemName('');
+    setNewItemDesc('');
+    setNewItemPrice(250);
+    setNewItemIcon('✨');
+    setNewItemCss('');
+    setFrameImageFile(null);
+    setFrameImagePreview('');
+    setFrameImageUrl('');
+    setFrameCssClass('border-2 border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.8)] animate-pulse');
+  };
+
+  const handleGrantItemToUsers = async () => {
+    if (!grantModalItem) return;
+    try {
+      setActionLoading(true);
+      const itemId = grantModalItem.id;
+
+      if (isSupabaseConfigured && supabase) {
+        if (grantTargetUserId === 'all') {
+          // Conceder para todos os membros
+          const { data: allProfiles, error: fetchErr } = await supabase.from('profiles').select('id, unlocked_items');
+          if (fetchErr) throw fetchErr;
+
+          const updates = (allProfiles || []).map(p => {
+            const currentUnlocked = p.unlocked_items || [];
+            if (!currentUnlocked.includes(itemId)) {
+              return supabase.from('profiles').update({
+                unlocked_items: [...currentUnlocked, itemId]
+              }).eq('id', p.id);
+            }
+            return null;
+          }).filter(Boolean);
+
+          await Promise.all(updates);
+          setFeedback({ text: `🎉 Moldura "${grantModalItem.name}" concedida com sucesso para TODOS os membros (${updates.length} contas atualizadas)!`, type: 'success' });
+        } else {
+          // Conceder para usuário específico
+          const { data: targetProfile, error: fetchErr } = await supabase.from('profiles').select('unlocked_items, username, display_name').eq('id', grantTargetUserId).single();
+          if (fetchErr) throw fetchErr;
+
+          const currentUnlocked = targetProfile?.unlocked_items || [];
+          if (!currentUnlocked.includes(itemId)) {
+            await supabase.from('profiles').update({
+              unlocked_items: [...currentUnlocked, itemId]
+            }).eq('id', grantTargetUserId);
+          }
+          setFeedback({ text: `🎁 Moldura "${grantModalItem.name}" concedida para ${targetProfile?.display_name || targetProfile?.username || 'usuário'}!`, type: 'success' });
+        }
+      }
+
+      sounds.playPop();
+      confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
+      setGrantModalItem(null);
+      loadAdminData();
+    } catch (err) {
+      console.error('Erro ao conceder moldura:', err);
+      setFeedback({ text: 'Erro ao conceder moldura: ' + (err.message || ''), type: 'error' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleTestEquipOnAdmin = async (item) => {
+    try {
+      if (!user) return;
+      const frameKey = item.id;
+      if (isSupabaseConfigured && supabase) {
+        await supabase.from('profiles').update({ equipped_frame: frameKey }).eq('id', user.id);
+      }
+      sounds.playPop();
+      setFeedback({ text: `✨ Moldura "${item.name}" equipada no seu avatar para teste em tempo real!`, type: 'success' });
+      loadAdminData();
+    } catch (err) {
+      console.error('Erro ao equipar moldura:', err);
     }
   };
 
@@ -553,8 +759,10 @@ export function AdminModal({ isOpen, onClose }) {
       role: 'member',
       icon: '🧪',
       label: '🧪 BETA TESTER VIP',
-      desc: 'Acesso prioritário a recursos experimentais',
-      coins: '150'
+      desc: 'Acesso prioritário a recursos experimentais + Moldura BETA TESTER',
+      coins: '150',
+      frame: 'frame_beta',
+      frameName: 'Moldura Holográfica BETA TESTER 🧪'
     },
     {
       title: 'Embaixador',
@@ -615,10 +823,21 @@ export function AdminModal({ isOpen, onClose }) {
       const bonus = parseInt(promoBonusCoins, 10) || 0;
       const newCoins = (targetUser.nexus_coins || 0) + bonus;
 
+      // Vincular moldura especial caso seja BETA TESTER
+      const isBetaTester = effectiveTitle === 'BETA TESTER' || promoBadge === 'badge_beta_tester';
+      const grantedFrame = isBetaTester ? 'frame_beta' : null;
+
+      const currentUnlocked = targetUser.unlocked_items || ['frame_default', 'bubble_default', 'wallpaper_default'];
+      const newUnlocked = grantedFrame && !currentUnlocked.includes(grantedFrame)
+        ? [...currentUnlocked, grantedFrame]
+        : currentUnlocked;
+
       const pendingReward = {
         title: effectiveTitle,
         badge: promoBadge,
         bonus: bonus,
+        frame: grantedFrame,
+        frameName: grantedFrame ? 'Moldura Exclusiva BETA TESTER 🧪' : null,
         message: promoMessage.trim(),
         adminName: user?.display_name || user?.username || 'Damon',
         grantedAt: new Date().toISOString()
@@ -632,6 +851,7 @@ export function AdminModal({ isOpen, onClose }) {
             equipped_badge: promoBadge,
             role: promoRole,
             nexus_coins: newCoins,
+            unlocked_items: newUnlocked,
             title_reward_pending: JSON.stringify(pendingReward)
           })
           .eq('id', promoUserId);
@@ -648,7 +868,7 @@ export function AdminModal({ isOpen, onClose }) {
         }
 
         if (promoBroadcast) {
-          const broadcastMsg = `👑 **CONDECORAÇÃO OFICIAL NEXUS**\n\n🎉 O membro **@${targetUser.username}** (${targetUser.display_name || targetUser.username}) foi condecorado pelo Administrador com o título de **⭐ ${effectiveTitle}**!\n\n💬 *"${promoMessage.trim()}"*`;
+          const broadcastMsg = `👑 **CONDECORAÇÃO OFICIAL NEXUS**\n\n🎉 O membro **@${targetUser.username}** (${targetUser.display_name || targetUser.username}) foi condecorado pelo Administrador com o título de **⭐ ${effectiveTitle}**${grantedFrame ? ' e recebeu a Moldura Exclusiva BETA TESTER 🧪' : ''}!\n\n💬 *"${promoMessage.trim()}"*`;
           await supabase.from('messages').insert({
             conversation_id: BELMONT_ID,
             sender_id: user.id,
@@ -702,19 +922,50 @@ export function AdminModal({ isOpen, onClose }) {
     (u.email || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredShopItems = shopItems.filter(item =>
-    item.name.toLowerCase().includes(shopSearchQuery.toLowerCase()) ||
-    item.category.toLowerCase().includes(shopSearchQuery.toLowerCase())
-  );
+  const SIMULATOR_AVATARS = [
+    { label: 'Meu Avatar', src: user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id || 'admin'}` },
+    { label: 'Cyber Ninja', src: 'https://api.dicebear.com/7.x/bottts/svg?seed=cyber-ninja' },
+    { label: 'Belmont Real', src: 'https://api.dicebear.com/7.x/bottts/svg?seed=belmont-emperor' },
+    { label: 'Garota Anime', src: 'https://api.dicebear.com/7.x/bottts/svg?seed=sakura' }
+  ];
+
+  const currentSimulatorAvatar = SIMULATOR_AVATARS[previewSimulatorAvatarIndex] || SIMULATOR_AVATARS[0];
+
+  // Unificar catálogo completo (itens do banco + itens nativos com status)
+  const allCombinedShopItems = [
+    ...shopItems.map(item => ({ ...item, isCustom: true })),
+    ...SHOP_CATALOG.filter(native => !shopItems.some(si => si.id === native.id)).map(native => ({
+      id: native.id,
+      name: native.name,
+      category: native.category,
+      description: native.description,
+      price: native.price,
+      icon: native.icon || '✨',
+      css_class: native.cssClass || '',
+      image_url: native.image || null,
+      isCustom: false,
+      is_active: true
+    }))
+  ];
+
+  const filteredShopItems = allCombinedShopItems.filter(item => {
+    const matchesSearch = item.name.toLowerCase().includes(shopSearchQuery.toLowerCase()) ||
+      (item.description || '').toLowerCase().includes(shopSearchQuery.toLowerCase()) ||
+      item.category.toLowerCase().includes(shopSearchQuery.toLowerCase());
+
+    if (!matchesSearch) return false;
+    if (shopCategoryFilter === 'all') return true;
+    return item.category === shopCategoryFilter;
+  });
 
   const impersonatedUserObj = users.find(u => u.id === impersonatedUserId) || user;
 
   const navTabs = [
+    { id: 'shop', label: 'Molduras & Loja', icon: Sparkles, badge: 'Upload' },
     { id: 'stats', label: 'Estatísticas', icon: Activity, badge: 'Live' },
     { id: 'promotions', label: 'Nomear Cargos', icon: Crown, badge: 'VIP' },
     { id: 'chat_master', label: 'Super DM Master', icon: Ghost, badge: 'Secreto' },
     { id: 'users', label: 'Usuários & Coins', icon: Users },
-    { id: 'shop', label: 'Gerenciar Loja', icon: ShoppingBag },
     { id: 'patches', label: 'Patch Notes', icon: FileText },
     { id: 'cleanup', label: 'Limpeza de Chat', icon: Trash2 },
     { id: 'broadcast', label: 'Transmissão Belmont', icon: Radio }
@@ -1363,142 +1614,689 @@ export function AdminModal({ isOpen, onClose }) {
             </div>
           )}
 
-          {/* ABA 4: GERENCIAR LOJA */}
+          {/* ABA 1: GERENCIAR MOLDURAS & LOJA NEXUS */}
           {activeTab === 'shop' && (
-            <div className="space-y-3 sm:space-y-4 min-w-0">
-              <form onSubmit={handleCreateShopItem} className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-900/90 border border-amber-500/30 space-y-2.5 sm:space-y-3.5 shadow-xl min-w-0 box-border">
-                <div className="flex items-center gap-1.5 text-xs font-extrabold text-amber-300 uppercase tracking-wide truncate">
-                  <Plus className="w-4 h-4 flex-shrink-0" /> <span className="truncate">Cadastrar Novo Item no Catálogo</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5">
-                  <div className="sm:col-span-2">
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Nome do Item</label>
-                    <input
-                      type="text"
-                      required
-                      value={newItemName}
-                      onChange={(e) => setNewItemName(e.target.value)}
-                      placeholder="Ex: Fundo Cyber, Moldura Dragão..."
-                      className="w-full px-3 py-1.5 sm:py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
-                    />
+            <div className="space-y-4 min-w-0">
+              {/* Banner Informativo */}
+              <div className="p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-amber-950/60 via-slate-900 to-yellow-950/60 border border-amber-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xl min-w-0 box-border">
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                  <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-amber-500 to-yellow-600 text-black flex items-center justify-center font-extrabold shadow-lg shadow-amber-500/30 border border-yellow-300 flex-shrink-0">
+                    <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" />
                   </div>
-
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Categoria</label>
-                    <select
-                      value={newItemCategory}
-                      onChange={(e) => setNewItemCategory(e.target.value)}
-                      className="w-full px-3 py-1.5 sm:py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
-                    >
-                      <option value="frames">Molduras</option>
-                      <option value="wallpapers">Planos de Fundo</option>
-                      <option value="bubbles">Balões de Chat</option>
-                      <option value="badges">Badges & Títulos</option>
-                      <option value="name_colors">Auras de Nome</option>
-                    </select>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xs sm:text-sm font-extrabold text-amber-300 uppercase tracking-wide truncate">
+                        {editingItemId ? '✏️ Editando Moldura / Item' : '✨ Criador & Upload de Molduras'}
+                      </h3>
+                      <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/40">
+                        HD / GIF
+                      </span>
+                    </div>
+                    <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">
+                      Envie arquivos GIF animados ou PNGs transparentes e teste em tempo real no simulador!
+                    </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5">
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Preço (Coins)</label>
-                    <input
-                      type="number"
-                      required
-                      min={10}
-                      value={newItemPrice}
-                      onChange={(e) => setNewItemPrice(e.target.value)}
-                      className="w-full px-3 py-1.5 sm:py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
-                    />
-                  </div>
+                {editingItemId && (
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all border border-slate-700 flex items-center gap-1.5 self-start sm:self-center flex-shrink-0"
+                  >
+                    <X className="w-3.5 h-3.5" /> Cancelar Edição
+                  </button>
+                )}
+              </div>
 
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Ícone / Emoji</label>
-                    <input
-                      type="text"
-                      value={newItemIcon}
-                      onChange={(e) => setNewItemIcon(e.target.value)}
-                      placeholder="👑, 🔥, ✨..."
-                      className="w-full px-3 py-1.5 sm:py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Descrição</label>
-                    <input
-                      type="text"
-                      value={newItemDesc}
-                      onChange={(e) => setNewItemDesc(e.target.value)}
-                      placeholder="Efeito visual exclusivo..."
-                      className="w-full px-3 py-1.5 sm:py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={actionLoading}
-                  className="w-full py-2.5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 text-black font-extrabold text-xs shadow-lg transition-all flex items-center justify-center gap-1.5 active:scale-95"
+              {/* Grid: Formulário de Upload & Criação (Esquerda) + Simulador em Tempo Real (Direita) */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-4 min-w-0">
+                {/* Coluna do Formulário (7 Colunas) */}
+                <form
+                  onSubmit={handleSaveShopItem}
+                  className="lg:col-span-7 p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-900/90 border border-amber-500/30 space-y-3 sm:space-y-3.5 shadow-xl min-w-0 box-border flex flex-col justify-between"
                 >
-                  <PlusCircle className="w-4 h-4 flex-shrink-0" /> Publicar Novo Item
-                </button>
-              </form>
-
-              <div>
-                <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-2 mb-2">
-                  <h4 className="text-xs font-bold text-slate-300 truncate">
-                    Catálogo Completo ({shopItems.length})
-                  </h4>
-                  <input
-                    type="text"
-                    value={shopSearchQuery}
-                    onChange={(e) => setShopSearchQuery(e.target.value)}
-                    placeholder="Filtrar itens..."
-                    className="px-3 py-1 rounded-xl bg-background-dark border border-slate-700 text-xs text-white w-full xs:w-44"
-                  />
-                </div>
-
-                <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
-                  {filteredShopItems.map((item) => (
-                    <div key={item.id} className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-slate-900/90 border border-slate-800 flex items-center justify-between text-xs hover:border-slate-700 transition-all shadow gap-2 min-w-0">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="text-xl sm:text-2xl flex-shrink-0">{item.icon}</span>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-white truncate">{item.name}</span>
-                            <span className="text-[8px] sm:text-[9px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 font-semibold uppercase flex-shrink-0">
-                              {item.category}
-                            </span>
-                          </div>
-                          <span className="text-[10px] text-slate-400 block truncate">{item.description}</span>
-                        </div>
+                  <div className="space-y-3">
+                    {/* Linha 1: Nome do Item & Categoria */}
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-2.5">
+                      <div className="sm:col-span-7">
+                        <label className="text-[10px] text-slate-400 font-bold block mb-1 uppercase tracking-wider">
+                          Nome da Moldura / Item
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={newItemName}
+                          onChange={(e) => setNewItemName(e.target.value)}
+                          placeholder="Ex: Rosas Espectrais, Dragão Neon..."
+                          className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none"
+                        />
                       </div>
 
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <div className="flex items-center gap-1 bg-slate-950 px-2 py-1 rounded-xl border border-slate-700 shadow-inner">
-                          <img src="/nexus-coin.jpg" alt="Moeda" className="w-3 h-3 rounded-full flex-shrink-0" />
-                          <input
-                            type="number"
-                            defaultValue={item.price}
-                            onBlur={(e) => handleUpdateItemPrice(item.id, e.target.value)}
-                            className="w-12 bg-transparent text-amber-300 font-bold text-xs focus:outline-none"
-                            title="Clique e altere o valor"
-                          />
-                        </div>
-
-                        <button
-                          onClick={() => handleDeleteShopItem(item.id)}
-                          className="p-1.5 rounded-xl text-rose-400 hover:bg-rose-500/20 transition-colors"
-                          title="Excluir item da loja"
+                      <div className="sm:col-span-5">
+                        <label className="text-[10px] text-slate-400 font-bold block mb-1 uppercase tracking-wider">
+                          Categoria
+                        </label>
+                        <select
+                          value={newItemCategory}
+                          onChange={(e) => {
+                            setNewItemCategory(e.target.value);
+                            if (e.target.value === 'frames') setNewItemIcon('✨');
+                            else if (e.target.value === 'wallpapers') setNewItemIcon('🌐');
+                            else if (e.target.value === 'bubbles') setNewItemIcon('💬');
+                            else if (e.target.value === 'badges') setNewItemIcon('👑');
+                            else if (e.target.value === 'name_colors') setNewItemIcon('🌈');
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-amber-500 focus:outline-none"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                          <option value="frames">🖼️ Molduras de Avatar</option>
+                          <option value="wallpapers">🌐 Planos de Fundo (Wallpapers)</option>
+                          <option value="bubbles">💬 Balões de Chat</option>
+                          <option value="badges">👑 Badges & Títulos</option>
+                          <option value="name_colors">🌈 Auras de Nome</option>
+                        </select>
                       </div>
                     </div>
-                  ))}
+
+                    {/* Linha 2: Se for Moldura, escolher o Tipo de Envio (Upload de Arquivo, URL ou CSS) */}
+                    {newItemCategory === 'frames' && (
+                      <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-extrabold text-amber-300 uppercase tracking-wide">
+                            Tipo de Moldura
+                          </label>
+                          <div className="flex bg-slate-900 p-0.5 rounded-xl border border-slate-800 text-[10px]">
+                            <button
+                              type="button"
+                              onClick={() => setFrameUploadType('upload')}
+                              className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1 ${
+                                frameUploadType === 'upload'
+                                  ? 'bg-amber-500 text-black shadow-md'
+                                  : 'text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              <Upload className="w-3 h-3" /> Arquivo (Upload)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setFrameUploadType('url')}
+                              className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1 ${
+                                frameUploadType === 'url'
+                                  ? 'bg-amber-500 text-black shadow-md'
+                                  : 'text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              <Link className="w-3 h-3" /> Link URL
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setFrameUploadType('css')}
+                              className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1 ${
+                                frameUploadType === 'css'
+                                  ? 'bg-amber-500 text-black shadow-md'
+                                  : 'text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              <Sparkles className="w-3 h-3" /> Borda CSS
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* MODO 1: UPLOAD DE ARQUIVO (DRAG AND DROP) */}
+                        {frameUploadType === 'upload' && (
+                          <div
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              setIsDraggingFrame(true);
+                            }}
+                            onDragLeave={() => setIsDraggingFrame(false)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              setIsDraggingFrame(false);
+                              const file = e.dataTransfer.files?.[0];
+                              if (file) handleFrameFileSelect(file);
+                            }}
+                            className={`border-2 border-dashed rounded-2xl p-3.5 sm:p-4 text-center transition-all cursor-pointer relative ${
+                              isDraggingFrame
+                                ? 'border-amber-400 bg-amber-500/15 scale-[1.01]'
+                                : frameImagePreview
+                                ? 'border-emerald-500/50 bg-emerald-950/20'
+                                : 'border-slate-700 hover:border-amber-500/50 bg-slate-900/50'
+                            }`}
+                          >
+                            <input
+                              type="file"
+                              accept="image/*,.gif,.png,.webp,.svg"
+                              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleFrameFileSelect(file);
+                              }}
+                            />
+                            {frameImagePreview ? (
+                              <div className="flex items-center justify-center gap-3">
+                                <div className="relative w-12 h-12 bg-slate-900 rounded-xl p-1 border border-slate-700 flex-shrink-0">
+                                  <img
+                                    src={frameImagePreview}
+                                    alt="Preview"
+                                    className="w-full h-full object-contain"
+                                  />
+                                </div>
+                                <div className="text-left min-w-0 flex-1">
+                                  <span className="text-xs font-bold text-emerald-300 block truncate">
+                                    {frameImageFile ? frameImageFile.name : 'Imagem de Moldura Carregada'}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 block">
+                                    {frameImageFile ? `${(frameImageFile.size / 1024).toFixed(1)} KB • Pronto para publicar` : 'Clique ou arraste outro arquivo para trocar'}
+                                  </span>
+                                </div>
+                                <span className="text-[11px] px-2.5 py-1 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold flex-shrink-0">
+                                  Trocar
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="space-y-1.5 pointer-events-none">
+                                <div className="w-10 h-10 rounded-2xl bg-amber-500/15 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/30">
+                                  <Upload className="w-5 h-5" />
+                                </div>
+                                <div className="text-xs font-bold text-slate-200">
+                                  Arraste o arquivo de moldura ou <span className="text-amber-400 underline">clique para enviar</span>
+                                </div>
+                                <p className="text-[10px] text-slate-400">
+                                  Suporta GIFs animados (.gif), PNGs transparentes (.png), WebP ou SVG
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* MODO 2: URL EXTERNA */}
+                        {frameUploadType === 'url' && (
+                          <div>
+                            <input
+                              type="url"
+                              value={frameImageUrl}
+                              onChange={(e) => {
+                                setFrameImageUrl(e.target.value);
+                                setFrameImagePreview(e.target.value);
+                              }}
+                              placeholder="https://exemplo.com/moldura-animada.gif"
+                              className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none"
+                            />
+                            <span className="text-[10px] text-slate-500 mt-1 block">
+                              Cole o link direto da imagem ou GIF hospedado na web
+                            </span>
+                          </div>
+                        )}
+
+                        {/* MODO 3: BORDA CSS GLOW */}
+                        {frameUploadType === 'css' && (
+                          <div>
+                            <input
+                              type="text"
+                              value={frameCssClass}
+                              onChange={(e) => {
+                                setFrameCssClass(e.target.value);
+                                setNewItemCss(e.target.value);
+                              }}
+                              placeholder="border-2 border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.9)] animate-pulse"
+                              className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none font-mono text-[11px]"
+                            />
+                            <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                              <span className="text-[9px] text-slate-500">Sugestões:</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const s = 'border-2 border-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.8)] animate-pulse';
+                                  setFrameCssClass(s);
+                                  setNewItemCss(s);
+                                }}
+                                className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800"
+                              >
+                                Cyber Ciano
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const s = 'border-2 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.9)] ring-2 ring-amber-500/50';
+                                  setFrameCssClass(s);
+                                  setNewItemCss(s);
+                                }}
+                                className="text-[9px] px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800"
+                              >
+                                Ouro Real
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const s = 'border-2 border-purple-500 shadow-[0_0_16px_rgba(168,85,247,0.9)] ring-2 ring-indigo-500';
+                                  setFrameCssClass(s);
+                                  setNewItemCss(s);
+                                }}
+                                className="text-[9px] px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800"
+                              >
+                                Galáxia Roxa
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Linha 3: Preço, Ícone e Descrição */}
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-2.5">
+                      <div className="sm:col-span-4">
+                        <label className="text-[10px] text-slate-400 font-bold block mb-1 uppercase tracking-wider">
+                          Preço (Coins)
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            required
+                            min={0}
+                            value={newItemPrice}
+                            onChange={(e) => setNewItemPrice(e.target.value)}
+                            className="w-full pl-8 pr-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-amber-300 font-bold focus:border-amber-500 focus:outline-none"
+                          />
+                          <img src="/nexus-coin.jpg" alt="Coins" className="w-4 h-4 rounded-full absolute left-2.5 top-1/2 -translate-y-1/2" />
+                        </div>
+                      </div>
+
+                      <div className="sm:col-span-3">
+                        <label className="text-[10px] text-slate-400 font-bold block mb-1 uppercase tracking-wider">
+                          Ícone / Emoji
+                        </label>
+                        <input
+                          type="text"
+                          value={newItemIcon}
+                          onChange={(e) => setNewItemIcon(e.target.value)}
+                          placeholder="✨, 👑, 🔥..."
+                          className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white text-center focus:border-amber-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-5">
+                        <label className="text-[10px] text-slate-400 font-bold block mb-1 uppercase tracking-wider">
+                          Descrição Rápida
+                        </label>
+                        <input
+                          type="text"
+                          value={newItemDesc}
+                          onChange={(e) => setNewItemDesc(e.target.value)}
+                          placeholder="Aura mística flutuante..."
+                          className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Botão de Envio / Publicação */}
+                  <div className="pt-2 flex items-center gap-2">
+                    <button
+                      type="submit"
+                      disabled={actionLoading}
+                      className="flex-1 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-500 text-black font-extrabold text-xs sm:text-sm shadow-xl shadow-amber-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                    >
+                      {actionLoading ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" /> Enviando...
+                        </>
+                      ) : editingItemId ? (
+                        <>
+                          <CheckCircle className="w-4 h-4" /> Salvar Alterações
+                        </>
+                      ) : (
+                        <>
+                          <PlusCircle className="w-4 h-4" /> Publicar na Loja Nexus
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+
+                {/* Coluna da Direita: Simulador de Avatar em Tempo Real (5 Colunas) */}
+                <div className="lg:col-span-5 p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-slate-900/95 via-slate-950 to-black border border-amber-500/30 flex flex-col justify-between shadow-2xl min-w-0">
+                  <div>
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-800/80 mb-3">
+                      <div className="flex items-center gap-1.5">
+                        <Eye className="w-4 h-4 text-amber-400" />
+                        <h4 className="text-xs font-extrabold text-amber-300 uppercase tracking-wide">
+                          Simulador ao Vivo
+                        </h4>
+                      </div>
+                      {/* Seletor de Tamanho */}
+                      <div className="flex bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-[10px]">
+                        {[
+                          { id: 'sm', label: '32px' },
+                          { id: 'md', label: '48px' },
+                          { id: 'lg', label: '72px' },
+                          { id: 'xl', label: '96px' }
+                        ].map((sz) => (
+                          <button
+                            key={sz.id}
+                            type="button"
+                            onClick={() => setPreviewSimulatorSize(sz.id)}
+                            className={`px-2 py-0.5 rounded font-bold transition-all ${
+                              previewSimulatorSize === sz.id
+                                ? 'bg-amber-500 text-black'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            {sz.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Área do Avatar com a Moldura Sobreposta */}
+                    <div className="py-6 flex flex-col items-center justify-center relative">
+                      {/* Glow de fundo */}
+                      <div className="absolute w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+
+                      <div
+                        className={`relative inline-flex items-center justify-center select-none transition-all duration-200 ${
+                          previewSimulatorSize === 'sm'
+                            ? 'w-10 h-10'
+                            : previewSimulatorSize === 'md'
+                            ? 'w-14 h-14'
+                            : previewSimulatorSize === 'lg'
+                            ? 'w-20 h-20'
+                            : 'w-28 h-28'
+                        }`}
+                      >
+                        {/* Imagem do Avatar */}
+                        <img
+                          src={currentSimulatorAvatar.src}
+                          alt="Simulador"
+                          className={`w-full h-full rounded-full object-cover bg-slate-900 shadow-xl ${
+                            frameUploadType === 'css'
+                              ? frameCssClass
+                              : !frameImagePreview && !newItemCss
+                              ? 'border-2 border-slate-700'
+                              : newItemCss
+                          }`}
+                        />
+
+                        {/* Moldura Animada de Upload / Imagem Sobreposta */}
+                        {newItemCategory === 'frames' && frameUploadType !== 'css' && frameImagePreview && (
+                          <img
+                            src={frameImagePreview}
+                            alt="Moldura Preview"
+                            className="absolute -inset-[22%] w-[144%] h-[144%] max-w-none pointer-events-none object-contain z-10 select-none drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]"
+                          />
+                        )}
+
+                        {/* Badge de Status Online de Teste */}
+                        <span className="absolute bottom-0 right-0 z-20 flex h-3 w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-3 w-3 border-2 border-slate-950 bg-emerald-500" />
+                        </span>
+                      </div>
+
+                      {/* Nome e Preço de Teste */}
+                      <div className="mt-3 text-center">
+                        <div className="text-xs font-extrabold text-white flex items-center justify-center gap-1.5">
+                          <span>{newItemIcon}</span>
+                          <span>{newItemName || 'Nome da Moldura'}</span>
+                        </div>
+                        <div className="text-[11px] text-amber-300 font-bold flex items-center justify-center gap-1 mt-0.5">
+                          <img src="/nexus-coin.jpg" alt="Moeda" className="w-3.5 h-3.5 rounded-full" />
+                          <span>{newItemPrice} Coins</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Alternar Avatar de Teste */}
+                  <div className="pt-3 border-t border-slate-800/80">
+                    <label className="text-[9px] font-bold text-slate-400 block mb-1.5 uppercase">
+                      Testar com outro perfil:
+                    </label>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {SIMULATOR_AVATARS.map((av, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setPreviewSimulatorAvatarIndex(idx)}
+                          className={`p-1 rounded-xl border text-center transition-all ${
+                            previewSimulatorAvatarIndex === idx
+                              ? 'bg-amber-500/20 border-amber-400 text-amber-300'
+                              : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                          }`}
+                        >
+                          <img src={av.src} alt={av.label} className="w-6 h-6 rounded-full mx-auto object-cover mb-0.5" />
+                          <span className="text-[8px] font-semibold block truncate">{av.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
+
+              {/* Seção 2: Galeria & Gerenciador Completo de Molduras Cadastradas */}
+              <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3 shadow-xl min-w-0 box-border">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-amber-400" />
+                    <h4 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wide">
+                      Catálogo & Gerenciador ({filteredShopItems.length})
+                    </h4>
+                  </div>
+
+                  {/* Filtros de Categoria e Busca */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex bg-slate-950 p-0.5 rounded-xl border border-slate-800 text-[10px]">
+                      {[
+                        { id: 'frames', label: 'Molduras' },
+                        { id: 'wallpapers', label: 'Fundos' },
+                        { id: 'bubbles', label: 'Balões' },
+                        { id: 'badges', label: 'Badges' },
+                        { id: 'all', label: 'Todos' }
+                      ].map((cat) => (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setShopCategoryFilter(cat.id)}
+                          className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                            shopCategoryFilter === cat.id
+                              ? 'bg-amber-500 text-black'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          {cat.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={shopSearchQuery}
+                        onChange={(e) => setShopSearchQuery(e.target.value)}
+                        placeholder="Filtrar..."
+                        className="pl-8 pr-3 py-1 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white w-36 focus:border-amber-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Grid de Cards de Molduras e Itens */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-[360px] overflow-y-auto pr-1">
+                  {filteredShopItems.map((item) => {
+                    const isFrame = item.category === 'frames';
+                    const frameImg = item.image_url || getFrameAsset(item.id);
+                    const frameCss = item.css_class || getFrameStyle(item.id);
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={`p-3 rounded-2xl border transition-all flex flex-col justify-between gap-2.5 shadow-md ${
+                          editingItemId === item.id
+                            ? 'bg-amber-950/30 border-amber-500/60 ring-1 ring-amber-500/50'
+                            : 'bg-slate-950/90 border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2.5">
+                          {/* Preview Visual da Moldura no Avatar */}
+                          <div className="relative w-11 h-11 flex-shrink-0 inline-flex items-center justify-center">
+                            <img
+                              src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=preview`}
+                              alt={item.name}
+                              className={`w-11 h-11 rounded-full object-cover bg-slate-900 ${
+                                isFrame && frameCss ? frameCss : !frameImg ? 'border border-slate-700' : ''
+                              }`}
+                            />
+                            {isFrame && frameImg && (
+                              <img
+                                src={frameImg}
+                                alt={item.name}
+                                className="absolute -inset-[22%] w-[144%] h-[144%] max-w-none pointer-events-none object-contain z-10 select-none drop-shadow-md"
+                              />
+                            )}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-white truncate">{item.name}</span>
+                              {item.isCustom && (
+                                <span className="text-[8px] px-1 py-0.2 rounded bg-purple-500/20 text-purple-300 font-extrabold border border-purple-500/30">
+                                  CUSTOM
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-slate-400 block truncate">{item.description}</span>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-500/15 text-amber-300 font-bold uppercase">
+                                {item.category}
+                              </span>
+                              <div className="flex items-center gap-1 text-[11px] text-amber-300 font-bold">
+                                <img src="/nexus-coin.jpg" alt="Moeda" className="w-3 h-3 rounded-full" />
+                                <span>{item.price}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Botões de Ação do Card */}
+                        <div className="flex items-center gap-1 pt-1.5 border-t border-slate-800/80 justify-between">
+                          <div className="flex items-center gap-1">
+                            {isFrame && (
+                              <button
+                                type="button"
+                                onClick={() => handleTestEquipOnAdmin(item)}
+                                className="px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/40 text-[10px] font-bold flex items-center gap-1 transition-all"
+                                title="Equipar esta moldura no seu avatar para testar agora"
+                              >
+                                <Eye className="w-3 h-3" /> Testar
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => setGrantModalItem(item)}
+                              className="px-2 py-1 rounded-lg bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-500/40 text-[10px] font-bold flex items-center gap-1 transition-all"
+                              title="Conceder esta moldura para membros ou para toda a comunidade"
+                            >
+                              <Gift className="w-3 h-3" /> Conceder
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            {item.isCustom && (
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditItem(item)}
+                                className="p-1 rounded-lg text-amber-400 hover:bg-amber-500/20 transition-colors"
+                                title="Editar item"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            {item.isCustom && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteShopItem(item.id)}
+                                className="p-1 rounded-lg text-rose-400 hover:bg-rose-500/20 transition-colors"
+                                title="Excluir item do catálogo"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Modal / Popup de Concessão de Moldura Direta */}
+              {grantModalItem && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+                  <div className="w-full max-w-md bg-slate-900 border border-amber-500/50 rounded-3xl p-5 shadow-2xl space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Gift className="w-5 h-5 text-amber-400" />
+                        <h4 className="text-sm font-extrabold text-white">
+                          Conceder Item: {grantModalItem.name}
+                        </h4>
+                      </div>
+                      <button
+                        onClick={() => setGrantModalItem(null)}
+                        className="text-slate-400 hover:text-white"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      <p className="text-xs text-slate-300">
+                        Escolha quem receberá o item <strong>{grantModalItem.name}</strong> desbloqueado permanentemente na conta:
+                      </p>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-400 block mb-1 uppercase">
+                          Destinatário(s):
+                        </label>
+                        <select
+                          value={grantTargetUserId}
+                          onChange={(e) => setGrantTargetUserId(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white font-semibold focus:border-amber-500"
+                        >
+                          <option value="all">🌟 TODOS OS MEMBROS (Comunidade Inteira)</option>
+                          <optgroup label="Membro Específico">
+                            {users.map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.display_name || u.username} (@{u.username})
+                              </option>
+                            ))}
+                          </optgroup>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setGrantModalItem(null)}
+                        className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleGrantItemToUsers}
+                        disabled={actionLoading}
+                        className="flex-1 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white text-xs font-extrabold shadow-lg transition-all flex items-center justify-center gap-1.5"
+                      >
+                        <Gift className="w-3.5 h-3.5" /> Confirmar Envio
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -5,6 +5,16 @@ const { v4: uuidv4 } = require('uuid');
 const SHOP_CATALOG = [
   // --- MOLDURAS DE AVATAR ---
   {
+    id: 'frame_beta',
+    category: 'frames',
+    name: 'Moldura BETA TESTER',
+    description: 'Moldura holográfica animada exclusiva para testadores beta oficiais',
+    price: 0,
+    icon: '🧪',
+    image: '/frames/beta.gif',
+    isAnimated: true
+  },
+  {
     id: 'frame_cyber_neon',
     category: 'frames',
     name: 'Cyberpunk Neon',
@@ -284,12 +294,24 @@ async function buyShopItem(req, res) {
     const userId = req.user.id;
     const { itemId } = req.body;
 
-    const item = SHOP_CATALOG.find(i => i.id === itemId);
-    if (!item) {
-      return res.status(404).json({ success: false, error: 'Item não encontrado no catálogo.' });
-    }
+    let item = SHOP_CATALOG.find(i => i.id === itemId);
 
     if (isConfigured && supabase) {
+      if (!item) {
+        const { data: dbItem } = await supabase.from('shop_items').select('*').eq('id', itemId).single();
+        if (dbItem) {
+          item = {
+            id: dbItem.id,
+            name: dbItem.name,
+            price: dbItem.price,
+            category: dbItem.category
+          };
+        }
+      }
+
+      if (!item) {
+        return res.status(404).json({ success: false, error: 'Item não encontrado no catálogo.' });
+      }
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('nexus_coins, unlocked_items')

@@ -1,12 +1,13 @@
-// Mapa de molduras animadas em GIF
+// Mapa de molduras animadas em GIF nativas
 export const FRAME_ANIMATED_ASSETS = {
+  frame_beta: '/frames/beta.gif',
   frame_espirito: '/frames/Espirito.gif',
   frame_rosas: '/frames/Rosas.gif',
   frame_espectro: '/frames/espectro.gif',
   frame_fogo: '/frames/fogo.gif',
 };
 
-// Mapa de molduras em CSS / Bordas estilizadas
+// Mapa de molduras em CSS / Bordas estilizadas nativas
 export const FRAME_CSS_STYLES = {
   frame_cyber_neon: 'border-2 border-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.8)] animate-pulse',
   frame_belmont_gold: 'border-2 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.9)] ring-2 ring-amber-500/50',
@@ -14,9 +15,91 @@ export const FRAME_CSS_STYLES = {
   frame_galaxy: 'border-2 border-purple-400 shadow-[0_0_16px_rgba(192,132,252,0.9)] ring-2 ring-indigo-500'
 };
 
+// Cache dinâmico de molduras customizadas cadastradas pelo admin
+const dynamicFramesMap = new Map();
+
+/**
+ * Registra itens dinâmicos da loja no cache em memória
+ */
+export function registerDynamicFrames(items = []) {
+  if (!Array.isArray(items)) return;
+  items.forEach((item) => {
+    if (!item || !item.id) return;
+    if (item.category === 'frames' || item.image_url || item.imageUrl || item.image || item.css_class || item.cssClass) {
+      dynamicFramesMap.set(item.id, {
+        id: item.id,
+        image: item.image_url || item.imageUrl || item.image || null,
+        cssClass: item.css_class || item.cssClass || ''
+      });
+    }
+  });
+}
+
+/**
+ * Resolve a imagem/GIF de uma moldura (seja padrão, de upload, url direta ou dinâmica)
+ */
+export function getFrameAsset(frameKey) {
+  if (!frameKey || frameKey === 'default' || frameKey === 'none') return null;
+
+  // 1. Verificar ativos nativos
+  if (FRAME_ANIMATED_ASSETS[frameKey]) {
+    return FRAME_ANIMATED_ASSETS[frameKey];
+  }
+
+  // 2. Se a chave for diretamente uma URL web, base64 ou caminho de arquivo
+  if (
+    typeof frameKey === 'string' &&
+    (frameKey.startsWith('http://') ||
+     frameKey.startsWith('https://') ||
+     frameKey.startsWith('data:image/') ||
+     frameKey.startsWith('/frames/') ||
+     frameKey.startsWith('/') ||
+     frameKey.startsWith('blob:'))
+  ) {
+    return frameKey;
+  }
+
+  // 3. Verificar cache dinâmico de molduras do banco
+  if (dynamicFramesMap.has(frameKey)) {
+    const cached = dynamicFramesMap.get(frameKey);
+    if (cached?.image) return cached.image;
+  }
+
+  return null;
+}
+
+/**
+ * Resolve os estilos CSS de uma moldura (seja padrão ou customizada)
+ */
+export function getFrameStyle(frameKey) {
+  if (!frameKey || frameKey === 'default' || frameKey === 'none') return '';
+
+  if (FRAME_CSS_STYLES[frameKey]) {
+    return FRAME_CSS_STYLES[frameKey];
+  }
+
+  if (dynamicFramesMap.has(frameKey)) {
+    const cached = dynamicFramesMap.get(frameKey);
+    if (cached?.cssClass) return cached.cssClass;
+  }
+
+  return '';
+}
+
 // Catálogo Oficial da Loja Nexus e Itens de Personalização
 export const SHOP_CATALOG = [
   // --- MOLDURAS ANIMADAS DE ALTA DEFINIÇÃO (GIFS) ---
+  {
+    id: 'frame_beta',
+    category: 'frames',
+    name: 'Moldura BETA TESTER',
+    description: 'Moldura holográfica animada exclusiva para testadores beta oficiais',
+    price: 0,
+    icon: '🧪',
+    image: '/frames/beta.gif',
+    isAnimated: true,
+    isExclusive: true
+  },
   {
     id: 'frame_espirito',
     category: 'frames',

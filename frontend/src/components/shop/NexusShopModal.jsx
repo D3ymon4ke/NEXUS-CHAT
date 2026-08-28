@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
-import { SHOP_CATALOG, WALLPAPER_STYLES, FRAME_ANIMATED_ASSETS } from '../../lib/shopCatalog';
+import { SHOP_CATALOG, WALLPAPER_STYLES, FRAME_ANIMATED_ASSETS, registerDynamicFrames, getFrameAsset, getFrameStyle } from '../../lib/shopCatalog';
 import { sounds } from '../../lib/sound';
 import confetti from 'canvas-confetti';
 import {
@@ -104,6 +104,7 @@ export function NexusShopModal({ isOpen, onClose }) {
         }
 
         if (customItems && customItems.length > 0) {
+          registerDynamicFrames(customItems);
           const formattedCustom = customItems.map(ci => ({
             id: ci.id,
             category: ci.category,
@@ -113,7 +114,7 @@ export function NexusShopModal({ isOpen, onClose }) {
             icon: ci.icon || '✨',
             cssClass: ci.css_class || '',
             imageUrl: ci.image_url,
-            image: ci.image_url || FRAME_ANIMATED_ASSETS[ci.id] || null
+            image: ci.image_url || getFrameAsset(ci.id) || null
           }));
           const existingIds = new Set(formattedCustom.map(i => i.id));
           const baseFiltered = SHOP_CATALOG.filter(i => !existingIds.has(i.id));
@@ -326,10 +327,32 @@ export function NexusShopModal({ isOpen, onClose }) {
     sounds.playPop();
   };
 
-  if (!isOpen || !user) return null;
-
   const filteredItems = catalog.filter((i) => i.category === activeTab);
-  const userInventoryItems = catalog.filter((i) => unlockedItems.includes(i.id));
+
+  // Mapeia TODOS os itens desbloqueados garantindo que nenhum item jamais suma do inventário
+  const userInventoryItems = (unlockedItems || [])
+    .filter((id) => id && id !== 'frame_default' && id !== 'bubble_default' && id !== 'wallpaper_default' && id !== 'default' && id !== 'none')
+    .map((id) => {
+      const found = catalog.find((i) => i.id === id);
+      if (found) return found;
+
+      const isFrame = id.startsWith('frame_') || Boolean(getFrameAsset(id));
+      const isBubble = id.startsWith('bubble_');
+      const isBadge = id.startsWith('badge_');
+      const isWallpaper = id.startsWith('wallpaper_');
+      const isNameColor = id.startsWith('name_');
+
+      return {
+        id,
+        category: isFrame ? 'frames' : isBubble ? 'bubbles' : isBadge ? 'badges' : isWallpaper ? 'wallpapers' : isNameColor ? 'name_colors' : 'frames',
+        name: id === 'frame_beta' ? 'Moldura BETA TESTER' : id.replace(/^(frame_|bubble_|badge_|wallpaper_|name_)/, '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        description: id === 'frame_beta' ? 'Moldura animada exclusiva para testadores beta' : 'Item exclusivo desbloqueado',
+        price: 0,
+        icon: isFrame ? (id === 'frame_beta' ? '🧪' : '🖼️') : isBubble ? '💬' : isBadge ? '👑' : isWallpaper ? '🌐' : '✨',
+        image: getFrameAsset(id) || null,
+        cssClass: getFrameStyle(id) || ''
+      };
+    });
 
   const todayStr = new Date().toISOString().split('T')[0];
   const canClaimDaily = lastDailyClaim !== todayStr;

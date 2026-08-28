@@ -72,12 +72,7 @@ const STATUS_CONFIG = {
   }
 };
 
-const FRAME_STYLES = {
-  frame_cyber_neon: 'border-2 border-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.7)]',
-  frame_belmont_gold: 'border-2 border-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.8)]',
-  frame_inferno: 'border-2 border-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.7)]',
-  frame_galaxy: 'border-2 border-purple-400 shadow-[0_0_10px_rgba(192,132,252,0.8)]'
-};
+import { getFrameAsset, getFrameStyle } from '../../lib/shopCatalog';
 
 const NAME_STYLES = {
   name_rainbow_glow: 'bg-gradient-to-r from-red-400 via-amber-300 via-green-300 to-sky-400 bg-clip-text text-transparent font-extrabold',
@@ -122,7 +117,8 @@ export function Sidebar({
   const [showStatusMenu, setShowStatusMenu] = useState(false);
 
   const isAdmin = user?.role === 'admin' || user?.username?.toLowerCase() === 'damon';
-  const userFrame = FRAME_STYLES[user?.equipped_frame] || 'border border-slate-700';
+  const userAnimatedFrame = getFrameAsset(user?.equipped_frame);
+  const userFrame = getFrameStyle(user?.equipped_frame) || (!userAnimatedFrame ? 'border border-slate-700' : '');
   const userNameStyle = NAME_STYLES[user?.equipped_name_color] || 'text-white font-bold';
 
   const currentStatusKey = user?.status_message || (connected ? 'online' : 'away');
@@ -310,6 +306,13 @@ export function Sidebar({
                 className={`w-10 h-10 rounded-full object-cover cursor-pointer hover:scale-105 transition-transform shadow ${userFrame}`}
                 title="Clique para abrir Configurações & Personalização"
               />
+              {userAnimatedFrame && (
+                <img
+                  src={userAnimatedFrame}
+                  alt="Moldura"
+                  className="absolute -inset-[22%] w-[144%] h-[144%] max-w-none pointer-events-none object-contain z-10 select-none drop-shadow-md"
+                />
+              )}
               {/* Bolinha de Status Clicável com Efeito Neon */}
               <button
                 type="button"
