@@ -205,9 +205,15 @@ export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet, onBack }) {
         )}
 
         {/* 1. HERO BANNER PRINCIPAL (MODERNO, HOLOGRÁFICO & RESPONSIVO) */}
-        <div className="relative rounded-2xl sm:rounded-3xl p-4 sm:p-6 bg-gradient-to-br from-slate-900/95 via-slate-900/85 to-indigo-950/70 border border-slate-700/60 shadow-2xl overflow-hidden min-w-0 box-border">
-          {/* Overlay Grid Futurista */}
-          <div className="absolute inset-0 bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:20px_20px] opacity-10 pointer-events-none" />
+        <div className="relative rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-700/60 shadow-2xl overflow-hidden min-w-0 box-border group">
+          {/* Imagem de Fundo Oficial NEXUS CHAT */}
+          <div
+            className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
+            style={{ backgroundImage: "url('/nexus-hub-bg.jpg')" }}
+          />
+          {/* Overlay Escuro com Gradiente para Máxima Legibilidade */}
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/85 to-indigo-950/90 backdrop-blur-[2px]" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-black/40 pointer-events-none" />
 
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6 relative z-10 min-w-0">
             {/* Perfil & Identidade */}
