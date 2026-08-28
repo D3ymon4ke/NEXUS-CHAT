@@ -5,6 +5,7 @@ import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { WeatherWidget } from './WeatherWidget';
 import { HubPollCard } from './HubPollCard';
 import { CreateHubPollModal } from './CreateHubPollModal';
+import GradientWaves from '../common/GradientWaves';
 import {
   Sparkles,
   Flame,
@@ -204,27 +205,48 @@ export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet, onBack }) {
           </button>
         )}
 
-        {/* 1. HERO BANNER PRINCIPAL (MODERNO, HOLOGRÁFICO & RESPONSIVO) */}
-        <div className="relative rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-700/60 shadow-2xl overflow-hidden min-w-0 box-border group">
-          {/* Imagem de Fundo Oficial NEXUS CHAT */}
-          <div
-            className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
-            style={{ backgroundImage: "url('/nexus-hub-bg.jpg')" }}
-          />
-          {/* Overlay Escuro com Gradiente para Máxima Legibilidade */}
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/85 to-indigo-950/90 backdrop-blur-[2px]" />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-black/40 pointer-events-none" />
+        {/* 1. HERO BANNER PRINCIPAL COM GRADIENT WAVES & LOGO EXPANDIDO */}
+        <div className="relative rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-indigo-500/30 shadow-2xl overflow-hidden min-w-0 box-border group min-h-[160px]">
+          {/* Efeito Dinâmico GradientWaves do React Bits */}
+          <div className="absolute inset-0 pointer-events-auto">
+            <GradientWaves
+              horizonColor="#070913"
+              waveColor="#4338ca"
+              crestColor="#38bdf8"
+              speed={0.35}
+              amplitude={2.8}
+              waveScale={0.55}
+              waveRatio={0.9}
+              swell={30}
+              turbulence={18}
+              tilt={1.15}
+              zoom={1.0}
+              height={5.0}
+              fogDepth={16}
+              detail="medium"
+              brightness={1.05}
+              opacity={0.88}
+              mouseInteraction={true}
+              parallaxStrength={0.4}
+              grain={true}
+              grainIntensity={0.03}
+            />
+          </div>
+
+          {/* Overlay Suave para Contraste Impecável */}
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/65 to-indigo-950/80 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-black/30 pointer-events-none" />
 
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6 relative z-10 min-w-0">
             {/* Perfil & Identidade */}
-            <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 text-center sm:text-left min-w-0 w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row items-center gap-3.5 sm:gap-5 text-center sm:text-left min-w-0 w-full sm:w-auto">
               <div className="relative flex-shrink-0">
                 <img
                   src="/logo.gif"
-                  alt="Nexus Animated Logo"
-                  className="w-14 h-14 sm:w-18 sm:h-18 rounded-2xl object-cover border-2 border-brand-500/80 shadow-2xl shadow-brand-500/30 ring-2 ring-brand-400/30"
+                  alt="Nexus Logo"
+                  className="w-18 h-18 sm:w-24 sm:h-24 object-contain drop-shadow-[0_0_25px_rgba(99,102,241,0.65)] select-none transition-transform hover:scale-105"
                 />
-                <span className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5">
+                <span className="absolute bottom-1 right-1 flex h-3.5 w-3.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-slate-900"></span>
                 </span>
@@ -232,8 +254,8 @@ export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet, onBack }) {
 
               <div className="min-w-0">
                 <div className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 mb-0.5">
-                  <h1 className="text-lg sm:text-2xl font-black text-white tracking-tight">NEXUS CHAT</h1>
-                  <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500/20 to-brand-500/20 text-amber-300 border border-amber-500/40 text-[9px] sm:text-[10px] font-extrabold uppercase flex-shrink-0">
+                  <h1 className="text-lg sm:text-2xl font-black text-white tracking-tight drop-shadow-md">NEXUS CHAT</h1>
+                  <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500/25 to-brand-500/25 text-amber-300 border border-amber-500/40 text-[9px] sm:text-[10px] font-extrabold uppercase flex-shrink-0 shadow-sm">
                     Hub Principal
                   </span>
                 </div>
