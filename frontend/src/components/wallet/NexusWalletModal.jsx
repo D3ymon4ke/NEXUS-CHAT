@@ -90,69 +90,71 @@ export function NexusWalletModal({ isOpen, onClose }) {
   if (!isOpen || !user) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn select-none">
-      <div className="glass-modal w-full max-w-xl rounded-3xl p-6 shadow-2xl border border-amber-500/30 flex flex-col max-h-[90vh] overflow-hidden relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-xl animate-fadeIn select-none overflow-hidden box-border">
+      <div className="glass-modal w-full max-w-xl rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 shadow-2xl border border-amber-500/30 flex flex-col h-full max-h-[96vh] sm:max-h-[90vh] overflow-hidden relative min-w-0 box-border">
         {/* Glow de Fundo */}
         <div className="absolute -top-24 -right-24 w-60 h-60 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -left-24 w-60 h-60 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
 
         {/* Topbar do Modal da Carteira */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500 to-yellow-600 flex items-center justify-center text-black shadow-lg shadow-amber-500/20">
-              <Wallet className="w-6 h-6" />
+        <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-slate-800 flex-shrink-0 min-w-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 mr-2">
+            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-500 to-yellow-600 flex items-center justify-center text-black shadow-lg shadow-amber-500/20 flex-shrink-0">
+              <Wallet className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-extrabold text-white tracking-wide">CARTEIRA NEXUS</h2>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold uppercase">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <h2 className="text-sm sm:text-lg font-extrabold text-white tracking-wide truncate">CARTEIRA NEXUS</h2>
+                <span className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold uppercase flex-shrink-0">
                   Digital Asset
                 </span>
               </div>
-              <p className="text-xs text-slate-400">Extrato completo de ganhos, bônus e transferências</p>
+              <p className="text-[10px] sm:text-xs text-slate-400 truncate">Extrato de ganhos e transferências</p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-background-surface transition-colors"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-background-surface transition-colors flex-shrink-0"
+            title="Fechar carteira"
+            aria-label="Fechar carteira"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
 
         {/* Cartão Holográfico Digital Nexus Card */}
-        <div className="my-4 p-5 rounded-3xl bg-gradient-to-br from-slate-900 via-amber-950/40 to-slate-950 border border-amber-400/40 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-4 opacity-10">
+        <div className="my-2.5 sm:my-4 p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-slate-900 via-amber-950/40 to-slate-950 border border-amber-400/40 shadow-2xl relative overflow-hidden flex-shrink-0 min-w-0">
+          <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
             <Coins className="w-32 h-32 text-amber-400" />
           </div>
 
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <span className="text-[10px] uppercase font-extrabold text-amber-400/90 tracking-wider">Saldo Disponível</span>
-              <div className="flex items-center gap-2 mt-1">
-                <img src="/nexus-coin.jpg" alt="Moeda" className="w-7 h-7 rounded-full shadow-md" />
-                <span className="text-3xl font-extrabold text-white tracking-tight">
+          <div className="flex justify-between items-start mb-3 sm:mb-4 gap-2 min-w-0">
+            <div className="min-w-0 flex-1">
+              <span className="text-[9px] sm:text-[10px] uppercase font-extrabold text-amber-400/90 tracking-wider block">Saldo Disponível</span>
+              <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5 min-w-0">
+                <img src="/nexus-coin.jpg" alt="Moeda" className="w-5 h-5 sm:w-7 sm:h-7 rounded-full shadow-md flex-shrink-0" />
+                <span className="text-xl sm:text-3xl font-extrabold text-white tracking-tight truncate">
                   {(wallet?.balance || user?.nexus_coins || 0).toLocaleString()}
                 </span>
-                <span className="text-xs font-bold text-amber-300">NEXUS COINS</span>
+                <span className="text-[10px] sm:text-xs font-bold text-amber-300 flex-shrink-0">COINS</span>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold">
-              <Flame className="w-3.5 h-3.5" />
-              <span>{wallet?.dailyStreak || 0} dias de Streak</span>
+            <div className="flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] sm:text-xs font-bold flex-shrink-0">
+              <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              <span>{wallet?.dailyStreak || 0}d Streak</span>
             </div>
           </div>
 
-          <div className="flex justify-between items-center pt-3 border-t border-white/10 text-xs text-slate-400">
-            <div>
-              <span className="block text-[10px] text-slate-500 font-semibold">Titular da Conta</span>
-              <span className="font-bold text-slate-200">@{user?.username || 'usuario'}</span>
+          <div className="flex justify-between items-center pt-2.5 sm:pt-3 border-t border-white/10 text-[11px] sm:text-xs text-slate-400 gap-2">
+            <div className="min-w-0 truncate">
+              <span className="block text-[9px] sm:text-[10px] text-slate-500 font-semibold">Titular</span>
+              <span className="font-bold text-slate-200 truncate block">@{user?.username || 'usuario'}</span>
             </div>
-            <div className="text-right">
-              <span className="block text-[10px] text-slate-500 font-semibold">Ganhos Acumulados</span>
-              <span className="font-bold text-emerald-400">+{wallet?.totalEarned || 0} moedas</span>
+            <div className="text-right min-w-0 truncate">
+              <span className="block text-[9px] sm:text-[10px] text-slate-500 font-semibold">Total Ganho</span>
+              <span className="font-bold text-emerald-400 truncate block">+{wallet?.totalEarned || 0}</span>
             </div>
           </div>
         </div>
