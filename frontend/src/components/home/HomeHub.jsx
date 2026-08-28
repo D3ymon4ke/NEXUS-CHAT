@@ -205,100 +205,99 @@ export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet, onBack }) {
           </button>
         )}
 
-        {/* 1. HERO BANNER PRINCIPAL COM GRADIENT WAVES & LOGO EXPANDIDO */}
-        <div className="relative rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-indigo-500/30 shadow-2xl overflow-hidden min-w-0 box-border group min-h-[160px]">
-          {/* Efeito Dinâmico GradientWaves do React Bits */}
+        {/* 1. HERO BANNER PRINCIPAL COM GRADIENT WAVES & DESIGN COMPACTO */}
+        <div className="relative rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 border border-indigo-500/40 shadow-2xl overflow-hidden min-w-0 box-border group">
+          {/* Efeito Dinâmico GradientWaves Vibrante e Visível */}
           <div className="absolute inset-0 pointer-events-auto">
             <GradientWaves
-              horizonColor="#070913"
-              waveColor="#4338ca"
+              horizonColor="#1e0836"
+              waveColor="#6366f1"
               crestColor="#38bdf8"
-              speed={0.35}
-              amplitude={2.8}
-              waveScale={0.55}
+              speed={0.45}
+              amplitude={3.2}
+              waveScale={0.75}
               waveRatio={0.9}
-              swell={30}
-              turbulence={18}
-              tilt={1.15}
-              zoom={1.0}
-              height={5.0}
-              fogDepth={16}
+              swell={28}
+              turbulence={16}
+              tilt={1.12}
+              zoom={1.05}
+              height={5.2}
+              fogDepth={18}
               detail="medium"
-              brightness={1.05}
-              opacity={0.88}
+              brightness={1.3}
+              opacity={0.95}
               mouseInteraction={true}
-              parallaxStrength={0.4}
-              grain={true}
-              grainIntensity={0.03}
+              parallaxStrength={0.5}
+              grain={false}
             />
           </div>
 
-          {/* Overlay Suave para Contraste Impecável */}
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/65 to-indigo-950/80 pointer-events-none" />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-black/30 pointer-events-none" />
+          {/* Overlay Leve Glassmorphism para Máximo Destaque das Ondas */}
+          <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-transparent to-black/20 pointer-events-none" />
 
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6 relative z-10 min-w-0">
-            {/* Perfil & Identidade */}
-            <div className="flex flex-col sm:flex-row items-center gap-3.5 sm:gap-5 text-center sm:text-left min-w-0 w-full sm:w-auto">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4 relative z-10 min-w-0">
+            {/* Perfil & Identidade em Linha Compacta */}
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0 w-full md:w-auto">
               <div className="relative flex-shrink-0">
                 <img
                   src="/logo.gif"
                   alt="Nexus Logo"
-                  className="w-18 h-18 sm:w-24 sm:h-24 object-contain drop-shadow-[0_0_25px_rgba(99,102,241,0.65)] select-none transition-transform hover:scale-105"
+                  className="w-12 h-12 sm:w-16 sm:h-16 object-contain drop-shadow-[0_0_18px_rgba(99,102,241,0.8)] select-none transition-transform hover:scale-105"
                 />
-                <span className="absolute bottom-1 right-1 flex h-3.5 w-3.5">
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-slate-900"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border border-slate-900"></span>
                 </span>
               </div>
 
-              <div className="min-w-0">
-                <div className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 mb-0.5">
-                  <h1 className="text-lg sm:text-2xl font-black text-white tracking-tight drop-shadow-md">NEXUS CHAT</h1>
-                  <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500/25 to-brand-500/25 text-amber-300 border border-amber-500/40 text-[9px] sm:text-[10px] font-extrabold uppercase flex-shrink-0 shadow-sm">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h1 className="text-base sm:text-xl font-black text-white tracking-tight drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">NEXUS CHAT</h1>
+                  <span className="px-2 py-0.2 rounded-full bg-amber-500/25 text-amber-300 border border-amber-400/50 text-[9px] font-extrabold uppercase flex-shrink-0 shadow">
                     Hub Principal
                   </span>
                 </div>
-                <p className="text-xs sm:text-sm text-slate-300 truncate">
-                  Bem-vindo de volta, <strong className="text-white">{user?.display_name || user?.username || 'Membro'}</strong>!
+                <p className="text-xs text-slate-200 truncate drop-shadow-sm">
+                  Bem-vindo de volta, <strong className="text-amber-300 font-bold">{user?.display_name || user?.username || 'Membro'}</strong>!
                 </p>
 
                 {/* Badges de Saldo e Sequência */}
-                <div className="flex items-center justify-center sm:justify-start gap-2 mt-2 flex-wrap">
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-300 text-xs font-bold shadow-sm">
+                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-black/60 border border-amber-500/50 text-amber-300 text-[11px] font-bold shadow backdrop-blur-sm">
                     <img src="/nexus-coin.jpg" alt="Moeda" className="w-3.5 h-3.5 rounded-full flex-shrink-0" />
                     <span>{user?.nexus_coins || 100} Coins</span>
                   </div>
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-200 text-xs font-bold">
-                    <Flame className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-black/60 border border-slate-700 text-slate-200 text-[11px] font-bold shadow backdrop-blur-sm">
+                    <Flame className="w-3 h-3 text-amber-400 flex-shrink-0" />
                     <span>{user?.daily_streak || 0} Dias Streak</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Ações de Acesso Rápido */}
-            <div className="flex flex-wrap items-center justify-center gap-2 w-full sm:w-auto">
+            {/* Ações de Acesso Rápido em Linha Compacta */}
+            <div className="grid grid-cols-3 sm:flex sm:items-center gap-1.5 sm:gap-2 w-full md:w-auto">
               <button
                 onClick={handleEnterBelmont}
-                className="flex-1 sm:flex-initial px-4 sm:px-5 py-2.5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-xs shadow-lg shadow-amber-500/25 transition-all flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap"
+                className="col-span-1 sm:flex-initial px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 text-black font-extrabold text-xs shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-1 active:scale-95 whitespace-nowrap"
               >
-                <Crown className="w-4 h-4 flex-shrink-0" /> Entrar na Belmont
+                <Crown className="w-3.5 h-3.5 flex-shrink-0" /> <span className="truncate">Belmont</span>
               </button>
               {onOpenShop && (
                 <button
                   onClick={onOpenShop}
-                  className="px-3.5 sm:px-4 py-2.5 rounded-xl sm:rounded-2xl bg-background-surface hover:bg-slate-700/80 text-white font-bold text-xs border border-slate-700 transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                  className="px-3 sm:px-3.5 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-white font-bold text-xs border border-slate-700/80 backdrop-blur-sm transition-all flex items-center justify-center gap-1 active:scale-95"
                 >
-                  <ShoppingBag className="w-4 h-4 text-amber-400 flex-shrink-0" /> Loja
+                  <ShoppingBag className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" /> <span className="truncate">Loja</span>
                 </button>
               )}
               {onOpenWallet && (
                 <button
                   onClick={onOpenWallet}
-                  className="px-3.5 sm:px-4 py-2.5 rounded-xl sm:rounded-2xl bg-background-surface hover:bg-slate-700/80 text-white font-bold text-xs border border-slate-700 transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                  className="px-3 sm:px-3.5 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-white font-bold text-xs border border-slate-700/80 backdrop-blur-sm transition-all flex items-center justify-center gap-1 active:scale-95"
                 >
-                  <Coins className="w-4 h-4 text-amber-400 flex-shrink-0" /> Carteira
+                  <Coins className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" /> <span className="truncate">Carteira</span>
                 </button>
               )}
             </div>
