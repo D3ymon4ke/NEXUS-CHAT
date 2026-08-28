@@ -142,10 +142,10 @@ function ChatDashboard() {
       )}
 
       {/* Conteúdo Principal do Chat */}
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-1 flex min-h-0 w-full overflow-hidden relative">
         {/* Barra Lateral */}
         <div
-          className={`h-full ${
+          className={`h-full min-h-0 ${
             mobileView === 'chat' ? 'hidden md:flex' : 'flex w-full md:w-auto'
           }`}
         >
@@ -170,7 +170,7 @@ function ChatDashboard() {
 
         {/* Área Principal: HomeHub ou ChatArea */}
         <div
-          className={`flex-1 h-full ${
+          className={`flex-1 h-full min-h-0 ${
             mobileView === 'sidebar' ? 'hidden md:flex' : 'flex'
           }`}
         >

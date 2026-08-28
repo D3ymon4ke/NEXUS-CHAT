@@ -45,7 +45,7 @@ export function ChatHeader({ onBack, onSearchToggle, isSearching }) {
     : 'visto recentemente';
 
   return (
-    <div className={`h-16 px-4 border-b flex items-center justify-between z-10 backdrop-blur ${
+    <div className={`min-h-[4rem] pt-[max(0.75rem,env(safe-area-inset-top))] pb-2.5 px-3 sm:px-4 border-b flex items-center justify-between z-10 backdrop-blur flex-shrink-0 ${
       isBelmont
         ? 'bg-gradient-to-r from-background-card via-slate-900 to-indigo-950/40 border-amber-500/30'
         : 'bg-background-card/90 border-slate-800'

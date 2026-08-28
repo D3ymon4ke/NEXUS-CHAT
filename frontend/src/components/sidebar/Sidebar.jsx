@@ -296,7 +296,7 @@ export function Sidebar({
   return (
     <div className="w-full md:w-80 lg:w-96 h-full flex flex-col bg-background-card border-r border-slate-800 flex-shrink-0 select-none">
       {/* Topbar Reestruturada: Perfil do Usuário na Linha 1 + Menu de Ações na Linha 2 (Abaixo da Foto) */}
-      <div className="p-3 border-b border-slate-800 bg-slate-900/80 backdrop-blur-md space-y-2.5">
+      <div className="p-3 pt-[max(0.75rem,env(safe-area-inset-top))] border-b border-slate-800 bg-slate-900/80 backdrop-blur-md space-y-2.5 flex-shrink-0">
         {/* LINHA 1: Avatar, Nome Completo, Seletor de Status e Configurações */}
         <div className="flex items-center justify-between gap-2">
           {/* Avatar + Info do Usuário */}
