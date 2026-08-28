@@ -107,8 +107,8 @@ export function MessageBubble({
 
   return (
     <div
-      className={`group relative flex my-1.5 transition-all ${
-        isOwn ? 'justify-end' : 'justify-start items-end gap-2'
+      className={`group relative flex my-1.5 transition-all w-full max-w-full min-w-0 ${
+        isOwn ? 'justify-end' : 'justify-start items-end gap-1.5 sm:gap-2'
       }`}
     >
       {/* Bolinha da Imagem do Usuário (Visível em grupos e conversas com mais de 2 pessoas) */}
@@ -121,26 +121,26 @@ export function MessageBubble({
           <img
             src={sender.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${sender.id || 'nexus'}`}
             alt={sender.display_name || 'avatar'}
-            className={`w-8 h-8 rounded-full object-cover shadow ${frameClass}`}
+            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover shadow ${frameClass}`}
           />
         </div>
       )}
 
-      <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-[70%]`}>
+      <div className={`flex flex-col min-w-0 ${isOwn ? 'items-end' : 'items-start'} max-w-[88%] sm:max-w-[75%]`}>
         {/* Nome do Remetente e Badges de Cargo (Admin / Mod / Títulos Nomeados / Badges) */}
         {!isOwn && showSenderInfo && !isDeleted && (
           <div
             onClick={() => onOpenProfile && onOpenProfile(sender)}
-            className="flex flex-wrap items-center gap-1.5 mb-1 ml-1 cursor-pointer hover:opacity-85 transition-opacity"
+            className="flex flex-wrap items-center gap-1 sm:gap-1.5 mb-1 ml-1 cursor-pointer hover:opacity-85 transition-opacity max-w-full min-w-0"
             title="Ver perfil do membro"
           >
-            <span className={`text-[11px] ${nameStyle}`}>
+            <span className={`text-[11px] truncate max-w-[120px] sm:max-w-none ${nameStyle}`}>
               {sender.display_name || sender.username}
             </span>
 
             {/* Badge de Admin Damon com Efeito Glow */}
             {isAdmin && (
-              <span className="px-2 py-0.2 rounded-full bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white text-[9px] font-extrabold border border-amber-400/80 shadow-[0_0_10px_rgba(239,68,68,0.6)] animate-pulse flex items-center gap-0.5">
+              <span className="px-1.5 sm:px-2 py-0.2 rounded-full bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white text-[8px] sm:text-[9px] font-extrabold border border-amber-400/80 shadow-[0_0_10px_rgba(239,68,68,0.6)] animate-pulse flex items-center gap-0.5 flex-shrink-0">
                 <span>👑</span>
                 <span>ADMIN</span>
               </span>
@@ -148,15 +148,15 @@ export function MessageBubble({
 
             {/* Título Customizado Nomeado (ex: Coordenador, BETA TESTER, etc) */}
             {sender.custom_title && (
-              <span className="px-2 py-0.2 rounded-full bg-gradient-to-r from-cyan-500/25 to-blue-600/25 text-cyan-300 text-[9px] font-extrabold border border-cyan-400/50 shadow-[0_0_8px_rgba(6,182,212,0.4)] flex items-center gap-0.5">
+              <span className="px-1.5 sm:px-2 py-0.2 rounded-full bg-gradient-to-r from-cyan-500/25 to-blue-600/25 text-cyan-300 text-[8px] sm:text-[9px] font-extrabold border border-cyan-400/50 shadow-[0_0_8px_rgba(6,182,212,0.4)] flex items-center gap-0.5 flex-shrink-0 truncate max-w-[100px] sm:max-w-none">
                 <span>⭐</span>
-                <span>{sender.custom_title}</span>
+                <span className="truncate">{sender.custom_title}</span>
               </span>
             )}
 
             {/* Badge de Moderador */}
             {isModerator && !isAdmin && !sender.custom_title && (
-              <span className="px-2 py-0.2 rounded-full bg-indigo-600/30 text-indigo-300 text-[9px] font-bold border border-indigo-500/40 flex items-center gap-0.5">
+              <span className="px-1.5 sm:px-2 py-0.2 rounded-full bg-indigo-600/30 text-indigo-300 text-[8px] sm:text-[9px] font-bold border border-indigo-500/40 flex items-center gap-0.5 flex-shrink-0">
                 <span>🛡️</span>
                 <span>MOD</span>
               </span>
@@ -164,19 +164,19 @@ export function MessageBubble({
 
             {/* Badge da Loja / Condecoração */}
             {badgeInfo && (
-              <span className={`text-[9px] px-1.5 py-0.2 rounded-full border flex items-center gap-0.5 ${badgeInfo.color || 'bg-amber-500/20 text-amber-300 border-amber-500/30'}`}>
+              <span className={`text-[8px] sm:text-[9px] px-1.5 py-0.2 rounded-full border flex items-center gap-0.5 flex-shrink-0 ${badgeInfo.color || 'bg-amber-500/20 text-amber-300 border-amber-500/30'}`}>
                 <span>{badgeInfo.icon}</span>
-                <span>{badgeInfo.label}</span>
+                <span className="hidden xs:inline">{badgeInfo.label}</span>
               </span>
             )}
           </div>
         )}
 
-        <div className="relative flex items-center w-full">
+        <div className="relative flex items-center w-full min-w-0 max-w-full">
         {/* Menu Flutuante de Ações no Hover (Desabilitado se mensagem excluída) */}
         {!isDeleted && (
           <div
-            className={`absolute top-0 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex items-center bg-background-surface/95 border border-slate-700/80 rounded-full px-1.5 py-0.5 shadow-lg backdrop-blur ${
+            className={`absolute top-0 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex items-center bg-background-surface/95 border border-slate-700/80 rounded-full px-1.5 py-0.5 shadow-lg backdrop-blur max-w-[calc(100vw-2rem)] ${
               showMenu || showEmojiPicker ? '!opacity-100 !z-40' : ''
             } ${
               isOwn ? 'right-0 -translate-x-full mr-2' : 'left-0 translate-x-full ml-2'

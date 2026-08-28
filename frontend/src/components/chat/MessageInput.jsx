@@ -468,21 +468,21 @@ export function MessageInput() {
   };
 
   return (
-    <div className="relative border-t border-slate-800 bg-background-surface/95 backdrop-blur-md p-2 sm:p-3 safe-bottom flex-shrink-0 z-20">
+    <div className="relative border-t border-slate-800 bg-background-surface/95 backdrop-blur-md p-2 sm:p-3 safe-bottom flex-shrink-0 z-20 w-full max-w-full box-border">
       {/* Banner de Edição de Mensagem */}
       {editingMessage && (
-        <div className="mb-2 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-between text-xs animate-fadeIn">
-          <div className="flex items-center gap-2 min-w-0">
+        <div className="mb-2 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-between text-xs animate-fadeIn w-full max-w-full min-w-0 box-border">
+          <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
             <Edit2 className="w-4 h-4 text-amber-400 flex-shrink-0" />
-            <span className="font-bold text-amber-300">Editando mensagem:</span>
-            <span className="text-slate-300 truncate">{editingMessage.content}</span>
+            <span className="font-bold text-amber-300 flex-shrink-0">Editando:</span>
+            <span className="text-slate-300 truncate min-w-0">{editingMessage.content}</span>
           </div>
           <button
             onClick={() => {
               setEditingMessage(null);
               setContent('');
             }}
-            className="p-1 text-slate-400 hover:text-white rounded-lg"
+            className="p-1 text-slate-400 hover:text-white rounded-lg flex-shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
@@ -491,17 +491,17 @@ export function MessageInput() {
 
       {/* Banner de Resposta (Reply Quote) */}
       {!editingMessage && replyingTo && (
-        <div className="mb-2 px-3 py-1.5 rounded-xl bg-brand-500/10 border border-brand-500/30 flex items-center justify-between text-xs animate-fadeIn">
-          <div className="flex items-center gap-2 min-w-0">
+        <div className="mb-2 px-3 py-1.5 rounded-xl bg-brand-500/10 border border-brand-500/30 flex items-center justify-between text-xs animate-fadeIn w-full max-w-full min-w-0 box-border">
+          <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
             <Reply className="w-3.5 h-3.5 text-brand-400 flex-shrink-0" />
-            <span className="font-semibold text-brand-300">
-              Respondendo a {replyingTo.sender?.display_name || 'Usuário'}:
+            <span className="font-semibold text-brand-300 flex-shrink-0 truncate">
+              {replyingTo.sender?.display_name || 'Usuário'}:
             </span>
-            <span className="text-slate-400 truncate">{replyingTo.content || 'Anexo'}</span>
+            <span className="text-slate-400 truncate min-w-0">{replyingTo.content || 'Anexo'}</span>
           </div>
           <button
             onClick={() => setReplyingTo(null)}
-            className="p-1 text-slate-400 hover:text-white rounded-lg"
+            className="p-1 text-slate-400 hover:text-white rounded-lg flex-shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
@@ -510,7 +510,7 @@ export function MessageInput() {
 
       {/* Pré-visualização de Imagens e Anexos Selecionados */}
       {attachments.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-2.5 p-2 bg-background-dark/80 rounded-2xl border border-slate-700/80 animate-fadeIn">
+        <div className="flex flex-wrap gap-2 mb-2 p-2 bg-background-dark/80 rounded-2xl border border-slate-700/80 animate-fadeIn w-full max-w-full box-border">
           {attachments.map((att, idx) => (
             <div
               key={idx}
@@ -520,7 +520,7 @@ export function MessageInput() {
                 <img
                   src={att.file_url}
                   alt={att.file_name}
-                  className="w-16 h-16 rounded-lg object-cover border border-brand-500/40"
+                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg object-cover border border-brand-500/40"
                 />
               ) : (
                 <div className="flex items-center gap-2 px-2 py-1">
@@ -537,26 +537,26 @@ export function MessageInput() {
               </button>
             </div>
           ))}
-          <div className="flex items-center text-[11px] text-slate-400 pl-2">
-            <span>Escreva sua mensagem abaixo e pressione Enter para enviar junto com a imagem</span>
+          <div className="flex items-center text-[10px] sm:text-[11px] text-slate-400 pl-1">
+            <span>Pressione Enter para enviar com a imagem</span>
           </div>
         </div>
       )}
 
       {/* Banner de Modo Fantasma Ativo */}
       {ghostMode && (
-        <div className="mb-2 px-3 py-1.5 rounded-2xl bg-purple-950/90 border border-purple-500/50 flex items-center justify-between text-xs text-purple-200 shadow-xl animate-fadeIn backdrop-blur-md">
-          <div className="flex items-center gap-2">
-            <Ghost className="w-4 h-4 text-purple-400 animate-pulse" />
-            <span className="font-extrabold text-purple-300">Modo Fantasma Ativo:</span>
-            <span className="font-bold text-white bg-purple-600/40 px-2 py-0.5 rounded-lg border border-purple-500/40">
-              {ghostMode === 'view_once' ? '👁️ Visualização Única (1x)' : `⏱️ Autodestruição em ${ghostMode}`}
+        <div className="mb-2 px-3 py-1.5 rounded-2xl bg-purple-950/90 border border-purple-500/50 flex items-center justify-between text-xs text-purple-200 shadow-xl animate-fadeIn backdrop-blur-md w-full max-w-full min-w-0 box-border">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+            <Ghost className="w-4 h-4 text-purple-400 animate-pulse flex-shrink-0" />
+            <span className="font-extrabold text-purple-300 hidden xs:inline flex-shrink-0">Fantasma:</span>
+            <span className="font-bold text-white bg-purple-600/40 px-2 py-0.5 rounded-lg border border-purple-500/40 truncate text-[10px] sm:text-xs">
+              {ghostMode === 'view_once' ? '👁️ 1x Visualização' : `⏱️ Autodestruição em ${ghostMode}`}
             </span>
           </div>
           <button
             type="button"
             onClick={() => setGhostMode(null)}
-            className="p-1 rounded-lg hover:bg-purple-900/60 text-purple-300 hover:text-white transition-colors"
+            className="p-1 rounded-lg hover:bg-purple-900/60 text-purple-300 hover:text-white transition-colors flex-shrink-0 ml-1"
             title="Desativar Modo Fantasma"
           >
             <X className="w-3.5 h-3.5" />
@@ -564,31 +564,31 @@ export function MessageInput() {
         </div>
       )}
 
-      {/* Banner de Sugestão de Comandos Slash (filtrado por contexto e permissão) */}
+      {/* Banner de Sugestão de Comandos Slash */}
       {content.startsWith('/') && (
-        <div className="mb-2 p-1.5 rounded-2xl bg-slate-900/95 border border-brand-500/50 shadow-2xl backdrop-blur-md animate-fadeIn space-y-1">
-          {/* Comando /nexus (Mandar logo animado + 20 moedas 1x ao dia) */}
+        <div className="mb-2 p-1.5 rounded-2xl bg-slate-900/95 border border-brand-500/50 shadow-2xl backdrop-blur-md animate-fadeIn space-y-1 w-full max-w-full box-border">
+          {/* Comando /nexus */}
           <button
             type="button"
             onClick={() => {
               setContent('');
               handleSendNexusBurst();
             }}
-            className="w-full px-3 py-2 rounded-xl bg-gradient-to-r from-brand-600/25 via-indigo-600/25 to-purple-600/25 hover:from-brand-600/35 text-left flex items-center justify-between text-xs transition-colors border border-brand-500/30"
+            className="w-full px-2.5 sm:px-3 py-2 rounded-xl bg-gradient-to-r from-brand-600/25 via-indigo-600/25 to-purple-600/25 hover:from-brand-600/35 text-left flex items-center justify-between text-xs transition-colors border border-brand-500/30 gap-2 min-w-0"
           >
-            <div className="flex items-center gap-2">
-              <img src="/logo.gif" alt="Nexus" className="w-5 h-5 rounded-lg object-cover border border-brand-400" />
-              <div>
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <img src="/logo.gif" alt="Nexus" className="w-5 h-5 rounded-lg object-cover border border-brand-400 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
                 <span className="font-extrabold text-amber-300">/nexus</span>
-                <span className="text-slate-300 ml-2">Mandar o logo animado no chat (+20 Coins 1x ao dia) 🔥</span>
+                <span className="text-slate-300 ml-1.5 truncate text-[11px] hidden sm:inline">Logo animado no chat (+20 Coins) 🔥</span>
               </div>
             </div>
-            <span className="text-[10px] text-amber-300 font-bold bg-amber-500/20 px-2 py-0.5 rounded-lg border border-amber-500/30">
-              Mandar NEXUS ↵
+            <span className="text-[10px] text-amber-300 font-bold bg-amber-500/20 px-2 py-0.5 rounded-lg border border-amber-500/30 flex-shrink-0">
+              NEXUS ↵
             </span>
           </button>
 
-          {/* Enquete: apenas Administradores em Grupos */}
+          {/* Enquete */}
           {isGroupAdmin && (
             <button
               type="button"
@@ -596,22 +596,22 @@ export function MessageInput() {
                 setContent('');
                 setShowPollModal(true);
               }}
-              className="w-full px-3 py-2 rounded-xl bg-brand-600/20 hover:bg-brand-600/30 text-left flex items-center justify-between text-xs transition-colors"
+              className="w-full px-2.5 sm:px-3 py-2 rounded-xl bg-brand-600/20 hover:bg-brand-600/30 text-left flex items-center justify-between text-xs transition-colors gap-2 min-w-0"
             >
-              <div className="flex items-center gap-2">
-                <span className="p-1 rounded-lg bg-brand-500 text-white font-extrabold text-xs">📊</span>
-                <div>
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <span className="p-1 rounded-lg bg-brand-500 text-white font-extrabold text-xs flex-shrink-0">📊</span>
+                <div className="min-w-0 flex-1">
                   <span className="font-extrabold text-brand-300">/enquete</span>
-                  <span className="text-slate-300 ml-2">Criar nova enquete de grupo (Admin)</span>
+                  <span className="text-slate-300 ml-1.5 truncate text-[11px] hidden sm:inline">Criar enquete</span>
                 </div>
               </div>
-              <span className="text-[10px] text-brand-400 font-bold bg-brand-500/20 px-2 py-0.5 rounded-lg border border-brand-500/30">
-                Abrir Enquete ↵
+              <span className="text-[10px] text-brand-400 font-bold bg-brand-500/20 px-2 py-0.5 rounded-lg border border-brand-500/30 flex-shrink-0">
+                Abrir ↵
               </span>
             </button>
           )}
 
-          {/* Café: apenas em Grupos */}
+          {/* Café */}
           {isGroup && (
             <button
               type="button"
@@ -619,22 +619,22 @@ export function MessageInput() {
                 setContent('');
                 handleSendCoffeeInvite();
               }}
-              className="w-full px-3 py-2 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 text-left flex items-center justify-between text-xs transition-colors"
+              className="w-full px-2.5 sm:px-3 py-2 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 text-left flex items-center justify-between text-xs transition-colors gap-2 min-w-0"
             >
-              <div className="flex items-center gap-2">
-                <span className="p-1 rounded-lg bg-amber-500 text-white font-extrabold text-xs">☕</span>
-                <div>
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <span className="p-1 rounded-lg bg-amber-500 text-white font-extrabold text-xs flex-shrink-0">☕</span>
+                <div className="min-w-0 flex-1">
                   <span className="font-extrabold text-amber-300">/cafe</span>
-                  <span className="text-slate-300 ml-2">Convidar para pausa do café no grupo (+30 Coins)</span>
+                  <span className="text-slate-300 ml-1.5 truncate text-[11px] hidden sm:inline">Pausa do café (+30 Coins)</span>
                 </div>
               </div>
-              <span className="text-[10px] text-amber-400 font-bold bg-amber-500/20 px-2 py-0.5 rounded-lg border border-amber-500/30">
-                Enviar Café ↵
+              <span className="text-[10px] text-amber-400 font-bold bg-amber-500/20 px-2 py-0.5 rounded-lg border border-amber-500/30 flex-shrink-0">
+                Café ↵
               </span>
             </button>
           )}
 
-          {/* Modo Fantasma: apenas em conversas privadas 1x1 */}
+          {/* Modo Fantasma */}
           {isDirectChat && (
             <button
               type="button"
@@ -642,17 +642,17 @@ export function MessageInput() {
                 setContent('');
                 setShowGhostMenu(true);
               }}
-              className="w-full px-3 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-left flex items-center justify-between text-xs transition-colors"
+              className="w-full px-2.5 sm:px-3 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-left flex items-center justify-between text-xs transition-colors gap-2 min-w-0"
             >
-              <div className="flex items-center gap-2">
-                <span className="p-1 rounded-lg bg-purple-500 text-white font-extrabold text-xs">👻</span>
-                <div>
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <span className="p-1 rounded-lg bg-purple-500 text-white font-extrabold text-xs flex-shrink-0">👻</span>
+                <div className="min-w-0 flex-1">
                   <span className="font-extrabold text-purple-300">/fantasma ou /1x</span>
-                  <span className="text-slate-300 ml-2">Mensagens privadas 1x1 com autodestruição ou visualização única</span>
+                  <span className="text-slate-300 ml-1.5 truncate text-[11px] hidden sm:inline">Mensagens temporárias</span>
                 </div>
               </div>
-              <span className="text-[10px] text-purple-400 font-bold bg-purple-500/20 px-2 py-0.5 rounded-lg border border-purple-500/30">
-                Ativar Fantasma ↵
+              <span className="text-[10px] text-purple-400 font-bold bg-purple-500/20 px-2 py-0.5 rounded-lg border border-purple-500/30 flex-shrink-0">
+                Fantasma ↵
               </span>
             </button>
           )}
@@ -660,7 +660,7 @@ export function MessageInput() {
       )}
 
       {/* Caixa de Texto e Controles */}
-      <div className="flex items-end gap-1.5 sm:gap-2">
+      <div className="flex items-end gap-1.5 sm:gap-2 w-full max-w-full min-w-0 box-border">
         {/* Anexar Arquivo ou Imagem */}
         {!editingMessage && (
           <div className="flex-shrink-0">
@@ -676,10 +676,11 @@ export function MessageInput() {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="p-2 sm:p-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-background-hover transition-colors flex items-center justify-center"
+              className="p-2 sm:p-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-background-hover transition-colors flex items-center justify-center flex-shrink-0"
               title="Anexar imagem ou arquivo"
+              aria-label="Anexar arquivo"
             >
-              {uploading ? <Loader2 className="w-5 h-5 animate-spin text-brand-400" /> : <Paperclip className="w-5 h-5" />}
+              {uploading ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin text-brand-400" /> : <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />}
             </button>
           </div>
         )}
@@ -709,11 +710,11 @@ export function MessageInput() {
                 ? "Digite uma mensagem, /cafe ou /enquete..."
                 : "Digite uma mensagem ou /cafe..."
             }
-            className="w-full bg-transparent px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-28 sm:max-h-32 leading-relaxed min-w-0"
+            className="w-full bg-transparent px-2.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-24 sm:max-h-32 leading-relaxed min-w-0"
           />
 
           {/* Botões de Ação: Fantasma (1x1), Café (Grupos), Enquete (Admin) & Emojis */}
-          <div className="pb-2 pr-1.5 sm:pb-2.5 sm:pr-2 flex items-center gap-0.5 relative flex-shrink-0">
+          <div className="pb-1.5 pr-1.5 sm:pb-2 sm:pr-2 flex items-center gap-0.5 relative flex-shrink-0">
             {/* Botão Modo Fantasma 👻 (Apenas em chats 1x1) */}
             {!editingMessage && isDirectChat && (
               <div className="relative">
@@ -735,7 +736,7 @@ export function MessageInput() {
 
                 {/* Popover do Modo Fantasma */}
                 {showGhostMenu && (
-                  <div className="absolute bottom-full right-0 mb-3 w-64 bg-slate-950/95 border border-purple-500/50 rounded-2xl shadow-2xl p-3 z-30 backdrop-blur-xl animate-fadeIn">
+                  <div className="fixed sm:absolute bottom-16 sm:bottom-full left-2 right-2 sm:left-auto sm:right-0 mb-2 sm:mb-3 w-auto sm:w-64 max-w-xs bg-slate-950/95 border border-purple-500/50 rounded-2xl shadow-2xl p-3 z-30 backdrop-blur-xl animate-fadeIn mx-auto">
                     <div className="flex items-center justify-between pb-2 mb-2 border-b border-purple-900/50">
                       <div className="flex items-center gap-1.5 text-purple-300 font-extrabold text-xs">
                         <Ghost className="w-4 h-4 text-purple-400" />
@@ -886,12 +887,13 @@ export function MessageInput() {
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
               className="p-1 sm:p-1.5 text-slate-400 hover:text-yellow-400 transition-colors flex-shrink-0"
               title="Emojis e Figurinhas Animadas"
+              aria-label="Emojis"
             >
               <Smile className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
 
             {showEmojiPicker && (
-              <div className="absolute bottom-full right-0 mb-3 w-[calc(100vw-2rem)] sm:w-84 max-w-xs sm:max-w-sm bg-background-surface/95 border border-slate-700 rounded-2xl shadow-2xl p-3 z-30 backdrop-blur-md animate-fadeIn">
+              <div className="fixed sm:absolute bottom-16 sm:bottom-full left-2 right-2 sm:left-auto sm:right-0 mb-2 sm:mb-3 w-auto sm:w-84 max-w-sm bg-background-surface/95 border border-slate-700 rounded-2xl shadow-2xl p-3 z-30 backdrop-blur-md animate-fadeIn mx-auto">
                 {/* Abas Emojis vs Figurinhas Animadas + Atalho /nexus */}
                 <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 gap-1.5">
                   <div className="flex gap-1 bg-background-dark p-0.5 rounded-xl border border-slate-800 text-xs">
@@ -937,7 +939,7 @@ export function MessageInput() {
 
                 {/* ABA 1: EMOJIS PADRÃO */}
                 {activeEmojiTab === 'emojis' && (
-                  <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                  <div className="space-y-2 max-h-48 sm:max-h-52 overflow-y-auto pr-1">
                     {EMOJI_CATEGORIES.map(cat => (
                       <div key={cat.name}>
                         <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
@@ -962,12 +964,12 @@ export function MessageInput() {
 
                 {/* ABA 2: FIGURINHAS ANIMADAS (ANIMATED STICKERS) */}
                 {activeEmojiTab === 'stickers' && (
-                  <div className="space-y-2 max-h-56 overflow-y-auto p-1">
+                  <div className="space-y-2 max-h-48 sm:max-h-56 overflow-y-auto p-1">
                     {/* Header de Saldo de Moedas */}
                     <div className="flex items-center justify-between px-2 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[10px]">
                       <span className="text-amber-300 font-extrabold flex items-center gap-1">
                         <img src="/nexus-coin.jpg" alt="Moeda" className="w-3 h-3 rounded-full" />
-                        <span>Meu Saldo: {user?.nexus_coins || 0}</span>
+                        <span>Saldo: {user?.nexus_coins || 0}</span>
                       </span>
                       <span className="text-slate-400 font-semibold">Preço por envio</span>
                     </div>
@@ -1004,7 +1006,7 @@ export function MessageInput() {
           type="button"
           onClick={handleSend}
           disabled={(!content.trim() && attachments.length === 0) || uploading}
-          className={`p-2.5 sm:p-3 rounded-2xl text-white shadow-lg transition-all flex items-center justify-center flex-shrink-0 active:scale-95 ${
+          className={`p-2 sm:p-2.5 rounded-2xl text-white shadow-lg transition-all flex items-center justify-center flex-shrink-0 active:scale-95 ${
             editingMessage
               ? 'bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black shadow-amber-500/20'
               : content.trim() || attachments.length > 0
@@ -1012,8 +1014,9 @@ export function MessageInput() {
               : 'bg-slate-800 text-slate-500 cursor-not-allowed'
           }`}
           title={editingMessage ? "Salvar alteração" : "Enviar mensagem"}
+          aria-label="Enviar mensagem"
         >
-          {editingMessage ? <Check className="w-5 h-5" /> : <Send className="w-4 h-4 sm:w-5 sm:h-5" />}
+          {editingMessage ? <Check className="w-4 h-4 sm:w-5 sm:h-5" /> : <Send className="w-4 h-4 sm:w-5 sm:h-5" />}
         </button>
       </div>
     </div>

@@ -180,9 +180,9 @@ export function GhostMessageCard({ message, isOwn }) {
   }[ghostType] || 'Fantasma';
 
   return (
-    <div className="rounded-2xl border border-purple-500/40 bg-gradient-to-br from-purple-950/70 via-slate-900/90 to-background-dark/95 shadow-xl overflow-hidden backdrop-blur-md max-w-sm transition-all animate-fadeIn">
+    <div className="w-full max-w-full sm:max-w-sm rounded-2xl border border-purple-500/40 bg-gradient-to-br from-purple-950/70 via-slate-900/90 to-background-dark/95 shadow-xl overflow-hidden backdrop-blur-md transition-all animate-fadeIn min-w-0 box-border">
       {/* Header do Card Fantasma */}
-      <div className="px-3.5 py-2 bg-purple-900/30 border-b border-purple-500/30 flex items-center justify-between">
+      <div className="px-3 sm:px-3.5 py-2 bg-purple-900/30 border-b border-purple-500/30 flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-purple-300 font-extrabold text-[11px]">
           <Ghost className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
           <span>MODO FANTASMA</span>

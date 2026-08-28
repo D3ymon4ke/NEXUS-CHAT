@@ -104,7 +104,7 @@ export function NexusBurstCard({ message, isOwn }) {
   };
 
   return (
-    <div className="w-full max-w-sm rounded-3xl p-4 sm:p-5 bg-gradient-to-br from-slate-900/95 via-indigo-950/90 to-purple-950/95 border-2 border-brand-500/60 shadow-2xl shadow-brand-500/20 text-white relative overflow-hidden select-none animate-fadeIn">
+    <div className="w-full max-w-full sm:max-w-sm rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 bg-gradient-to-br from-slate-900/95 via-indigo-950/90 to-purple-950/95 border-2 border-brand-500/60 shadow-2xl shadow-brand-500/20 text-white relative overflow-hidden select-none animate-fadeIn min-w-0 box-border">
       {/* Glows Decorativos */}
       <div className="absolute -top-12 -right-12 w-36 h-36 bg-brand-500/25 rounded-full blur-2xl pointer-events-none" />
       <div className="absolute -bottom-12 -left-12 w-36 h-36 bg-amber-500/20 rounded-full blur-2xl pointer-events-none" />

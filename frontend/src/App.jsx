@@ -109,7 +109,7 @@ function ChatDashboard() {
 
   if (loading) {
     return (
-      <div className="h-screen h-[100dvh] w-screen w-[100dvw] flex flex-col items-center justify-center bg-background-darker text-white gap-4 select-none">
+      <div className="h-full h-[100dvh] w-full max-w-full flex flex-col items-center justify-center bg-background-darker text-white gap-4 select-none overflow-hidden">
         <div className="relative flex items-center justify-center">
           <div className="absolute -inset-2 bg-gradient-to-r from-brand-500 to-indigo-600 rounded-3xl blur-xl opacity-50 animate-pulse pointer-events-none" />
           <img
@@ -132,7 +132,7 @@ function ChatDashboard() {
   }
 
   return (
-    <div className="fixed inset-0 h-[100dvh] w-[100dvw] max-h-[100dvh] max-w-[100dvw] flex flex-col bg-background-darker overflow-hidden select-none">
+    <div className="fixed inset-0 h-full h-[100dvh] w-full max-w-full flex flex-col bg-background-darker overflow-hidden select-none">
       {/* Toast Discreto de Ganho de Nexus Coins */}
       {coinsAlert && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/90 border border-amber-500/50 text-amber-300 font-bold text-xs shadow-xl backdrop-blur animate-fadeIn select-none pointer-events-none">
@@ -142,11 +142,11 @@ function ChatDashboard() {
       )}
 
       {/* Conteúdo Principal do Chat */}
-      <div className="flex-1 flex min-h-0 w-full overflow-hidden relative">
+      <div className="flex-1 flex min-h-0 min-w-0 w-full max-w-full overflow-hidden relative">
         {/* Barra Lateral */}
         <div
-          className={`h-full min-h-0 ${
-            mobileView === 'chat' ? 'hidden md:flex' : 'flex w-full md:w-auto'
+          className={`h-full min-h-0 flex-shrink-0 ${
+            mobileView === 'chat' ? 'hidden md:flex' : 'flex w-full md:w-80 lg:w-96'
           }`}
         >
           <Sidebar
@@ -170,8 +170,8 @@ function ChatDashboard() {
 
         {/* Área Principal: HomeHub ou ChatArea */}
         <div
-          className={`flex-1 h-full min-h-0 ${
-            mobileView === 'sidebar' ? 'hidden md:flex' : 'flex'
+          className={`flex-1 h-full min-h-0 min-w-0 max-w-full ${
+            mobileView === 'sidebar' ? 'hidden md:flex' : 'flex w-full'
           }`}
         >
           {activeConversation && activeConversationId ? (

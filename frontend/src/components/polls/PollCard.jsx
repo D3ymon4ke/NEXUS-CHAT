@@ -167,7 +167,7 @@ export function PollCard({ message }) {
   };
 
   return (
-    <div className="w-full max-w-md p-4 rounded-3xl bg-gradient-to-br from-slate-900/95 via-slate-900/90 to-indigo-950/60 border border-brand-500/40 shadow-2xl space-y-3.5 select-none animate-fadeIn">
+    <div className="w-full max-w-full sm:max-w-md p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-slate-900/95 via-slate-900/90 to-indigo-950/60 border border-brand-500/40 shadow-2xl space-y-3 sm:space-y-3.5 select-none animate-fadeIn min-w-0 box-border">
       {/* Topo da Enquete: Ícone + Pergunta + Status */}
       <div>
         <div className="flex items-center justify-between gap-2 mb-1.5">

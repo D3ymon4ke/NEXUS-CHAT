@@ -121,7 +121,7 @@ export function CoffeeInviteCard({ message, isOwn }) {
   };
 
   return (
-    <div className="w-full max-w-sm rounded-2xl bg-gradient-to-br from-amber-950/80 via-slate-900/95 to-amber-950/60 border-2 border-amber-500/50 p-4 shadow-xl text-white relative overflow-hidden backdrop-blur my-1 group select-none">
+    <div className="w-full max-w-full sm:max-w-sm rounded-2xl bg-gradient-to-br from-amber-950/80 via-slate-900/95 to-amber-950/60 border-2 border-amber-500/50 p-3.5 sm:p-4 shadow-xl text-white relative overflow-hidden backdrop-blur my-1 group select-none min-w-0 box-border">
       {/* Glow e partículas aconchegantes */}
       <div className="absolute -top-12 -right-12 w-32 h-32 bg-amber-500/20 rounded-full blur-2xl pointer-events-none" />
       <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-yellow-600/20 rounded-full blur-2xl pointer-events-none" />

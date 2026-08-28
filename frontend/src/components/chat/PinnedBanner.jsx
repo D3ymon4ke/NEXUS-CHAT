@@ -7,17 +7,17 @@ export function PinnedBanner({ pinnedMessages = [], onUnpin, onJumpToMessage }) 
   const currentPin = pinnedMessages[0];
 
   return (
-    <div className="bg-background-card/90 backdrop-blur border-b border-slate-700/60 px-4 py-2 flex items-center justify-between text-xs transition-all animate-fadeIn">
+    <div className="bg-background-card/90 backdrop-blur border-b border-slate-700/60 px-3 sm:px-4 py-2 flex items-center justify-between text-xs transition-all animate-fadeIn w-full max-w-full min-w-0 box-border">
       <div
         onClick={() => onJumpToMessage && onJumpToMessage(currentPin.id)}
-        className="flex items-center gap-2 flex-1 cursor-pointer min-w-0"
+        className="flex items-center gap-2 flex-1 cursor-pointer min-w-0 mr-2"
       >
-        <div className="p-1 rounded-md bg-brand-500/20 text-brand-400">
+        <div className="p-1 rounded-md bg-brand-500/20 text-brand-400 flex-shrink-0">
           <Pin className="w-3.5 h-3.5 fill-brand-400/30 rotate-45" />
         </div>
-        <div className="flex-1 min-w-0">
-          <span className="font-semibold text-brand-300 mr-2">Mensagem Fixada:</span>
-          <span className="text-slate-300 truncate inline-block max-w-[80%] align-bottom">
+        <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden">
+          <span className="font-semibold text-brand-300 flex-shrink-0">Fixada:</span>
+          <span className="text-slate-300 truncate min-w-0 flex-1">
             {currentPin.content || 'Anexo'}
           </span>
         </div>

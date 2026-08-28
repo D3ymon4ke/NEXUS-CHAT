@@ -94,7 +94,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
   const wallpaperClass = WALLPAPER_STYLES[user?.equipped_wallpaper] || 'bg-background-darker';
 
   return (
-    <div className={`flex-1 flex flex-col h-full min-h-0 w-full overflow-hidden relative transition-colors duration-500 ${wallpaperClass}`}>
+    <div className={`flex-1 flex flex-col h-full min-h-0 min-w-0 w-full max-w-full overflow-hidden relative transition-colors duration-500 ${wallpaperClass}`}>
       {/* Header */}
       <ChatHeader
         onBack={onBack}
@@ -107,41 +107,41 @@ export function ChatArea({ onBack, onOpenProfile }) {
 
       {/* Banner de Super DM Ativa (Modo Master Secreto) */}
       {activeMasterUser && (
-        <div className="px-4 py-2 bg-gradient-to-r from-rose-950/90 via-slate-900 to-purple-950/80 border-b border-rose-500/40 flex items-center justify-between z-20 select-none animate-fadeIn flex-shrink-0">
-          <div className="flex items-center gap-2.5">
-            <span className="text-lg">🎭</span>
-            <div className="text-xs">
-              <span className="text-rose-300 font-extrabold uppercase text-[10px] tracking-wide block">
+        <div className="px-3 sm:px-4 py-2 bg-gradient-to-r from-rose-950/90 via-slate-900 to-purple-950/80 border-b border-rose-500/40 flex items-center justify-between z-20 select-none animate-fadeIn flex-shrink-0 min-w-0 w-full max-w-full">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span className="text-base sm:text-lg flex-shrink-0">🎭</span>
+            <div className="text-xs min-w-0 flex-1">
+              <span className="text-rose-300 font-extrabold uppercase text-[9px] sm:text-[10px] tracking-wide block truncate">
                 Super DM Ativa • Modo Master
               </span>
-              <span className="text-slate-200">
-                Você está respondendo como: <strong className="text-amber-300 font-bold">{activeMasterUser.display_name || activeMasterUser.username}</strong>
+              <span className="text-slate-200 text-[11px] sm:text-xs truncate block">
+                Respondendo como: <strong className="text-amber-300 font-bold">{activeMasterUser.display_name || activeMasterUser.username}</strong>
               </span>
             </div>
           </div>
           <button
             onClick={() => clearMasterIdentityForConv(activeConversationId)}
-            className="px-2.5 py-1 rounded-xl bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/40 text-[11px] font-bold transition-all flex-shrink-0"
+            className="px-2 py-1 rounded-xl bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/40 text-[10px] sm:text-[11px] font-bold transition-all flex-shrink-0 ml-2"
           >
-            Sair do Modo Master
+            Sair
           </button>
         </div>
       )}
 
       {/* Barra de Pesquisa de Mensagens Interna */}
       {isSearching && (
-        <div className="px-4 py-2 bg-background-surface/90 border-b border-slate-800 flex items-center gap-2 animate-fadeIn flex-shrink-0">
-          <Search className="w-4 h-4 text-slate-400" />
+        <div className="px-3 sm:px-4 py-2 bg-background-surface/90 border-b border-slate-800 flex items-center gap-2 animate-fadeIn flex-shrink-0 min-w-0 w-full max-w-full">
+          <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
           <input
             type="text"
             autoFocus
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Pesquisar nesta conversa..."
-            className="flex-1 bg-transparent text-xs text-slate-200 placeholder-slate-500 focus:outline-none"
+            className="flex-1 min-w-0 bg-transparent text-xs text-slate-200 placeholder-slate-500 focus:outline-none"
           />
           {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="text-slate-400 hover:text-white">
+            <button onClick={() => setSearchQuery('')} className="text-slate-400 hover:text-white flex-shrink-0 p-1">
               <X className="w-3.5 h-3.5" />
             </button>
           )}
@@ -162,7 +162,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-4 py-3 sm:py-4 space-y-1 relative"
+        className="flex-1 min-h-0 min-w-0 w-full max-w-full overflow-y-auto overscroll-contain px-2.5 sm:px-4 py-3 sm:py-4 space-y-1 relative"
       >
         {loadingMessages ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-400 text-xs gap-3 select-none">
