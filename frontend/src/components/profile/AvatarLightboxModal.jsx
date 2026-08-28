@@ -27,7 +27,7 @@ export function AvatarLightboxModal({ isOpen, onClose, user, frameClass = '' }) 
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-black/90 backdrop-blur-2xl animate-fadeIn select-none overflow-hidden box-border"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-black/90 backdrop-blur-2xl animate-fadeIn select-none overflow-hidden box-border"
     >
       {/* Container Principal da Imagem */}
       <div

@@ -16,7 +16,7 @@ export function GiftDetailModal({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-xl animate-fadeIn select-none overflow-hidden box-border"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-xl animate-fadeIn select-none overflow-hidden box-border"
     >
       <div
         onClick={(e) => e.stopPropagation()}

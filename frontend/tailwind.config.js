@@ -52,6 +52,13 @@ export default {
         fadeIn: 'fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
         bounceShort: 'bounceShort 1s infinite',
         pulseGlow: 'pulseGlow 2s infinite ease-in-out'
+      },
+      zIndex: {
+        '60': '60',
+        '70': '70',
+        '80': '80',
+        '90': '90',
+        '100': '100'
       }
     },
   },
