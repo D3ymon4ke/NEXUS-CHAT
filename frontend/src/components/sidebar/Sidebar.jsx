@@ -633,9 +633,9 @@ export function Sidebar({
         {loadingConversations ? (
           <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-xs gap-3 select-none">
             <img
-              src="/logo.gif"
+              src="/logov2.gif"
               alt="Carregando"
-              className="w-12 h-12 rounded-xl object-cover border border-brand-500/50 shadow-md"
+              className="w-12 h-12 object-contain drop-shadow-[0_0_12px_rgba(99,102,241,0.6)]"
             />
             <span className="font-semibold text-slate-300">Carregando conversas...</span>
           </div>

@@ -577,7 +577,7 @@ export function MessageInput() {
             className="w-full px-2.5 sm:px-3 py-2 rounded-xl bg-gradient-to-r from-brand-600/25 via-indigo-600/25 to-purple-600/25 hover:from-brand-600/35 text-left flex items-center justify-between text-xs transition-colors border border-brand-500/30 gap-2 min-w-0"
           >
             <div className="flex items-center gap-2 min-w-0 flex-1">
-              <img src="/logo.gif" alt="Nexus" className="w-5 h-5 rounded-lg object-cover border border-brand-400 flex-shrink-0" />
+              <img src="/logov2.gif" alt="Nexus" className="w-5 h-5 rounded-lg object-contain flex-shrink-0 drop-shadow-[0_0_8px_rgba(99,102,241,0.6)]" />
               <div className="min-w-0 flex-1">
                 <span className="font-extrabold text-amber-300">/nexus</span>
                 <span className="text-slate-300 ml-1.5 truncate text-[11px] hidden sm:inline">Logo animado no chat (+20 Coins) 🔥</span>
@@ -875,9 +875,9 @@ export function MessageInput() {
                 title="Mandar um NEXUS! (/nexus) • +20 Coins 1x ao dia ⚡"
               >
                 <img
-                  src="/logo.gif"
+                  src="/logov2.gif"
                   alt="Nexus"
-                  className="w-4 h-4 sm:w-5 sm:h-5 rounded-lg object-cover"
+                  className="w-4 h-4 sm:w-5 sm:h-5 object-contain"
                 />
               </button>
             )}

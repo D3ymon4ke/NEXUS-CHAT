@@ -241,7 +241,7 @@ export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet, onBack }) {
             <div className="flex items-center gap-3 sm:gap-4 min-w-0 w-full md:w-auto">
               <div className="relative flex-shrink-0">
                 <img
-                  src="/logo.gif"
+                  src="/logov2.gif"
                   alt="Nexus Logo"
                   className="w-12 h-12 sm:w-16 sm:h-16 object-contain drop-shadow-[0_0_18px_rgba(99,102,241,0.8)] select-none transition-transform hover:scale-105"
                 />

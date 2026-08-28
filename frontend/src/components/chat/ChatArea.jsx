@@ -169,9 +169,9 @@ export function ChatArea({ onBack, onOpenProfile }) {
           <div className="flex flex-col items-center justify-center h-full text-slate-400 text-xs gap-3 select-none">
             <div className="relative">
               <img
-                src="/logo.gif"
+                src="/logov2.gif"
                 alt="Carregando"
-                className="w-14 h-14 rounded-2xl object-cover border border-brand-500/60 shadow-lg shadow-brand-500/20"
+                className="w-14 h-14 object-contain drop-shadow-[0_0_15px_rgba(99,102,241,0.6)]"
               />
             </div>
             <span className="font-semibold text-slate-300">Carregando mensagens...</span>

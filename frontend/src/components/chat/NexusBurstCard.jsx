@@ -113,13 +113,13 @@ export function NexusBurstCard({ message, isOwn }) {
       <div className="flex flex-col items-center text-center space-y-3 relative z-10">
         {/* Logo Animado com Efeito Holográfico */}
         <div className="relative group">
-          <div className="absolute -inset-1.5 bg-gradient-to-r from-brand-400 via-indigo-400 to-amber-400 rounded-3xl blur-md opacity-75 group-hover:opacity-100 animate-pulse transition-opacity" />
+          <div className="absolute -inset-2 bg-gradient-to-r from-brand-400 via-indigo-400 to-amber-400 rounded-3xl blur-lg opacity-75 group-hover:opacity-100 animate-pulse transition-opacity" />
           <img
-            src="/logo.gif"
+            src="/logov2.gif"
             alt="Nexus Logo"
-            className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover relative z-10 shadow-2xl border-2 border-brand-400/80"
+            className="w-20 h-20 sm:w-28 sm:h-28 object-contain relative z-10 drop-shadow-[0_0_20px_rgba(99,102,241,0.8)]"
           />
-          <span className="absolute -top-2 -right-2 z-20 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-500 text-black text-[9px] font-black uppercase shadow-lg animate-bounce">
+          <span className="absolute -top-1 -right-1 z-20 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-500 text-black text-[9px] font-black uppercase shadow-lg animate-bounce">
             NEXUS
           </span>
         </div>

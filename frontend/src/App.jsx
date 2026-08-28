@@ -113,9 +113,9 @@ function ChatDashboard() {
         <div className="relative flex items-center justify-center">
           <div className="absolute -inset-2 bg-gradient-to-r from-brand-500 to-indigo-600 rounded-3xl blur-xl opacity-50 animate-pulse pointer-events-none" />
           <img
-            src="/logo.gif"
+            src="/logov2.gif"
             alt="Nexus Logo"
-            className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl object-cover shadow-2xl border-2 border-brand-500/80 relative z-10"
+            className="w-24 h-24 sm:w-28 sm:h-28 object-contain drop-shadow-[0_0_30px_rgba(99,102,241,0.7)] relative z-10"
           />
         </div>
         <div className="flex flex-col items-center gap-1.5 z-10">
