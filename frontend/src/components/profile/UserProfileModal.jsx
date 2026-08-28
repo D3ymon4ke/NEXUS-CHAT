@@ -32,12 +32,9 @@ import {
   Check
 } from 'lucide-react';
 
-const FRAME_STYLES = {
-  frame_cyber_neon: 'border-2 border-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.8)] animate-pulse',
-  frame_belmont_gold: 'border-2 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.9)] ring-2 ring-amber-500/50',
-  frame_inferno: 'border-2 border-rose-500 shadow-[0_0_14px_rgba(244,63,94,0.9)] ring-1 ring-orange-500',
-  frame_galaxy: 'border-2 border-purple-400 shadow-[0_0_16px_rgba(192,132,252,0.9)] ring-2 ring-indigo-500'
-};
+import { FRAME_ANIMATED_ASSETS, FRAME_CSS_STYLES } from '../../lib/shopCatalog';
+
+const FRAME_STYLES = FRAME_CSS_STYLES;
 
 const BADGE_LABELS = {
   badge_coordinator: { icon: '⭐', label: 'Coordenador', color: 'text-amber-300 bg-amber-500/20 border-amber-500/40' },
@@ -227,7 +224,9 @@ export function UserProfileModal({
 
   if (!isOpen || !targetUser) return null;
 
-  const frameClass = FRAME_STYLES[targetUser.equipped_frame] || 'border-2 border-slate-700';
+  const equippedFrameKey = isOwnProfile ? (currentUser?.equipped_frame || targetUser?.equipped_frame) : targetUser?.equipped_frame;
+  const animatedFrameUrl = FRAME_ANIMATED_ASSETS[equippedFrameKey];
+  const frameClass = FRAME_STYLES[equippedFrameKey] || (!animatedFrameUrl ? 'border-2 border-slate-700' : '');
   const badgeInfo = BADGE_LABELS[targetUser.equipped_badge];
   const nameStyle = NAME_STYLES[targetUser.equipped_name_color] || 'text-white font-extrabold';
 
@@ -314,7 +313,7 @@ export function UserProfileModal({
               <div className={`p-1 rounded-full ${hasActiveStories ? 'bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 p-[3px] shadow-lg animate-pulse' : ''}`}>
                 <div
                   onClick={() => setShowLightbox(true)}
-                  className="relative group/avatar"
+                  className="relative group/avatar inline-flex items-center justify-center"
                   title="Clique para ver a foto em tela cheia"
                 >
                   <img
@@ -322,8 +321,18 @@ export function UserProfileModal({
                     alt={targetUser.display_name}
                     className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover shadow-2xl bg-slate-900 transition-transform group-hover/avatar:scale-105 ${frameClass}`}
                   />
+
+                  {/* Moldura Animada Sobreposta no Perfil */}
+                  {animatedFrameUrl && (
+                    <img
+                      src={animatedFrameUrl}
+                      alt="Moldura Animada"
+                      className="absolute -inset-[22%] w-[144%] h-[144%] max-w-none pointer-events-none object-contain z-10 select-none drop-shadow-xl"
+                    />
+                  )}
+
                   {/* Ícone de Lupa no Hover */}
-                  <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center text-white">
+                  <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center text-white z-20">
                     <ZoomIn className="w-5 h-5 drop-shadow-md" />
                   </div>
                 </div>

@@ -1,6 +1,64 @@
+// Mapa de molduras animadas em GIF
+export const FRAME_ANIMATED_ASSETS = {
+  frame_espirito: '/frames/Espirito.gif',
+  frame_rosas: '/frames/Rosas.gif',
+  frame_espectro: '/frames/espectro.gif',
+  frame_fogo: '/frames/fogo.gif',
+};
+
+// Mapa de molduras em CSS / Bordas estilizadas
+export const FRAME_CSS_STYLES = {
+  frame_cyber_neon: 'border-2 border-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.8)] animate-pulse',
+  frame_belmont_gold: 'border-2 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.9)] ring-2 ring-amber-500/50',
+  frame_inferno: 'border-2 border-rose-500 shadow-[0_0_14px_rgba(244,63,94,0.9)] ring-1 ring-orange-500',
+  frame_galaxy: 'border-2 border-purple-400 shadow-[0_0_16px_rgba(192,132,252,0.9)] ring-2 ring-indigo-500'
+};
+
 // Catálogo Oficial da Loja Nexus e Itens de Personalização
 export const SHOP_CATALOG = [
-  // --- MOLDURAS DE AVATAR (FRAMES) ---
+  // --- MOLDURAS ANIMADAS DE ALTA DEFINIÇÃO (GIFS) ---
+  {
+    id: 'frame_espirito',
+    category: 'frames',
+    name: 'Espírito Espectral',
+    description: 'Moldura mística animada com aura de espíritos e almas',
+    price: 350,
+    icon: '👻',
+    image: '/frames/Espirito.gif',
+    isAnimated: true
+  },
+  {
+    id: 'frame_rosas',
+    category: 'frames',
+    name: 'Rosas Carmesim',
+    description: 'Moldura animada de rosas góticas flutuantes',
+    price: 300,
+    icon: '🌹',
+    image: '/frames/Rosas.gif',
+    isAnimated: true
+  },
+  {
+    id: 'frame_espectro',
+    category: 'frames',
+    name: 'Espectro Cósmico',
+    description: 'Moldura animada com distorção de energia dimensional',
+    price: 250,
+    icon: '🔮',
+    image: '/frames/espectro.gif',
+    isAnimated: true
+  },
+  {
+    id: 'frame_fogo',
+    category: 'frames',
+    name: 'Chamas Infernais',
+    description: 'Moldura animada de fogo ardente em alta definição',
+    price: 280,
+    icon: '🔥',
+    image: '/frames/fogo.gif',
+    isAnimated: true
+  },
+
+  // --- MOLDURAS DE AVATAR ESTILIZADAS (FRAMES) ---
   {
     id: 'frame_cyber_neon',
     category: 'frames',
@@ -22,7 +80,7 @@ export const SHOP_CATALOG = [
   {
     id: 'frame_inferno',
     category: 'frames',
-    name: 'Fogo Infernal',
+    name: 'Fogo Neon',
     description: 'Chamas ardentes em vermelho e laranja',
     price: 250,
     icon: '🔥',

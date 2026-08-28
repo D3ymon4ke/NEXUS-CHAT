@@ -169,7 +169,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
           <div className="flex flex-col items-center justify-center h-full text-slate-400 text-xs gap-3 select-none">
             <div className="relative">
               <img
-                src="/logov2.gif"
+                src="/logo.gif"
                 alt="Carregando"
                 className="w-14 h-14 object-contain drop-shadow-[0_0_15px_rgba(99,102,241,0.6)]"
               />

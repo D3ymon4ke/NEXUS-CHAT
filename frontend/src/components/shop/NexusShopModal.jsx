@@ -456,15 +456,22 @@ export function NexusShopModal({ isOpen, onClose }) {
           <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 min-w-0">
             <div className="flex items-center gap-3 min-w-0 w-full sm:w-auto">
               {/* Avatar com a Moldura do Preview */}
-              <div className="relative flex-shrink-0">
+              <div className="relative flex-shrink-0 inline-flex items-center justify-center">
                 <img
                   src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
                   alt="Avatar Preview"
-                  className={`w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl object-cover transition-all duration-300 ${
-                    previewFrameItem?.cssClass || 'border-2 border-slate-700 shadow-md'
+                  className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover transition-all duration-300 ${
+                    previewFrameItem?.cssClass || (!previewFrameItem?.image ? 'border-2 border-slate-700 shadow-md' : '')
                   }`}
                 />
-                <span className="absolute -bottom-1 -right-1 p-0.5 sm:p-1 bg-amber-500 rounded-full text-black shadow-md animate-bounce">
+                {previewFrameItem?.image && (
+                  <img
+                    src={previewFrameItem.image}
+                    alt="Moldura Preview"
+                    className="absolute -inset-[22%] w-[144%] h-[144%] max-w-none pointer-events-none object-contain z-10 select-none drop-shadow-md"
+                  />
+                )}
+                <span className="absolute -bottom-1 -right-1 p-0.5 sm:p-1 bg-amber-500 rounded-full text-black shadow-md animate-bounce z-20">
                   <Sparkles className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" />
                 </span>
               </div>
@@ -613,11 +620,20 @@ export function NexusShopModal({ isOpen, onClose }) {
                           {/* Mini Visual Preview do Item no Card */}
                           <div className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-background-dark/80 border border-slate-800/80 flex items-center justify-center min-h-[48px] sm:min-h-[55px] min-w-0">
                             {item.category === 'frames' && (
-                              <img
-                                src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
-                                alt="preview"
-                                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover flex-shrink-0 ${item.cssClass}`}
-                              />
+                              <div className="relative inline-flex items-center justify-center">
+                                <img
+                                  src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
+                                  alt="preview"
+                                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover flex-shrink-0 ${item.cssClass || ''}`}
+                                />
+                                {item.image && (
+                                  <img
+                                    src={item.image}
+                                    alt="moldura"
+                                    className="absolute -inset-[22%] w-[144%] h-[144%] max-w-none pointer-events-none object-contain z-10 select-none drop-shadow-md"
+                                  />
+                                )}
+                              </div>
                             )}
                             {item.category === 'bubbles' && (
                               <div className={`px-2 sm:px-2.5 py-1 rounded-xl text-[10px] font-medium truncate ${item.cssClass}`}>

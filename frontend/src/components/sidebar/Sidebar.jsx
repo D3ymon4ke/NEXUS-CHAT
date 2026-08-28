@@ -633,7 +633,7 @@ export function Sidebar({
         {loadingConversations ? (
           <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-xs gap-3 select-none">
             <img
-              src="/logov2.gif"
+              src="/logo.gif"
               alt="Carregando"
               className="w-12 h-12 object-contain drop-shadow-[0_0_12px_rgba(99,102,241,0.6)]"
             />

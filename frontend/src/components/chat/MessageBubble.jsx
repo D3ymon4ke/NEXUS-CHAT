@@ -25,12 +25,9 @@ import { NexusBurstCard } from './NexusBurstCard';
 
 const POPULAR_REACTIONS = ['👍', '❤️', '🔥', '😂', '🎉', '👏'];
 
-const FRAME_STYLES = {
-  frame_cyber_neon: 'border-2 border-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.8)]',
-  frame_belmont_gold: 'border-2 border-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.9)] ring-1 ring-amber-500',
-  frame_inferno: 'border-2 border-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.9)]',
-  frame_galaxy: 'border-2 border-purple-400 shadow-[0_0_12px_rgba(192,132,252,0.9)]'
-};
+import { FRAME_ANIMATED_ASSETS, FRAME_CSS_STYLES } from '../../lib/shopCatalog';
+
+const FRAME_STYLES = FRAME_CSS_STYLES;
 
 const BUBBLE_STYLES = {
   bubble_cyber_violet: 'bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white shadow-lg shadow-purple-500/20',
@@ -77,7 +74,8 @@ export function MessageBubble({
   const isDeleted = Boolean(message.is_deleted);
   const badgeInfo = BADGE_LABELS[sender.equipped_badge];
   const nameStyle = NAME_STYLES[sender.equipped_name_color] || 'text-brand-400 font-bold';
-  const frameClass = FRAME_STYLES[sender.equipped_frame] || 'border border-slate-700';
+  const animatedFrameUrl = FRAME_ANIMATED_ASSETS[sender.equipped_frame];
+  const frameClass = FRAME_STYLES[sender.equipped_frame] || (!animatedFrameUrl ? 'border border-slate-700' : '');
 
   const isAdmin = sender.role === 'admin' || sender.username?.toLowerCase() === 'damon';
   const isModerator = sender.role === 'moderator';
@@ -115,14 +113,21 @@ export function MessageBubble({
       {!isOwn && showSenderInfo && (
         <div
           onClick={() => onOpenProfile && onOpenProfile(sender)}
-          className="cursor-pointer flex-shrink-0 group-hover:scale-105 transition-transform mb-1"
+          className="relative inline-flex items-center justify-center cursor-pointer flex-shrink-0 group-hover:scale-105 transition-transform mb-1 w-7 h-7 sm:w-8 sm:h-8"
           title={`Ver perfil de ${sender.display_name || sender.username}`}
         >
           <img
             src={sender.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${sender.id || 'nexus'}`}
             alt={sender.display_name || 'avatar'}
-            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover shadow ${frameClass}`}
+            className={`w-full h-full rounded-full object-cover shadow bg-slate-900 ${frameClass}`}
           />
+          {animatedFrameUrl && (
+            <img
+              src={animatedFrameUrl}
+              alt="Moldura"
+              className="absolute -inset-[22%] w-[144%] h-[144%] max-w-none pointer-events-none object-contain z-10 select-none"
+            />
+          )}
         </div>
       )}
 
