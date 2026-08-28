@@ -103,6 +103,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
           setSearchQuery('');
         }}
         isSearching={isSearching}
+        onOpenProfile={onOpenProfile}
       />
 
       {/* Banner de Super DM Ativa (Modo Master Secreto) */}

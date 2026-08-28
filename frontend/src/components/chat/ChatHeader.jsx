@@ -17,7 +17,7 @@ import {
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
 
-export function ChatHeader({ onBack, onSearchToggle, isSearching }) {
+export function ChatHeader({ onBack, onSearchToggle, isSearching, onOpenProfile }) {
   const { activeConversation, typingUsers } = useChat();
   const { isUserOnline } = useSocket();
   const [showMenu, setShowMenu] = useState(false);
@@ -44,6 +44,12 @@ export function ChatHeader({ onBack, onSearchToggle, isSearching }) {
     ? 'online agora'
     : 'visto recentemente';
 
+  const handleProfileClick = () => {
+    if (!isGroup && directUser && onOpenProfile) {
+      onOpenProfile(directUser);
+    }
+  };
+
   return (
     <div className={`min-h-[3.75rem] sm:min-h-[4rem] pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 px-2.5 sm:px-4 border-b flex items-center justify-between z-10 backdrop-blur flex-shrink-0 w-full max-w-full min-w-0 box-border ${
       isBelmont
@@ -51,9 +57,17 @@ export function ChatHeader({ onBack, onSearchToggle, isSearching }) {
         : 'bg-background-card/90 border-slate-800'
     }`}>
       {/* Esquerda: Botão Voltar (Mobile) + Avatar + Informações */}
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-1.5">
+      <div
+        onClick={handleProfileClick}
+        className={`flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-1.5 ${
+          !isGroup && directUser ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''
+        }`}
+      >
         <button
-          onClick={onBack}
+          onClick={(e) => {
+            e.stopPropagation();
+            onBack?.();
+          }}
           className="md:hidden p-1.5 -ml-1 text-slate-400 hover:text-white rounded-lg hover:bg-background-surface transition-colors flex-shrink-0"
           title="Voltar para a lista"
           aria-label="Voltar"

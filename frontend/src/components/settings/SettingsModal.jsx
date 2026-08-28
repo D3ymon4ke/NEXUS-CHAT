@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { SHOP_CATALOG } from '../../lib/shopCatalog';
+import { PRESET_BANNERS } from '../../lib/giftCatalog';
 import { sounds } from '../../lib/sound';
 import { fetchMusicMetadata } from '../../lib/musicUtils';
 import { ProfileMusicPlayer } from '../profile/ProfileMusicPlayer';
@@ -27,7 +28,8 @@ import {
   Music,
   Trash2,
   Loader2,
-  ExternalLink
+  ExternalLink,
+  Image as ImageIcon
 } from 'lucide-react';
 
 export function SettingsModal({ isOpen, onClose }) {
@@ -39,6 +41,7 @@ export function SettingsModal({ isOpen, onClose }) {
   const [bio, setBio] = useState(user?.bio || '');
   const [statusMessage, setStatusMessage] = useState(user?.status_message || 'online');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url || '');
+  const [profileBannerUrl, setProfileBannerUrl] = useState(user?.profile_banner_url || '');
 
   // Música do Perfil (Profile Anthem)
   const [songUrl, setSongUrl] = useState(user?.profile_song_url || '');
@@ -57,6 +60,7 @@ export function SettingsModal({ isOpen, onClose }) {
       setBio(user.bio || '');
       setStatusMessage(user.status_message || 'online');
       setAvatarUrl(user.avatar_url || '');
+      setProfileBannerUrl(user.profile_banner_url || '');
       setSongUrl(user.profile_song_url || '');
       setSongTitle(user.profile_song_title || '');
       setSongArtist(user.profile_song_artist || '');
@@ -120,6 +124,7 @@ export function SettingsModal({ isOpen, onClose }) {
         bio: bio || '',
         status_message: statusMessage || 'online',
         avatar_url: avatarUrl || '',
+        profile_banner_url: profileBannerUrl || '',
         profile_song_url: (songUrl || '').trim(),
         profile_song_title: (songTitle || '').trim(),
         profile_song_artist: (songArtist || '').trim(),
@@ -302,6 +307,115 @@ export function SettingsModal({ isOpen, onClose }) {
                     placeholder="https://..."
                     className="w-full px-3 py-1.5 rounded-xl bg-background-dark text-xs border border-slate-700 text-slate-200 focus:border-brand-500 transition-all truncate"
                   />
+                </div>
+              </div>
+            </div>
+
+            {/* SEÇÃO: CAPA DE PERFIL (PROFILE BANNER) */}
+            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900/90 to-purple-950/30 border border-purple-500/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-300 flex items-center justify-center border border-purple-500/40">
+                    <ImageIcon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                      <span>Capa do Perfil (Banner)</span>
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold uppercase">Novo</span>
+                    </h4>
+                    <p className="text-[10px] text-slate-400">Personalize o topo widescreen do seu perfil</p>
+                  </div>
+                </div>
+
+                {profileBannerUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setProfileBannerUrl('')}
+                    className="p-1 rounded-lg text-slate-400 hover:text-rose-300 hover:bg-rose-500/20 transition-colors text-[10px] font-bold"
+                    title="Remover Capa"
+                  >
+                    Remover
+                  </button>
+                )}
+              </div>
+
+              {/* Preview da Capa */}
+              <div className="w-full h-20 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 relative">
+                {profileBannerUrl ? (
+                  <img src={profileBannerUrl} alt="Preview Capa" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-r from-purple-900/40 via-slate-900 to-indigo-900/40 flex items-center justify-center text-[11px] text-slate-500">
+                    Nenhuma capa selecionada (Gradiente padrão)
+                  </div>
+                )}
+              </div>
+
+              {/* Ações de Capa: Upload + URL */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="file"
+                  id="banner-file-upload"
+                  accept="image/*"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      try {
+                        const compressedUrl = await compressImageFile(file, { maxWidth: 1200, maxHeight: 400, quality: 0.82 });
+                        if (compressedUrl) {
+                          setProfileBannerUrl(compressedUrl);
+                          sounds.playPop();
+                        }
+                      } catch (err) {
+                        console.error('Erro ao processar capa:', err);
+                      }
+                    }
+                  }}
+                  className="hidden"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('banner-file-upload')?.click()}
+                  className="px-3 py-1.5 rounded-xl bg-purple-600/30 text-purple-300 hover:bg-purple-600/50 border border-purple-500/40 text-xs font-bold flex items-center justify-center gap-1.5 shadow transition-all active:scale-95 flex-shrink-0"
+                >
+                  <Camera className="w-3.5 h-3.5" /> Enviar do Dispositivo
+                </button>
+
+                <input
+                  type="text"
+                  value={profileBannerUrl}
+                  onChange={(e) => setProfileBannerUrl(e.target.value)}
+                  placeholder="Ou cole o link da imagem da capa..."
+                  className="flex-1 px-3 py-1.5 rounded-xl bg-background-dark text-xs border border-slate-700 text-slate-200 focus:border-purple-500 transition-all truncate"
+                />
+              </div>
+
+              {/* Presets Rápidos de Capas */}
+              <div>
+                <span className="text-[10px] text-slate-400 block mb-1 font-semibold">Presets Estilosos de Capa:</span>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                  {PRESET_BANNERS.map((preset) => {
+                    const isSelected = profileBannerUrl === preset.url;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => {
+                          setProfileBannerUrl(preset.url);
+                          sounds.playPop();
+                        }}
+                        className={`h-9 rounded-lg overflow-hidden border transition-all relative ${
+                          isSelected ? 'border-amber-400 ring-2 ring-amber-400/50 scale-105' : 'border-slate-700 hover:border-slate-500'
+                        }`}
+                        title={preset.name}
+                      >
+                        <img src={preset.url} alt={preset.name} className="w-full h-full object-cover" />
+                        <span className="absolute bottom-0 inset-x-0 bg-black/70 text-[8px] text-white font-bold truncate px-0.5 text-center">
+                          {preset.name}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>

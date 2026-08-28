@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     profile_song_title TEXT,
     profile_song_artist TEXT,
     profile_song_cover TEXT,
+    profile_banner_url TEXT,
     last_seen TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()),
     created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
@@ -370,3 +371,32 @@ CREATE POLICY "Usuários podem remover suas reações"
 CREATE POLICY "Usuários podem ver e editar apenas suas próprias configurações"
     ON public.user_settings FOR ALL
     USING (auth.uid() = user_id);
+
+-- 18. Tabela de Presentes do Usuário (User Gifts & Showcase)
+CREATE TABLE IF NOT EXISTS public.user_gifts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sender_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    recipient_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    gift_id TEXT NOT NULL,
+    gift_name TEXT NOT NULL,
+    gift_icon TEXT NOT NULL,
+    rarity TEXT NOT NULL DEFAULT 'common' CHECK (rarity IN ('common', 'rare', 'epic', 'legendary', 'mythic')),
+    price INTEGER NOT NULL DEFAULT 50,
+    quantity INTEGER NOT NULL DEFAULT 1,
+    message TEXT,
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_gifts_recipient ON public.user_gifts(recipient_id);
+CREATE INDEX IF NOT EXISTS idx_user_gifts_sender ON public.user_gifts(sender_id);
+
+ALTER TABLE public.user_gifts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Presentes visíveis para todos os usuários autenticados"
+    ON public.user_gifts FOR SELECT
+    USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Usuários autenticados podem enviar presentes"
+    ON public.user_gifts FOR INSERT
+    WITH CHECK (auth.uid() = sender_id);
+
