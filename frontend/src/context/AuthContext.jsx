@@ -203,6 +203,20 @@ export function AuthProvider({ children }) {
   // Atualizar perfil
   async function updateProfile(updates) {
     try {
+      if (isSupabaseConfigured && supabase && user) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .update(updates)
+          .eq('id', user.id)
+          .select()
+          .single();
+
+        if (!error && data) {
+          setUser(prev => ({ ...prev, ...data }));
+          return data;
+        }
+      }
+
       const res = await apiRequest('/users/profile', {
         method: 'PUT',
         body: JSON.stringify(updates)
@@ -213,7 +227,7 @@ export function AuthProvider({ children }) {
       }
       setUser(prev => ({ ...prev, ...updates }));
     } catch (err) {
-      console.error('Erro ao atualizar perfil:', err);
+      console.warn('Atualizando perfil localmente:', err);
       setUser(prev => ({ ...prev, ...updates }));
     }
   }

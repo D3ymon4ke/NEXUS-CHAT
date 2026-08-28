@@ -6,6 +6,7 @@ const { apiLimiter, authLimiter, messagePostLimiter } = require('../middlewares/
 const upload = require('../middlewares/upload');
 
 const authController = require('../controllers/authController');
+const userController = require('../controllers/userController');
 const conversationController = require('../controllers/conversationController');
 const messageController = require('../controllers/messageController');
 const uploadController = require('../controllers/uploadController');
