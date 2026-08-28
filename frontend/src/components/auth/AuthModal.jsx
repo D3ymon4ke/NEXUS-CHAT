@@ -34,6 +34,18 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [isBetaInvite, setIsBetaInvite] = useState(false);
+  const [betaRegisteredSuccess, setBetaRegisteredSuccess] = useState(false);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('beta') === 'true' || params.get('beta_invite') === 'true' || params.get('ref') === 'beta') {
+        setIsBetaInvite(true);
+        setTab('register');
+      }
+    }
+  }, []);
 
   if (!isOpen) return null;
 
@@ -71,16 +83,20 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
         if ((password || '').length < 6) throw new Error('A senha deve ter pelo menos 6 caracteres.');
         if (password !== confirmPassword) throw new Error('As senhas digitadas não coincidem.');
 
-        await register(email, password, displayName, username);
+        await register(email, password, displayName, username, isBetaInvite);
         sounds.playPop();
-        confetti({ particleCount: 80, spread: 90, origin: { y: 0.8 } });
-        onClose();
+        confetti({ particleCount: 100, spread: 90, origin: { y: 0.7 } });
 
-        // Disparar Tutorial Interativo após novo cadastro
-        if (onOpenTutorial) {
-          setTimeout(() => {
-            onOpenTutorial();
-          }, 400);
+        if (isBetaInvite) {
+          setBetaRegisteredSuccess(true);
+        } else {
+          onClose();
+          // Disparar Tutorial Interativo após novo cadastro
+          if (onOpenTutorial) {
+            setTimeout(() => {
+              onOpenTutorial();
+            }, 400);
+          }
         }
       } else if (tab === 'forgot') {
         if (!(email || '').trim()) throw new Error('Por favor, informe seu e-mail cadastrado.');
@@ -107,50 +123,97 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
         <div className="absolute -bottom-20 -left-20 w-52 h-52 bg-purple-600/25 rounded-full blur-3xl pointer-events-none" />
 
         {/* Header do Modal */}
-        <div className="flex flex-col items-center text-center mb-5 relative z-10">
+        <div className="flex flex-col items-center text-center mb-4 relative z-10">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-600 via-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-brand-500/30 mb-3 border border-brand-400/30">
-            <MessageSquare className="w-7 h-7 text-white" />
+            {isBetaInvite ? <span className="text-3xl">🧪</span> : <MessageSquare className="w-7 h-7 text-white" />}
           </div>
           <h2 className="text-2xl font-black text-white tracking-tight">Nexus Chat</h2>
-          <p className="text-xs text-slate-400 mt-1">Comunicação e conexão em tempo real</p>
+          <p className="text-xs text-slate-400 mt-0.5">Comunicação e conexão em tempo real</p>
+
+          {/* Banner de Convite de Testador Beta */}
+          {isBetaInvite && (
+            <div className="mt-3 p-2.5 rounded-2xl bg-cyan-950/60 border border-cyan-500/40 text-left flex items-center gap-2.5 shadow-lg shadow-cyan-500/10 animate-pulse">
+              <span className="text-2xl flex-shrink-0">🧪</span>
+              <div className="min-w-0">
+                <span className="text-[10px] font-extrabold text-cyan-300 uppercase block tracking-wider">
+                  Convite Oficial • Testador Beta
+                </span>
+                <span className="text-[11px] text-slate-300 block">
+                  Cadastre-se para enviar sua inscrição. O Admin Damon liberará seu acesso com a Moldura Beta exclusiva!
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Tabs de Navegação */}
-        <div className="flex bg-background-surface/90 p-1 rounded-2xl mb-5 border border-slate-700/60 relative z-10">
-          <button
-            type="button"
-            onClick={() => { setTab('login'); setError(''); setSuccessMsg(''); }}
-            className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
-              tab === 'login'
-                ? 'bg-gradient-to-r from-brand-600 to-indigo-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Entrar
-          </button>
-          <button
-            type="button"
-            onClick={() => { setTab('register'); setError(''); setSuccessMsg(''); }}
-            className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
-              tab === 'register'
-                ? 'bg-gradient-to-r from-brand-600 to-indigo-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Cadastrar
-          </button>
-          <button
-            type="button"
-            onClick={() => { setTab('demo'); setError(''); setSuccessMsg(''); }}
-            className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1 ${
-              tab === 'demo'
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-indigo-400 hover:text-indigo-300'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" /> Teste Demo
-          </button>
-        </div>
+        {/* Tela de Sucesso Especial: Inscrição Beta Enviada */}
+        {betaRegisteredSuccess ? (
+          <div className="space-y-4 text-center py-4 relative z-10 animate-fadeIn">
+            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-cyan-500 to-teal-600 flex items-center justify-center text-4xl mx-auto shadow-2xl shadow-cyan-500/40 ring-4 ring-cyan-400/30 animate-bounce">
+              🧪
+            </div>
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-extrabold text-cyan-400 uppercase tracking-widest bg-cyan-500/20 px-3 py-1 rounded-full border border-cyan-500/40">
+                Inscrição Enviada com Sucesso!
+              </span>
+              <h3 className="text-xl font-black text-white mt-2">
+                Candidatura em Análise 👑
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed px-2">
+                Sua conta foi criada e enviada para confirmação do <strong>Administrador Damon</strong>.
+                Assim que for aprovada no Painel, você receberá a <strong>Moldura BETA TESTER</strong> e todas as permissões especiais!
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setBetaRegisteredSuccess(false);
+                setTab('login');
+              }}
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 text-slate-950 font-black text-xs shadow-lg shadow-cyan-500/30 transition-all"
+            >
+              Fazer Login & Acessar Minha Conta
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Tabs de Navegação */}
+            <div className="flex bg-background-surface/90 p-1 rounded-2xl mb-5 border border-slate-700/60 relative z-10">
+              <button
+                type="button"
+                onClick={() => { setTab('login'); setError(''); setSuccessMsg(''); }}
+                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
+                  tab === 'login'
+                    ? 'bg-gradient-to-r from-brand-600 to-indigo-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Entrar
+              </button>
+              <button
+                type="button"
+                onClick={() => { setTab('register'); setError(''); setSuccessMsg(''); }}
+                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
+                  tab === 'register'
+                    ? 'bg-gradient-to-r from-brand-600 to-indigo-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {isBetaInvite ? '🧪 Inscrição Beta' : 'Cadastrar'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setTab('demo'); setError(''); setSuccessMsg(''); }}
+                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1 ${
+                  tab === 'demo'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'text-indigo-400 hover:text-indigo-300'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" /> Teste Demo
+              </button>
+            </div>
 
         {/* Mensagens de Erro e Sucesso */}
         {error && (
@@ -386,6 +449,8 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
               )}
             </button>
           </form>
+          )}
+        </>
         )}
 
         {/* Footer do Modal */}

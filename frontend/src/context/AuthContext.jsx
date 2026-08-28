@@ -146,7 +146,7 @@ export function AuthProvider({ children }) {
   }
 
   // Registro com Supabase Auth
-  async function register(email, password, displayName, username) {
+  async function register(email, password, displayName, username, isBeta = false) {
     if (isSupabaseConfigured && supabase) {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -160,6 +160,30 @@ export function AuthProvider({ children }) {
         }
       });
       if (error) throw error;
+
+      if (data?.user?.id) {
+        if (isBeta) {
+          // Atualiza status do perfil para pendente de aprovação de testador beta
+          await supabase.from('profiles').update({
+            beta_status: 'pending',
+            beta_applied_at: new Date().toISOString()
+          }).eq('id', data.user.id);
+
+          try {
+            await supabase.from('beta_applications').insert({
+              user_id: data.user.id,
+              username: username || email.split('@')[0],
+              display_name: displayName,
+              email: email,
+              status: 'pending'
+            });
+          } catch (e) {
+            console.warn('Erro ao registrar beta_application:', e);
+          }
+        }
+        await loadUserProfile(data.user.id);
+      }
+
       return data.user;
     } else {
       const newUser = {
@@ -168,8 +192,9 @@ export function AuthProvider({ children }) {
         username: username || email.split('@')[0],
         display_name: displayName || email.split('@')[0],
         avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${username || email}`,
-        bio: 'Novo membro do Nexus Chat',
+        bio: isBeta ? '🧪 Candidato a Testador Beta' : 'Novo membro do Nexus Chat',
         status_message: 'online',
+        beta_status: isBeta ? 'pending' : 'none',
         is_online: true
       };
       setUser(newUser);

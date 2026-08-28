@@ -49,6 +49,7 @@ import {
   Upload,
   Gift,
   Link,
+  Copy,
   RefreshCw,
   SlidersHorizontal,
   FolderUp,
@@ -915,6 +916,97 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
+  const [copiedBetaLink, setCopiedBetaLink] = useState(false);
+  const handleCopyBetaLink = () => {
+    const betaUrl = typeof window !== 'undefined' ? `${window.location.origin}/?beta=true` : 'https://nexus-chat.vercel.app/?beta=true';
+    navigator.clipboard.writeText(betaUrl);
+    sounds.playPop();
+    setCopiedBetaLink(true);
+    setFeedback({ text: 'Link oficial de registro para Testadores Beta copiado!', type: 'success' });
+    setTimeout(() => setCopiedBetaLink(false), 2500);
+  };
+
+  const handleApproveBeta = async (targetUser) => {
+    try {
+      setActionLoading(true);
+      const currentUnlocked = targetUser.unlocked_items || ['frame_default', 'bubble_default', 'wallpaper_default'];
+      const newUnlocked = currentUnlocked.includes('frame_beta') ? currentUnlocked : [...currentUnlocked, 'frame_beta'];
+
+      const pendingReward = {
+        title: 'BETA TESTER',
+        badge: 'badge_beta_tester',
+        bonus: 150,
+        frame: 'frame_beta',
+        frameName: 'Moldura Exclusiva BETA TESTER 🧪',
+        message: 'Sua inscrição para o Programa de Testadores Beta foi aprovada pelo Administrador Damon! Aproveite a moldura holográfica exclusiva e suas permissões VIP!',
+        adminName: user?.display_name || user?.username || 'Damon',
+        grantedAt: new Date().toISOString()
+      };
+
+      if (isSupabaseConfigured && supabase) {
+        const { error: updErr } = await supabase
+          .from('profiles')
+          .update({
+            beta_status: 'approved',
+            beta_approved_at: new Date().toISOString(),
+            custom_title: 'BETA TESTER',
+            equipped_badge: 'badge_beta_tester',
+            equipped_frame: 'frame_beta',
+            unlocked_items: newUnlocked,
+            nexus_coins: (targetUser.nexus_coins || 0) + 150,
+            title_reward_pending: JSON.stringify(pendingReward)
+          })
+          .eq('id', targetUser.id);
+
+        if (updErr) throw updErr;
+
+        await supabase.from('nexus_transactions').insert({
+          user_id: targetUser.id,
+          amount: 150,
+          type: 'beta_approval_bonus',
+          description: 'Bônus de Boas-Vindas ao Programa Beta Tester 🧪'
+        });
+
+        const broadcastMsg = `🧪 **NOVO TESTADOR BETA OFICIAL!**\n\n🎉 O membro **@${targetUser.username}** (${targetUser.display_name || targetUser.username}) teve sua candidatura aprovada e agora é um **🧪 BETA TESTER VIP** com a Moldura Holográfica exclusiva!\n\n👑 *Aprovado por ${user?.display_name || 'Admin Damon'}*`;
+        await supabase.from('messages').insert({
+          conversation_id: BELMONT_ID,
+          sender_id: user.id,
+          content: broadcastMsg,
+          type: 'text'
+        });
+      }
+
+      sounds.playPop();
+      confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+      setFeedback({ text: `🎉 @${targetUser.username} foi aprovado com sucesso como Testador Beta!`, type: 'success' });
+      loadAdminData();
+    } catch (err) {
+      console.error('Erro ao aprovar testador beta:', err);
+      setFeedback({ text: 'Erro ao aprovar: ' + (err.message || ''), type: 'error' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectBeta = async (targetUser) => {
+    if (!window.confirm(`Deseja recusar a candidatura de @${targetUser.username}?`)) return;
+    try {
+      setActionLoading(true);
+      if (isSupabaseConfigured && supabase) {
+        await supabase
+          .from('profiles')
+          .update({ beta_status: 'rejected' })
+          .eq('id', targetUser.id);
+      }
+      setFeedback({ text: `Candidatura de @${targetUser.username} recusada.`, type: 'info' });
+      loadAdminData();
+    } catch (err) {
+      setFeedback({ text: 'Erro ao recusar candidatura.', type: 'error' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (!isOpen || !user) return null;
 
   const filteredUsers = users.filter(u =>
@@ -961,8 +1053,12 @@ export function AdminModal({ isOpen, onClose }) {
 
   const impersonatedUserObj = users.find(u => u.id === impersonatedUserId) || user;
 
+  const pendingBetaUsers = users.filter(u => u.beta_status === 'pending');
+  const activeBetaUsers = users.filter(u => u.beta_status === 'approved' || u.custom_title === 'BETA TESTER' || u.equipped_badge === 'badge_beta_tester');
+
   const navTabs = [
     { id: 'shop', label: 'Molduras & Loja', icon: Sparkles, badge: 'Upload' },
+    { id: 'beta_testers', label: 'Testadores Beta', icon: Award, badge: pendingBetaUsers.length > 0 ? `${pendingBetaUsers.length} ⏳` : 'Link' },
     { id: 'stats', label: 'Estatísticas', icon: Activity, badge: 'Live' },
     { id: 'promotions', label: 'Nomear Cargos', icon: Crown, badge: 'VIP' },
     { id: 'chat_master', label: 'Super DM Master', icon: Ghost, badge: 'Secreto' },
@@ -1366,6 +1462,189 @@ export function AdminModal({ isOpen, onClose }) {
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* ABA: GESTÃO DE TESTADORES BETA & LINK DE REGISTRO EXCLUSIVO */}
+          {activeTab === 'beta_testers' && (
+            <div className="space-y-3 sm:space-y-4 min-w-0">
+              {/* Card 1: Gerador e Compartilhamento de Link de Inscrição */}
+              <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-cyan-950/50 via-slate-900 to-teal-950/40 border border-cyan-500/40 shadow-xl space-y-3 min-w-0 box-border">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-cyan-500 to-teal-600 flex items-center justify-center text-slate-950 text-xl font-black shadow-lg shadow-cyan-500/30 flex-shrink-0">
+                      🧪
+                    </div>
+                    <div>
+                      <h3 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wide flex items-center gap-1.5">
+                        Link de Convite Oficial para Testador Beta
+                      </h3>
+                      <p className="text-[10px] sm:text-[11px] text-slate-300">
+                        Envie este link para novos membros se candidatarem como Testador Beta.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleCopyBetaLink}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-md active:scale-95 flex-shrink-0 ${
+                      copiedBetaLink
+                        ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/30'
+                        : 'bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 text-slate-950 shadow-cyan-500/30'
+                    }`}
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>{copiedBetaLink ? 'Link Copiado! 🎉' : 'Copiar Link de Convite Beta'}</span>
+                  </button>
+                </div>
+
+                {/* Exibição da URL */}
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-black/50 border border-cyan-500/20 text-xs font-mono text-cyan-300 break-all select-all">
+                  <Link className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                  <span className="truncate">
+                    {typeof window !== 'undefined' ? `${window.location.origin}/?beta=true` : 'https://nexus-chat.vercel.app/?beta=true'}
+                  </span>
+                </div>
+
+                <div className="text-[10px] text-slate-400 bg-slate-950/60 p-2.5 rounded-xl border border-white/5 flex items-center gap-2">
+                  <span className="text-amber-400 font-bold">ℹ️ Como funciona:</span>
+                  <span>O usuário se cadastra pelo link acima e cai automaticamente na fila de aprovação abaixo. Assim que você confirmar, ele já ganha a <strong>Moldura BETA TESTER</strong> e o cargo VIP!</span>
+                </div>
+              </div>
+
+              {/* Card 2: Inscrições Pendentes de Análise ({pendingBetaUsers.length}) */}
+              <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3 shadow-xl min-w-0 box-border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-amber-400 text-base">⏳</span>
+                    <h4 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wide">
+                      Inscrições Pendentes para Aprovação ({pendingBetaUsers.length})
+                    </h4>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={loadAdminData}
+                    className="text-[10px] text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1"
+                  >
+                    <RefreshCw className="w-3 h-3" /> Atualizar Fila
+                  </button>
+                </div>
+
+                {pendingBetaUsers.length === 0 ? (
+                  <div className="p-6 text-center rounded-2xl bg-slate-950/60 border border-slate-800/80 text-slate-400 text-xs">
+                    Nenhuma inscrição pendente no momento. Compartilhe o link de convite acima para receber novas inscrições!
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                    {pendingBetaUsers.map((u) => (
+                      <div
+                        key={u.id}
+                        className="p-3 sm:p-3.5 rounded-2xl bg-slate-950/90 border border-amber-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img
+                            src={u.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${u.id}`}
+                            alt={u.username}
+                            className="w-10 h-10 rounded-full object-cover bg-slate-900 border border-slate-700 flex-shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-xs text-white truncate">{u.display_name || u.username}</span>
+                              <span className="text-[10px] px-2 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 font-extrabold border border-cyan-500/30">
+                                @{u.username}
+                              </span>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold">
+                                Aguardando Aprovação
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 block truncate mt-0.5">
+                              {u.email} • Inscrito em: {u.created_at ? new Date(u.created_at).toLocaleDateString('pt-BR') : 'Hoje'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-800">
+                          <button
+                            type="button"
+                            onClick={() => handleRejectBeta(u)}
+                            disabled={actionLoading}
+                            className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-rose-400 hover:text-white bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition-all flex-shrink-0"
+                          >
+                            Recusar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleApproveBeta(u)}
+                            disabled={actionLoading}
+                            className="px-3.5 py-1.5 rounded-xl text-[11px] font-black text-slate-950 bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 shadow-md shadow-emerald-500/20 transition-all flex items-center gap-1.5 flex-shrink-0 active:scale-95"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Aprovar como Beta Tester 🎉</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Card 3: Testadores Beta Aprovados & Ativos ({activeBetaUsers.length}) */}
+              <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3 shadow-xl min-w-0 box-border">
+                <div className="flex items-center gap-2">
+                  <span className="text-cyan-400 text-base">🧪</span>
+                  <h4 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wide">
+                    Testadores Beta Ativos ({activeBetaUsers.length})
+                  </h4>
+                </div>
+
+                {activeBetaUsers.length === 0 ? (
+                  <div className="p-4 text-center text-slate-500 text-xs">
+                    Nenhum testador beta ativo no momento.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-[260px] overflow-y-auto pr-1">
+                    {activeBetaUsers.map((u) => (
+                      <div
+                        key={u.id}
+                        className="p-3 rounded-2xl bg-slate-950/90 border border-cyan-500/30 flex items-center justify-between gap-2 shadow"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {/* Avatar com Moldura Beta sobreposta */}
+                          <div className="relative w-9 h-9 flex-shrink-0 inline-flex items-center justify-center">
+                            <img
+                              src={u.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${u.id}`}
+                              alt={u.username}
+                              className="w-8 h-8 rounded-full object-cover bg-slate-900"
+                            />
+                            <img
+                              src="/frames/beta.gif"
+                              alt="Moldura Beta"
+                              className="absolute -inset-[22%] w-[144%] h-[144%] max-w-none pointer-events-none object-contain z-10 select-none drop-shadow-md"
+                            />
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <span className="text-xs font-bold text-white truncate block">{u.display_name || u.username}</span>
+                            <span className="text-[9px] font-extrabold text-cyan-300 uppercase block tracking-wider">
+                              🧪 BETA TESTER
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRevokePromotion(u.id)}
+                          className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors flex-shrink-0"
+                          title="Revogar cargo de Beta Tester"
+                        >
+                          <UserX className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
