@@ -743,16 +743,28 @@ export function NexusShopModal({ isOpen, onClose }) {
                       {/* Mini Visual Preview do Item no Card */}
                       <div
                         onClick={() => handlePreviewItem(item)}
-                        className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-background-dark/80 border border-slate-800/80 flex items-center justify-center min-h-[48px] sm:min-h-[55px] cursor-pointer hover:border-amber-500/50 transition-all group/box min-w-0"
+                        className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-background-dark/80 border border-slate-800/80 flex items-center justify-center min-h-[58px] sm:min-h-[64px] cursor-pointer hover:border-amber-500/50 transition-all group/box min-w-0"
                         title="Clique para testar no provador"
                       >
-                        {item.category === 'frames' && (
-                          <img
-                            src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
-                            alt="preview"
-                            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover flex-shrink-0 ${item.cssClass}`}
-                          />
-                        )}
+                        {item.category === 'frames' && (() => {
+                          const frameImg = item.image || item.imageUrl || FRAME_ANIMATED_ASSETS[item.id];
+                          return (
+                            <div className="relative inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 my-0.5">
+                              <img
+                                src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
+                                alt="preview"
+                                className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover shadow-sm bg-slate-900 ${item.cssClass || (!frameImg ? 'border border-slate-700' : '')}`}
+                              />
+                              {frameImg && (
+                                <img
+                                  src={frameImg}
+                                  alt="moldura animada"
+                                  className="absolute -inset-[20%] w-[140%] h-[140%] max-w-none pointer-events-none object-contain z-10 select-none drop-shadow-lg"
+                                />
+                              )}
+                            </div>
+                          );
+                        })()}
                         {item.category === 'bubbles' && (
                           <div className={`px-2 sm:px-2.5 py-1 rounded-xl text-[10px] font-medium truncate ${item.cssClass}`}>
                             Exemplo de Balão
