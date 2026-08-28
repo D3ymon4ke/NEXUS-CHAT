@@ -841,25 +841,24 @@ export function MessageInput() {
               </div>
             )}
 
-            {/* Botão Convite de Café ☕ (Apenas em Grupos) */}
-            {/* Botão Convite de Café ☕ (Apenas em Grupos) */}
+            {/* Botão Convite de Café ☕ (Apenas em Grupos no Desktop) */}
             {!editingMessage && isGroup && (
               <button
                 type="button"
                 onClick={handleSendCoffeeInvite}
-                className="p-1 text-slate-400 hover:text-amber-400 transition-colors group flex-shrink-0"
+                className="hidden sm:flex p-1 text-slate-400 hover:text-amber-400 transition-colors group flex-shrink-0"
                 title="Convidar o Grupo para um Café ☕ (+30 Coins)"
               >
                 <Coffee className="w-4 h-4 sm:w-5 sm:h-5 group-hover:rotate-12 transition-transform" />
               </button>
             )}
 
-            {/* Botão Enquete 📊 (Apenas Administradores em Grupos) */}
+            {/* Botão Enquete 📊 (Apenas Administradores em Grupos no Desktop) */}
             {!editingMessage && isGroupAdmin && (
               <button
                 type="button"
                 onClick={() => setShowPollModal(true)}
-                className="p-1 text-slate-400 hover:text-brand-400 transition-colors flex-shrink-0"
+                className="hidden sm:flex p-1 text-slate-400 hover:text-brand-400 transition-colors flex-shrink-0"
                 title="Criar Enquete no Grupo (/enquete)"
               >
                 <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -871,7 +870,7 @@ export function MessageInput() {
               <button
                 type="button"
                 onClick={handleSendNexusBurst}
-                className="w-6 h-6 sm:w-7 sm:h-7 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-brand-500/50 hover:border-amber-400 shadow-sm flex items-center justify-center p-0.5 transition-all hover:scale-110 active:scale-95 group flex-shrink-0"
+                className="hidden sm:flex w-6 h-6 sm:w-7 sm:h-7 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-brand-500/50 hover:border-amber-400 shadow-sm items-center justify-center p-0.5 transition-all hover:scale-110 active:scale-95 group flex-shrink-0"
                 title="Mandar um NEXUS! (/nexus) • +20 Coins 1x ao dia ⚡"
               >
                 <img

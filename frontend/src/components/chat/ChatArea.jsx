@@ -94,7 +94,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
   const wallpaperClass = WALLPAPER_STYLES[user?.equipped_wallpaper] || 'bg-background-darker';
 
   return (
-    <div className={`flex-1 flex flex-col h-full relative overflow-hidden transition-colors duration-500 ${wallpaperClass}`}>
+    <div className={`flex-1 flex flex-col h-full min-h-0 w-full overflow-hidden relative transition-colors duration-500 ${wallpaperClass}`}>
       {/* Header */}
       <ChatHeader
         onBack={onBack}
@@ -107,7 +107,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
 
       {/* Banner de Super DM Ativa (Modo Master Secreto) */}
       {activeMasterUser && (
-        <div className="px-4 py-2 bg-gradient-to-r from-rose-950/90 via-slate-900 to-purple-950/80 border-b border-rose-500/40 flex items-center justify-between z-20 select-none animate-fadeIn">
+        <div className="px-4 py-2 bg-gradient-to-r from-rose-950/90 via-slate-900 to-purple-950/80 border-b border-rose-500/40 flex items-center justify-between z-20 select-none animate-fadeIn flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <span className="text-lg">🎭</span>
             <div className="text-xs">
@@ -121,7 +121,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
           </div>
           <button
             onClick={() => clearMasterIdentityForConv(activeConversationId)}
-            className="px-2.5 py-1 rounded-xl bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/40 text-[11px] font-bold transition-all"
+            className="px-2.5 py-1 rounded-xl bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/40 text-[11px] font-bold transition-all flex-shrink-0"
           >
             Sair do Modo Master
           </button>
@@ -130,7 +130,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
 
       {/* Barra de Pesquisa de Mensagens Interna */}
       {isSearching && (
-        <div className="px-4 py-2 bg-background-surface/90 border-b border-slate-800 flex items-center gap-2 animate-fadeIn">
+        <div className="px-4 py-2 bg-background-surface/90 border-b border-slate-800 flex items-center gap-2 animate-fadeIn flex-shrink-0">
           <Search className="w-4 h-4 text-slate-400" />
           <input
             type="text"
@@ -162,7 +162,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 py-4 space-y-1 relative"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-4 py-3 sm:py-4 space-y-1 relative"
       >
         {loadingMessages ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-400 text-xs gap-3 select-none">
