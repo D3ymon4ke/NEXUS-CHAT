@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
-import { SHOP_CATALOG, WALLPAPER_STYLES } from '../../lib/shopCatalog';
+import { SHOP_CATALOG, WALLPAPER_STYLES, FRAME_ANIMATED_ASSETS } from '../../lib/shopCatalog';
 import { sounds } from '../../lib/sound';
 import confetti from 'canvas-confetti';
 import {
@@ -112,7 +112,8 @@ export function NexusShopModal({ isOpen, onClose }) {
             price: ci.price,
             icon: ci.icon || '✨',
             cssClass: ci.css_class || '',
-            imageUrl: ci.image_url
+            imageUrl: ci.image_url,
+            image: ci.image_url || FRAME_ANIMATED_ASSETS[ci.id] || null
           }));
           const existingIds = new Set(formattedCustom.map(i => i.id));
           const baseFiltered = SHOP_CATALOG.filter(i => !existingIds.has(i.id));
@@ -618,23 +619,26 @@ export function NexusShopModal({ isOpen, onClose }) {
                           </div>
 
                           {/* Mini Visual Preview do Item no Card */}
-                          <div className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-background-dark/80 border border-slate-800/80 flex items-center justify-center min-h-[48px] sm:min-h-[55px] min-w-0">
-                            {item.category === 'frames' && (
-                              <div className="relative inline-flex items-center justify-center">
-                                <img
-                                  src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
-                                  alt="preview"
-                                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover flex-shrink-0 ${item.cssClass || ''}`}
-                                />
-                                {item.image && (
+                          <div className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-background-dark/80 border border-slate-800/80 flex items-center justify-center min-h-[58px] sm:min-h-[64px] min-w-0">
+                            {item.category === 'frames' && (() => {
+                              const frameImg = item.image || item.imageUrl || FRAME_ANIMATED_ASSETS[item.id];
+                              return (
+                                <div className="relative inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 my-0.5">
                                   <img
-                                    src={item.image}
-                                    alt="moldura"
-                                    className="absolute -inset-[22%] w-[144%] h-[144%] max-w-none pointer-events-none object-contain z-10 select-none drop-shadow-md"
+                                    src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
+                                    alt="preview"
+                                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover shadow-sm bg-slate-900 ${item.cssClass || (!frameImg ? 'border border-slate-700' : '')}`}
                                   />
-                                )}
-                              </div>
-                            )}
+                                  {frameImg && (
+                                    <img
+                                      src={frameImg}
+                                      alt="moldura animada"
+                                      className="absolute -inset-[20%] w-[140%] h-[140%] max-w-none pointer-events-none object-contain z-10 select-none drop-shadow-lg"
+                                    />
+                                  )}
+                                </div>
+                              );
+                            })()}
                             {item.category === 'bubbles' && (
                               <div className={`px-2 sm:px-2.5 py-1 rounded-xl text-[10px] font-medium truncate ${item.cssClass}`}>
                                 Exemplo de Balão
