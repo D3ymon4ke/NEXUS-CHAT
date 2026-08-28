@@ -132,7 +132,7 @@ function ChatDashboard() {
   }
 
   return (
-    <div className="h-screen h-[100dvh] w-screen w-[100dvw] flex flex-col bg-background-darker overflow-hidden relative">
+    <div className="fixed inset-0 h-[100dvh] w-[100dvw] max-h-[100dvh] max-w-[100dvw] flex flex-col bg-background-darker overflow-hidden select-none">
       {/* Toast Discreto de Ganho de Nexus Coins */}
       {coinsAlert && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/90 border border-amber-500/50 text-amber-300 font-bold text-xs shadow-xl backdrop-blur animate-fadeIn select-none pointer-events-none">

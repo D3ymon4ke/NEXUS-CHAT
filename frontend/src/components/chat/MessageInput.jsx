@@ -468,7 +468,7 @@ export function MessageInput() {
   };
 
   return (
-    <div className="relative border-t border-slate-800 bg-background-surface/90 backdrop-blur-md p-2.5 sm:p-3 safe-bottom">
+    <div className="relative border-t border-slate-800 bg-background-surface/95 backdrop-blur-md p-2 sm:p-3 safe-bottom flex-shrink-0 z-20">
       {/* Banner de Edição de Mensagem */}
       {editingMessage && (
         <div className="mb-2 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-between text-xs animate-fadeIn">
@@ -660,10 +660,10 @@ export function MessageInput() {
       )}
 
       {/* Caixa de Texto e Controles */}
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-1.5 sm:gap-2">
         {/* Anexar Arquivo ou Imagem */}
         {!editingMessage && (
-          <div>
+          <div className="flex-shrink-0">
             <input
               type="file"
               ref={fileInputRef}
@@ -676,7 +676,7 @@ export function MessageInput() {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="p-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-background-hover transition-colors"
+              className="p-2 sm:p-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-background-hover transition-colors flex items-center justify-center"
               title="Anexar imagem ou arquivo"
             >
               {uploading ? <Loader2 className="w-5 h-5 animate-spin text-brand-400" /> : <Paperclip className="w-5 h-5" />}
@@ -685,7 +685,7 @@ export function MessageInput() {
         )}
 
         {/* Input Textarea */}
-        <div className={`flex-1 relative rounded-2xl border transition-all flex items-end ${
+        <div className={`flex-1 min-w-0 relative rounded-2xl border transition-all flex items-end ${
           ghostMode
             ? 'bg-purple-950/40 border-purple-500/80 ring-1 ring-purple-500/50'
             : 'bg-background-dark border-slate-700/80 focus-within:border-brand-500'
@@ -700,34 +700,34 @@ export function MessageInput() {
               editingMessage
                 ? "Edite sua mensagem..."
                 : ghostMode
-                ? "Digite a mensagem secreta 1x1 / fantasma..."
+                ? "Mensagem fantasma..."
                 : attachments.length > 0
-                ? "Adicione uma legenda para a imagem... (Enter para enviar)"
+                ? "Legenda da imagem..."
                 : isDirectChat
-                ? "Digite uma mensagem ou /fantasma para autodestruição..."
+                ? "Digite uma mensagem..."
                 : isGroupAdmin
                 ? "Digite uma mensagem, /cafe ou /enquete..."
-                : "Digite uma mensagem ou /cafe para o grupo..."
+                : "Digite uma mensagem ou /cafe..."
             }
-            className="w-full bg-transparent px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-32 leading-relaxed"
+            className="w-full bg-transparent px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-28 sm:max-h-32 leading-relaxed min-w-0"
           />
 
           {/* Botões de Ação: Fantasma (1x1), Café (Grupos), Enquete (Admin) & Emojis */}
-          <div className="pb-2.5 pr-2 flex items-center gap-0.5 relative">
+          <div className="pb-2 pr-1.5 sm:pb-2.5 sm:pr-2 flex items-center gap-0.5 relative flex-shrink-0">
             {/* Botão Modo Fantasma 👻 (Apenas em chats 1x1) */}
             {!editingMessage && isDirectChat && (
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setShowGhostMenu(!showGhostMenu)}
-                  className={`p-1 transition-all rounded-lg relative ${
+                  className={`p-1 sm:p-1.5 transition-all rounded-lg relative ${
                     ghostMode
                       ? 'text-purple-400 bg-purple-500/20 ring-1 ring-purple-500 animate-pulse'
                       : 'text-slate-400 hover:text-purple-400'
                   }`}
                   title="Modo Fantasma & Mensagens Temporárias (Exclusivo 1x1) 👻"
                 >
-                  <Ghost className="w-5 h-5" />
+                  <Ghost className="w-4 h-4 sm:w-5 sm:h-5" />
                   {ghostMode && (
                     <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-purple-400 ring-2 ring-background-dark" />
                   )}
@@ -842,14 +842,15 @@ export function MessageInput() {
             )}
 
             {/* Botão Convite de Café ☕ (Apenas em Grupos) */}
+            {/* Botão Convite de Café ☕ (Apenas em Grupos) */}
             {!editingMessage && isGroup && (
               <button
                 type="button"
                 onClick={handleSendCoffeeInvite}
-                className="p-1 text-slate-400 hover:text-amber-400 transition-colors group"
+                className="p-1 text-slate-400 hover:text-amber-400 transition-colors group flex-shrink-0"
                 title="Convidar o Grupo para um Café ☕ (+30 Coins)"
               >
-                <Coffee className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                <Coffee className="w-4 h-4 sm:w-5 sm:h-5 group-hover:rotate-12 transition-transform" />
               </button>
             )}
 
@@ -858,10 +859,10 @@ export function MessageInput() {
               <button
                 type="button"
                 onClick={() => setShowPollModal(true)}
-                className="p-1 text-slate-400 hover:text-brand-400 transition-colors"
+                className="p-1 text-slate-400 hover:text-brand-400 transition-colors flex-shrink-0"
                 title="Criar Enquete no Grupo (/enquete)"
               >
-                <BarChart3 className="w-5 h-5" />
+                <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             )}
 
@@ -870,13 +871,13 @@ export function MessageInput() {
               <button
                 type="button"
                 onClick={handleSendNexusBurst}
-                className="w-7 h-7 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-brand-500/50 hover:border-amber-400 shadow-sm flex items-center justify-center p-0.5 transition-all hover:scale-110 active:scale-95 group flex-shrink-0"
+                className="w-6 h-6 sm:w-7 sm:h-7 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-brand-500/50 hover:border-amber-400 shadow-sm flex items-center justify-center p-0.5 transition-all hover:scale-110 active:scale-95 group flex-shrink-0"
                 title="Mandar um NEXUS! (/nexus) • +20 Coins 1x ao dia ⚡"
               >
                 <img
                   src="/logo.gif"
                   alt="Nexus"
-                  className="w-5 h-5 rounded-lg object-cover"
+                  className="w-4 h-4 sm:w-5 sm:h-5 rounded-lg object-cover"
                 />
               </button>
             )}
@@ -884,10 +885,10 @@ export function MessageInput() {
             <button
               type="button"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className="p-1.5 text-slate-400 hover:text-yellow-400 transition-colors flex-shrink-0"
+              className="p-1 sm:p-1.5 text-slate-400 hover:text-yellow-400 transition-colors flex-shrink-0"
               title="Emojis e Figurinhas Animadas"
             >
-              <Smile className="w-5 h-5" />
+              <Smile className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
 
             {showEmojiPicker && (
@@ -1004,7 +1005,7 @@ export function MessageInput() {
           type="button"
           onClick={handleSend}
           disabled={(!content.trim() && attachments.length === 0) || uploading}
-          className={`p-3 rounded-2xl text-white shadow-lg transition-all flex items-center justify-center ${
+          className={`p-2.5 sm:p-3 rounded-2xl text-white shadow-lg transition-all flex items-center justify-center flex-shrink-0 active:scale-95 ${
             editingMessage
               ? 'bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black shadow-amber-500/20'
               : content.trim() || attachments.length > 0
@@ -1013,7 +1014,7 @@ export function MessageInput() {
           }`}
           title={editingMessage ? "Salvar alteração" : "Enviar mensagem"}
         >
-          {editingMessage ? <Check className="w-5 h-5" /> : <Send className="w-5 h-5" />}
+          {editingMessage ? <Check className="w-5 h-5" /> : <Send className="w-4 h-4 sm:w-5 sm:h-5" />}
         </button>
       </div>
     </div>
