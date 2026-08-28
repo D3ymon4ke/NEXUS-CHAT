@@ -327,6 +327,8 @@ export function NexusShopModal({ isOpen, onClose }) {
     sounds.playPop();
   };
 
+  if (!isOpen || !user) return null;
+
   const filteredItems = catalog.filter((i) => i.category === activeTab);
 
   // Mapeia TODOS os itens desbloqueados garantindo que nenhum item jamais suma do inventário
