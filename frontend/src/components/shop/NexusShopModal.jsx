@@ -24,6 +24,18 @@ import {
   RotateCcw
 } from 'lucide-react';
 
+function getFormattedClaimDate(claimValue) {
+  if (!claimValue) return null;
+  if (typeof claimValue === 'string') {
+    return claimValue.slice(0, 10);
+  }
+  try {
+    return new Date(claimValue).toISOString().slice(0, 10);
+  } catch (e) {
+    return null;
+  }
+}
+
 export function NexusShopModal({ isOpen, onClose }) {
   const { user, updateProfile } = useAuth();
   const [activeTab, setActiveTab] = useState('frames'); // 'frames' | 'wallpapers' | 'bubbles' | 'badges' | 'name_colors' | 'inventory'
@@ -54,7 +66,8 @@ export function NexusShopModal({ isOpen, onClose }) {
     if (!isOpen || !user) return;
     setUserCoins(user.nexus_coins || 100);
     setDailyStreak(user.daily_streak || 0);
-    setLastDailyClaim(user.last_daily_claim || null);
+    const localDaily = user?.id ? localStorage.getItem(`nexus_last_daily_${user.id}`) : null;
+    setLastDailyClaim(user.last_daily_claim || localDaily || null);
     setUnlockedItems(user.unlocked_items || ['frame_default', 'bubble_default', 'wallpaper_default']);
     setEquippedFrame(user.equipped_frame || 'default');
     setEquippedWallpaper(user.equipped_wallpaper || 'default');
@@ -94,7 +107,8 @@ export function NexusShopModal({ isOpen, onClose }) {
         if (profile) {
           setUserCoins(profile.nexus_coins || 100);
           setDailyStreak(profile.daily_streak || 0);
-          setLastDailyClaim(profile.last_daily_claim || null);
+          const localDaily = user?.id ? localStorage.getItem(`nexus_last_daily_${user.id}`) : null;
+          setLastDailyClaim(profile.last_daily_claim || localDaily || null);
           setUnlockedItems(profile.unlocked_items || ['frame_default', 'bubble_default', 'wallpaper_default']);
           setEquippedFrame(profile.equipped_frame || 'default');
           setEquippedWallpaper(profile.equipped_wallpaper || 'default');
@@ -129,26 +143,31 @@ export function NexusShopModal({ isOpen, onClose }) {
   const handleClaimDaily = async () => {
     try {
       setClaiming(true);
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const lastClaimDate = getFormattedClaimDate(lastDailyClaim) || (user?.id ? localStorage.getItem(`nexus_last_daily_${user.id}`) : null);
 
-      if (lastDailyClaim === todayStr) {
+      if (lastClaimDate === todayStr) {
         setFeedbackMsg({ text: 'Você já resgatou seu bônus diário hoje! Volte amanhã.', type: 'info' });
         return;
       }
 
+      const nowIso = new Date().toISOString();
       const rewardAmount = 50 + (dailyStreak * 10);
       const newStreak = dailyStreak + 1;
       const newCoins = userCoins + rewardAmount;
 
       setUserCoins(newCoins);
       setDailyStreak(newStreak);
-      setLastDailyClaim(todayStr);
+      setLastDailyClaim(nowIso);
+      if (user?.id) {
+        localStorage.setItem(`nexus_last_daily_${user.id}`, todayStr);
+      }
 
       if (isSupabaseConfigured && supabase && user) {
         await supabase.from('profiles').update({
           nexus_coins: newCoins,
           daily_streak: newStreak,
-          last_daily_claim: todayStr
+          last_daily_claim: nowIso
         }).eq('id', user.id);
 
         await supabase.from('nexus_transactions').insert({
@@ -163,7 +182,7 @@ export function NexusShopModal({ isOpen, onClose }) {
         updateProfile({
           nexus_coins: newCoins,
           daily_streak: newStreak,
-          last_daily_claim: todayStr
+          last_daily_claim: nowIso
         });
       }
 
@@ -356,8 +375,9 @@ export function NexusShopModal({ isOpen, onClose }) {
       };
     });
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const canClaimDaily = lastDailyClaim !== todayStr;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const lastClaimDate = getFormattedClaimDate(lastDailyClaim) || (user?.id ? localStorage.getItem(`nexus_last_daily_${user.id}`) : null);
+  const canClaimDaily = lastClaimDate !== todayStr;
 
   const categories = [
     { id: 'frames', label: 'Molduras', icon: Sparkles },
