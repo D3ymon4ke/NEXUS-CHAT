@@ -430,6 +430,197 @@ export function ChatProvider({ children }) {
     }
   };
 
+  // Limpar todas as mensagens da conversa (Limpar tudo / Limpar histórico)
+  const clearConversation = async (conversationId) => {
+    const targetConvId = conversationId || activeConversationId;
+    if (!targetConvId) return { success: false, error: 'ID da conversa não fornecido.' };
+
+    try {
+      sounds.playPop();
+
+      // Atualização otimista local
+      if (targetConvId === activeConversationId) {
+        setMessages([]);
+      }
+
+      setConversations(prev =>
+        prev.map(c => c.id === targetConvId ? { ...c, last_message: null, unread_count: 0 } : c)
+      );
+
+      // 1. Supabase
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.from('messages').delete().eq('conversation_id', targetConvId);
+          await supabase
+            .from('conversation_participants')
+            .update({ unread_count: 0 })
+            .eq('conversation_id', targetConvId);
+        } catch (supaErr) {
+          console.warn('Erro ao limpar mensagens no Supabase:', supaErr);
+        }
+      }
+
+      // 2. API Backend
+      try {
+        await apiRequest(`/conversations/${targetConvId}/messages`, { method: 'DELETE' });
+      } catch (apiErr) {
+        console.warn('Fallback API clear messages:', apiErr);
+      }
+
+      // 3. Socket.IO
+      if (socket && connected) {
+        socket.emit('clear_conversation', { conversationId: targetConvId });
+      }
+
+      return { success: true };
+    } catch (err) {
+      console.error('Erro ao limpar conversa:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  // Apagar Conversa completa
+  const deleteConversation = async (conversationId) => {
+    const targetConvId = conversationId || activeConversationId;
+    if (!targetConvId) return { success: false, error: 'ID da conversa não fornecido.' };
+
+    if (targetConvId === BELMONT_ID) {
+      return { success: false, error: 'A sala oficial BELMONT CONFERENCE é permanente e não pode ser apagada.' };
+    }
+
+    try {
+      sounds.playPop();
+
+      // Atualização otimista local
+      setConversations(prev => prev.filter(c => c.id !== targetConvId));
+
+      if (activeConversationId === targetConvId) {
+        setActiveConversationId(null);
+        setMessages([]);
+      }
+
+      // 1. Supabase
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.from('messages').delete().eq('conversation_id', targetConvId);
+          await supabase.from('conversation_participants').delete().eq('conversation_id', targetConvId);
+          await supabase.from('conversations').delete().eq('id', targetConvId);
+        } catch (supaErr) {
+          console.warn('Erro ao apagar conversa no Supabase:', supaErr);
+        }
+      }
+
+      // 2. API Backend
+      try {
+        await apiRequest(`/conversations/${targetConvId}`, { method: 'DELETE' });
+      } catch (apiErr) {
+        console.warn('Fallback API delete conversation:', apiErr);
+      }
+
+      // 3. Socket.IO
+      if (socket && connected) {
+        socket.emit('delete_conversation', { conversationId: targetConvId });
+      }
+
+      return { success: true };
+    } catch (err) {
+      console.error('Erro ao apagar conversa:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  // --- LISTENERS WEBSOCKET SOCKET.IO (Edições em tempo real, exclusões e limpezas) ---
+  useEffect(() => {
+    if (!socket || !connected) return;
+
+    const handleNewMsg = (msg) => {
+      if (!msg) return;
+      setConversations(prev => {
+        const isCurrentActive = msg.conversation_id === activeConversationId;
+        let found = false;
+        const next = prev.map(c => {
+          if (c.id === msg.conversation_id) {
+            found = true;
+            return {
+              ...c,
+              last_message: msg,
+              unread_count: isCurrentActive ? 0 : (c.unread_count || 0) + 1
+            };
+          }
+          return c;
+        });
+        if (!found && loadConversations) loadConversations();
+        return next;
+      });
+
+      if (msg.conversation_id === activeConversationId && msg.sender_id !== user?.id) {
+        setMessages(prev => {
+          if (prev.some(m => m.id === msg.id || (m.tempId && m.tempId === msg.id))) return prev;
+          return [...prev, msg];
+        });
+        sounds.playReceive();
+      }
+    };
+
+    const handleMsgEdited = (data) => {
+      const { messageId, conversationId, content, is_edited, updated_at } = data;
+      if (conversationId === activeConversationId) {
+        setMessages(prev => prev.map(m => (m.id === messageId ? { ...m, content, is_edited: true, updated_at: updated_at || new Date().toISOString() } : m)));
+      }
+      setConversations(prev => prev.map(c => {
+        if (c.id === conversationId && c.last_message?.id === messageId) {
+          return {
+            ...c,
+            last_message: { ...c.last_message, content, is_edited: true }
+          };
+        }
+        return c;
+      }));
+    };
+
+    const handleMsgDeleted = (data) => {
+      const { messageId, conversationId } = data;
+      if (conversationId === activeConversationId) {
+        setMessages(prev => prev.map(m => m.id === messageId ? { ...m, is_deleted: true, content: '🚫 Esta mensagem foi excluída' } : m));
+      }
+    };
+
+    const handleConvCleared = (data) => {
+      const { conversationId } = data;
+      if (conversationId === activeConversationId) {
+        setMessages([]);
+      }
+      setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, last_message: null, unread_count: 0 } : c));
+    };
+
+    const handleConvDeleted = (data) => {
+      const { conversationId } = data;
+      setConversations(prev => prev.filter(c => c.id !== conversationId));
+      if (activeConversationId === conversationId) {
+        setActiveConversationId(null);
+        setMessages([]);
+      }
+    };
+
+    socket.on('new_message', handleNewMsg);
+    socket.on('message_edited', handleMsgEdited);
+    socket.on('conversation_message_edited', handleMsgEdited);
+    socket.on('message_deleted', handleMsgDeleted);
+    socket.on('conversation_cleared', handleConvCleared);
+    socket.on('conversation_deleted', handleConvDeleted);
+    socket.on('conversation_removed', handleConvDeleted);
+
+    return () => {
+      socket.off('new_message', handleNewMsg);
+      socket.off('message_edited', handleMsgEdited);
+      socket.off('conversation_message_edited', handleMsgEdited);
+      socket.off('message_deleted', handleMsgDeleted);
+      socket.off('conversation_cleared', handleConvCleared);
+      socket.off('conversation_deleted', handleConvDeleted);
+      socket.off('conversation_removed', handleConvDeleted);
+    };
+  }, [socket, connected, activeConversationId, user?.id, loadConversations]);
+
   const emitTyping = (isTyping) => {
     if (!socket || !connected || !activeConversationId || !user) return;
     if (isTyping) {
@@ -499,6 +690,8 @@ export function ChatProvider({ children }) {
         sendMessage,
         editMessage,
         deleteMessage,
+        deleteConversation,
+        clearConversation,
         pinMessage,
         reactToMessage,
         setReplyingTo,

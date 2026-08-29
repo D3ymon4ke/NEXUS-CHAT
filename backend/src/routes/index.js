@@ -53,6 +53,8 @@ router.post('/admin/broadcast', authenticateUser, adminController.requireAdmin, 
 router.get('/conversations', authenticateUser, conversationController.getUserConversations);
 router.post('/conversations/direct', authenticateUser, conversationController.getOrCreateDirectConversation);
 router.post('/conversations/group', authenticateUser, conversationController.createGroupConversation);
+router.delete('/conversations/:conversationId', authenticateUser, conversationController.deleteConversation);
+router.delete('/conversations/:conversationId/messages', authenticateUser, conversationController.clearConversationMessages);
 
 // --- Message Routes ---
 router.get('/conversations/:conversationId/messages', authenticateUser, messageController.getConversationMessages);
@@ -63,3 +65,4 @@ router.get('/conversations/:conversationId/messages/pinned', authenticateUser, m
 router.post('/upload', authenticateUser, upload.single('file'), uploadController.uploadFile);
 
 module.exports = router;
+

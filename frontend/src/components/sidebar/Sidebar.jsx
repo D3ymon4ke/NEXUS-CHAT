@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { useSocket } from '../../context/SocketContext';
@@ -24,7 +24,16 @@ import {
   Send,
   HelpCircle,
   ChevronDown,
-  Check
+  Check,
+  Trash2,
+  Eraser,
+  MoreVertical,
+  VolumeX,
+  Volume2,
+  CheckCheck,
+  Lock,
+  AlertCircle,
+  X
 } from 'lucide-react';
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
@@ -105,7 +114,9 @@ export function Sidebar({
     loadingConversations,
     masterIdentities,
     setMasterIdentityForConv,
-    loadConversations
+    loadConversations,
+    deleteConversation,
+    clearConversation
   } = useChat();
   const { isUserOnline, connected } = useSocket();
 
@@ -115,6 +126,15 @@ export function Sidebar({
   const [superDmTargetConv, setSuperDmTargetConv] = useState('');
   const [superDmIdentityUser, setSuperDmIdentityUser] = useState('');
   const [showStatusMenu, setShowStatusMenu] = useState(false);
+
+  // Estados de Context Menu e Confirmação de Exclusão/Limpeza
+  const [contextMenu, setContextMenu] = useState(null); // { conv, x, y }
+  const [confirmModal, setConfirmModal] = useState(null); // { type: 'delete' | 'clear', conv }
+  const [showBelmontProtectModal, setShowBelmontProtectModal] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const longPressTimerRef = useRef(null);
+  const isLongPressTriggeredRef = useRef(false);
 
   const isAdmin = user?.role === 'admin' || user?.username?.toLowerCase() === 'damon';
   const userAnimatedFrame = getFrameAsset(user?.equipped_frame);
@@ -176,6 +196,80 @@ export function Sidebar({
     if (onSelectConversation) onSelectConversation(convId);
   };
 
+  // --- Manipuladores de Toque Longo (Mobile) e Clique Direito (Desktop) ---
+  const handleTouchStart = (conv, e) => {
+    isLongPressTriggeredRef.current = false;
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+
+    const touch = e.touches[0];
+    const clientX = touch.clientX;
+    const clientY = touch.clientY;
+
+    longPressTimerRef.current = setTimeout(() => {
+      isLongPressTriggeredRef.current = true;
+      sounds.playPop();
+      if (navigator.vibrate) {
+        try { navigator.vibrate(50); } catch (e) {}
+      }
+      setContextMenu({
+        conv,
+        x: Math.min(clientX, window.innerWidth - 220),
+        y: Math.min(clientY, window.innerHeight - 250)
+      });
+    }, 550);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+    }
+  };
+
+  const handleTouchMove = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+    }
+  };
+
+  const handleContextMenu = (conv, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    sounds.playPop();
+    setContextMenu({
+      conv,
+      x: Math.min(e.clientX, window.innerWidth - 220),
+      y: Math.min(e.clientY, window.innerHeight - 250)
+    });
+  };
+
+  const handleOpenMenuClick = (conv, e) => {
+    e.stopPropagation();
+    sounds.playPop();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setContextMenu({
+      conv,
+      x: Math.min(rect.left, window.innerWidth - 220),
+      y: Math.min(rect.bottom + 5, window.innerHeight - 250)
+    });
+  };
+
+  const handleConfirmActionExecute = async () => {
+    if (!confirmModal || !confirmModal.conv) return;
+    setActionLoading(true);
+    try {
+      if (confirmModal.type === 'clear') {
+        await clearConversation(confirmModal.conv.id);
+      } else if (confirmModal.type === 'delete') {
+        await deleteConversation(confirmModal.conv.id);
+      }
+    } catch (err) {
+      console.error('Erro ao executar ação:', err);
+    } finally {
+      setActionLoading(false);
+      setConfirmModal(null);
+    }
+  };
+
   const handleStartSuperDm = async () => {
     if (!superDmTargetConv || !superDmIdentityUser || startingSuperDm) return;
     const selectedProfile = allUsersList.find((u) => u.id === superDmIdentityUser);
@@ -202,25 +296,25 @@ export function Sidebar({
             .select('conversation_id')
             .eq('user_id', user.id);
 
-          let foundId = null;
-          if (myParts && myParts.length > 0) {
-            const myConvIds = myParts.map((p) => p.conversation_id);
-            const { data: directPart } = await supabase
-              .from('conversation_participants')
-              .select('conversation_id, conversations!inner(type)')
-              .eq('user_id', targetUserId)
-              .eq('conversations.type', 'direct')
-              .in('conversation_id', myConvIds)
-              .maybeSingle();
+          const myConvIds = (myParts || []).map((p) => p.conversation_id);
 
-            if (directPart) {
-              foundId = directPart.conversation_id;
+          if (myConvIds.length > 0) {
+            const { data: commonParts } = await supabase
+              .from('conversation_participants')
+              .select('conversation_id, conversations(type)')
+              .eq('user_id', targetUserId)
+              .in('conversation_id', myConvIds);
+
+            const directMatch = (commonParts || []).find(
+              (c) => c.conversations && c.conversations.type === 'direct'
+            );
+
+            if (directMatch) {
+              targetConvId = directMatch.conversation_id;
             }
           }
 
-          if (foundId) {
-            targetConvId = foundId;
-          } else {
+          if (!targetConvId) {
             // 3. Criar nova conversa direta
             const { data: newConv, error: createConvErr } = await supabase
               .from('conversations')
@@ -239,14 +333,13 @@ export function Sidebar({
 
           if (loadConversations) await loadConversations();
         }
-      } else {
+      } else if (superDmTargetConv.startsWith('conv:')) {
         targetConvId = superDmTargetConv.replace('conv:', '');
       }
 
-      if (targetConvId && setMasterIdentityForConv) {
+      if (targetConvId) {
         setMasterIdentityForConv(targetConvId, selectedProfile);
-        sounds.playPop();
-        confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+        sounds.playReceive();
         handleSelect(targetConvId);
       }
     } catch (err) {
@@ -290,7 +383,7 @@ export function Sidebar({
   ];
 
   return (
-    <div className="w-full md:w-80 lg:w-96 h-full flex flex-col bg-background-card border-r border-slate-800 flex-shrink-0 select-none min-w-0 max-w-full overflow-hidden box-border">
+    <div className="w-full md:w-80 lg:w-96 h-full flex flex-col bg-background-card border-r border-slate-800 flex-shrink-0 select-none min-w-0 max-w-full overflow-hidden box-border relative">
       {/* Topbar Reestruturada: Perfil do Usuário na Linha 1 + Menu de Ações na Linha 2 (Abaixo da Foto) */}
       <div className="p-3 pt-[max(0.75rem,env(safe-area-inset-top))] border-b border-slate-800 bg-slate-900/80 backdrop-blur-md space-y-2.5 flex-shrink-0 w-full max-w-full box-border">
         {/* LINHA 1: Avatar, Nome Completo, Seletor de Status e Configurações */}
@@ -672,8 +765,18 @@ export function Sidebar({
             return (
               <div
                 key={conv.id}
-                onClick={() => handleSelect(conv.id)}
-                className={`p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-all border relative overflow-hidden ${
+                onClick={() => {
+                  if (isLongPressTriggeredRef.current) {
+                    isLongPressTriggeredRef.current = false;
+                    return;
+                  }
+                  handleSelect(conv.id);
+                }}
+                onContextMenu={(e) => handleContextMenu(conv, e)}
+                onTouchStart={(e) => handleTouchStart(conv, e)}
+                onTouchEnd={handleTouchEnd}
+                onTouchMove={handleTouchMove}
+                className={`group p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-all border relative overflow-hidden select-none ${
                   activeMasterIdentity
                     ? 'bg-gradient-to-r from-rose-950/40 via-slate-900 to-slate-900 border-rose-500/50 shadow-md'
                     : isBelmont
@@ -765,7 +868,7 @@ export function Sidebar({
 
                   <div className="flex items-center justify-between gap-1.5">
                     <p
-                      className={`text-[11px] truncate max-w-[170px] ${
+                      className={`text-[11px] truncate max-w-[155px] sm:max-w-[170px] ${
                         hasUnread ? 'text-rose-200 font-semibold' : 'text-slate-400'
                       }`}
                     >
@@ -778,12 +881,24 @@ export function Sidebar({
                       )}
                     </p>
 
-                    {/* Badge Vermelho Luminoso de Não Lidas */}
-                    {hasUnread && (
-                      <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-500 via-red-500 to-pink-500 text-white text-[10px] font-black min-w-[22px] text-center shadow-lg shadow-rose-600/50 animate-pulse border border-rose-300/80 flex-shrink-0">
-                        {conv.unread_count > 99 ? '99+' : conv.unread_count}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {/* Badge Vermelho Luminoso de Não Lidas */}
+                      {hasUnread && (
+                        <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-500 via-red-500 to-pink-500 text-white text-[10px] font-black min-w-[22px] text-center shadow-lg shadow-rose-600/50 animate-pulse border border-rose-300/80 flex-shrink-0">
+                          {conv.unread_count > 99 ? '99+' : conv.unread_count}
+                        </span>
+                      )}
+
+                      {/* Botão de 3 pontinhos para menu de opções no hover/touch */}
+                      <button
+                        type="button"
+                        onClick={(e) => handleOpenMenuClick(conv, e)}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-slate-700/80 text-slate-400 hover:text-white transition-opacity flex-shrink-0"
+                        title="Opções da conversa"
+                      >
+                        <MoreVertical className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -791,6 +906,170 @@ export function Sidebar({
           })
         )}
       </div>
+
+      {/* MENU CONTEXTUAL FLUTUANTE (Ao segurar toque no celular ou clicar com botão direito) */}
+      {contextMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setContextMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setContextMenu(null);
+            }}
+          />
+          <div
+            style={{
+              position: 'fixed',
+              top: `${contextMenu.y}px`,
+              left: `${contextMenu.x}px`
+            }}
+            className="w-56 bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl py-1.5 z-50 text-xs animate-fadeIn backdrop-blur-xl overflow-hidden select-none"
+          >
+            <div className="px-3.5 py-2 border-b border-slate-800 flex items-center justify-between">
+              <span className="font-extrabold text-white truncate max-w-[160px]">
+                {contextMenu.conv.id === BELMONT_ID
+                  ? 'BELMONT CONFERENCE'
+                  : contextMenu.conv.type === 'group'
+                  ? contextMenu.conv.name
+                  : contextMenu.conv.direct_user?.display_name || contextMenu.conv.direct_user?.username || 'Conversa'}
+              </span>
+              {contextMenu.conv.id === BELMONT_ID && <Lock className="w-3.5 h-3.5 text-amber-400" />}
+            </div>
+
+            {/* Marcar como lida */}
+            <button
+              onClick={() => {
+                const targetId = contextMenu.conv.id;
+                setContextMenu(null);
+                sounds.playPop();
+                if (isSupabaseConfigured && supabase && user) {
+                  supabase
+                    .from('conversation_participants')
+                    .update({ unread_count: 0 })
+                    .eq('conversation_id', targetId)
+                    .eq('user_id', user.id)
+                    .then(() => {});
+                }
+              }}
+              className="w-full px-3.5 py-2 text-left text-slate-200 hover:bg-slate-800/80 flex items-center gap-2.5 transition-colors"
+            >
+              <CheckCheck className="w-4 h-4 text-sky-400" /> Marcar como lida
+            </button>
+
+            {/* Limpar Mensagens */}
+            <button
+              onClick={() => {
+                const conv = contextMenu.conv;
+                setContextMenu(null);
+                setConfirmModal({ type: 'clear', conv });
+              }}
+              className="w-full px-3.5 py-2 text-left text-amber-300 hover:bg-amber-500/10 flex items-center gap-2.5 transition-colors"
+            >
+              <Eraser className="w-4 h-4 text-amber-400" /> Limpar mensagens
+            </button>
+
+            {/* Apagar Conversa */}
+            <button
+              onClick={() => {
+                const conv = contextMenu.conv;
+                setContextMenu(null);
+                if (conv.id === BELMONT_ID || conv.is_permanent) {
+                  setShowBelmontProtectModal(true);
+                } else {
+                  setConfirmModal({ type: 'delete', conv });
+                }
+              }}
+              className={`w-full px-3.5 py-2 text-left flex items-center gap-2.5 transition-colors border-t border-slate-800/80 mt-1 ${
+                contextMenu.conv.id === BELMONT_ID || contextMenu.conv.is_permanent
+                  ? 'text-slate-500 hover:bg-slate-800/40 cursor-not-allowed'
+                  : 'text-rose-400 hover:bg-rose-500/10'
+              }`}
+            >
+              <Trash2 className="w-4 h-4 text-rose-400" />
+              <span>{contextMenu.conv.id === BELMONT_ID ? 'Conversa Permanente' : 'Apagar conversa'}</span>
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO OU LIMPEZA */}
+      {confirmModal && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-5 sm:p-6 max-w-sm w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className={`p-3 rounded-2xl ${
+                confirmModal.type === 'delete' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+              }`}>
+                {confirmModal.type === 'delete' ? <Trash2 className="w-6 h-6" /> : <Eraser className="w-6 h-6" />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm sm:text-base font-bold text-white">
+                  {confirmModal.type === 'delete' ? 'Apagar conversa?' : 'Limpar mensagens?'}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {confirmModal.type === 'delete'
+                    ? 'Esta conversa e todas as suas mensagens serão apagadas permanentemente.'
+                    : 'Todas as mensagens deste chat serão limpas para todos os participantes.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                disabled={actionLoading}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmActionExecute}
+                disabled={actionLoading}
+                className={`flex-1 py-2.5 rounded-xl text-white text-xs font-bold transition-all shadow-lg ${
+                  confirmModal.type === 'delete'
+                    ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/30'
+                    : 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/30'
+                }`}
+              >
+                {actionLoading ? 'Processando...' : confirmModal.type === 'delete' ? 'Sim, apagar' : 'Sim, limpar tudo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE PROTEÇÃO DA SALA PERMANENTE BELMONT CONFERENCE */}
+      {showBelmontProtectModal && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-slate-900 border border-amber-500/50 rounded-3xl p-5 sm:p-6 max-w-sm w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                <Crown className="w-6 h-6" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-1.5">
+                  <span>Sala Permanente</span>
+                  <Lock className="w-4 h-4 text-amber-400" />
+                </h3>
+                <p className="text-xs text-slate-400">
+                  A <strong>BELMONT CONFERENCE</strong> é a sala oficial e permanente do sistema e não pode ser apagada.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowBelmontProtectModal(false)}
+              className="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-all shadow-lg shadow-amber-600/30"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

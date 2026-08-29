@@ -114,11 +114,17 @@ async function handleEditMessage(socket, io, data) {
     const updatedAt = new Date().toISOString();
 
     if (isConfigured && supabase) {
-      await supabase
+      let query = supabase
         .from('messages')
         .update({ content, is_edited: true, updated_at: updatedAt })
-        .eq('id', messageId)
-        .eq('sender_id', senderId);
+        .eq('id', messageId);
+
+      // Se senderId for passado, valida o autor da mensagem
+      if (senderId) {
+        query = query.eq('sender_id', senderId);
+      }
+
+      await query;
     }
 
     io.to(`conversation:${conversationId}`).emit('message_edited', {
@@ -128,8 +134,60 @@ async function handleEditMessage(socket, io, data) {
       is_edited: true,
       updated_at: updatedAt
     });
+
+    // Atualiza preview na lista de conversas
+    io.emit('conversation_message_edited', {
+      conversationId,
+      messageId,
+      content
+    });
   } catch (error) {
     console.error('Erro ao editar mensagem:', error);
+  }
+}
+
+/**
+ * Trata limpeza de mensagens de uma conversa em tempo real
+ */
+async function handleClearConversation(socket, io, data) {
+  try {
+    const { conversationId, userId } = data;
+    if (!conversationId) return;
+
+    io.to(`conversation:${conversationId}`).emit('conversation_cleared', {
+      conversationId,
+      clearedBy: userId,
+      clearedAt: new Date().toISOString()
+    });
+
+    io.emit('conversation_updated', {
+      conversationId,
+      lastMessage: null,
+      unreadCountDelta: 0
+    });
+  } catch (error) {
+    console.error('Erro ao processar socket clear conversation:', error);
+  }
+}
+
+/**
+ * Trata exclusão de uma conversa em tempo real
+ */
+async function handleDeleteConversation(socket, io, data) {
+  try {
+    const { conversationId, userId } = data;
+    if (!conversationId) return;
+
+    io.to(`conversation:${conversationId}`).emit('conversation_deleted', {
+      conversationId,
+      deletedBy: userId
+    });
+
+    io.emit('conversation_removed', {
+      conversationId
+    });
+  } catch (error) {
+    console.error('Erro ao processar socket delete conversation:', error);
   }
 }
 
@@ -315,5 +373,7 @@ module.exports = {
   handlePinMessage,
   handleReactMessage,
   handleMarkAsRead,
+  handleClearConversation,
+  handleDeleteConversation,
   handleMessageCoinReward
 };

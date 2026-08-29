@@ -227,6 +227,20 @@ export function MessageInput() {
   };
 
   const handleKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      if (editingMessage) {
+        e.preventDefault();
+        setEditingMessage(null);
+        setContent('');
+        return;
+      }
+      if (replyingTo) {
+        e.preventDefault();
+        setReplyingTo(null);
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       const lower = content.trim().toLowerCase();

@@ -15,7 +15,9 @@ const {
   handleDeleteMessage,
   handlePinMessage,
   handleReactMessage,
-  handleMarkAsRead
+  handleMarkAsRead,
+  handleClearConversation,
+  handleDeleteConversation
 } = require('./messages');
 
 function setupSocketIO(io) {
@@ -77,6 +79,14 @@ function setupSocketIO(io) {
 
     socket.on('delete_message', (data) => {
       handleDeleteMessage(socket, io, { ...data, senderId: userId });
+    });
+
+    socket.on('clear_conversation', (data) => {
+      handleClearConversation(socket, io, { ...data, userId });
+    });
+
+    socket.on('delete_conversation', (data) => {
+      handleDeleteConversation(socket, io, { ...data, userId });
     });
 
     socket.on('pin_message', (data) => {

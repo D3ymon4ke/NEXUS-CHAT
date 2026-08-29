@@ -333,10 +333,136 @@ async function createGroupConversation(req, res) {
   }
 }
 
+/**
+ * Apaga uma conversa (direta ou grupo)
+ */
+async function deleteConversation(req, res) {
+  try {
+    const currentUserId = req.user.id;
+    const { conversationId } = req.params;
+
+    if (!conversationId) {
+      return res.status(400).json({ success: false, error: 'ID da conversa é obrigatório.' });
+    }
+
+    // Proteção da sala permanente BELMONT CONFERENCE
+    if (conversationId === BELMONT_CONFERENCE_ID) {
+      return res.status(403).json({
+        success: false,
+        error: 'A sala oficial BELMONT CONFERENCE é permanente e não pode ser apagada.'
+      });
+    }
+
+    if (isConfigured && supabase) {
+      // 1. Verificar se é permanente na tabela
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('id, is_permanent, type, created_by')
+        .eq('id', conversationId)
+        .single();
+
+      if (conv?.is_permanent) {
+        return res.status(403).json({
+          success: false,
+          error: 'Esta conversa é protegida como permanente e não pode ser apagada.'
+        });
+      }
+
+      // 2. Excluir mensagens vinculadas
+      await supabase
+        .from('messages')
+        .delete()
+        .eq('conversation_id', conversationId);
+
+      // 3. Excluir participantes
+      await supabase
+        .from('conversation_participants')
+        .delete()
+        .eq('conversation_id', conversationId);
+
+      // 4. Excluir a conversa em si
+      const { error: deleteErr } = await supabase
+        .from('conversations')
+        .delete()
+        .eq('id', conversationId);
+
+      if (deleteErr) {
+        console.error('Erro ao deletar conversa no Supabase:', deleteErr);
+        return res.status(500).json({ success: false, error: deleteErr.message });
+      }
+
+      return res.json({
+        success: true,
+        message: 'Conversa apagada com sucesso.',
+        conversationId
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Conversa apagada com sucesso (modo local).',
+      conversationId
+    });
+  } catch (error) {
+    console.error('Erro em deleteConversation:', error);
+    return res.status(500).json({ success: false, error: 'Erro ao apagar conversa.' });
+  }
+}
+
+/**
+ * Limpa todas as mensagens de uma conversa (Limpar tudo / Limpar histórico)
+ */
+async function clearConversationMessages(req, res) {
+  try {
+    const currentUserId = req.user.id;
+    const { conversationId } = req.params;
+
+    if (!conversationId) {
+      return res.status(400).json({ success: false, error: 'ID da conversa é obrigatório.' });
+    }
+
+    if (isConfigured && supabase) {
+      // Excluir todas as mensagens da conversa
+      const { error: clearErr } = await supabase
+        .from('messages')
+        .delete()
+        .eq('conversation_id', conversationId);
+
+      if (clearErr) {
+        console.error('Erro ao limpar mensagens da conversa no Supabase:', clearErr);
+        return res.status(500).json({ success: false, error: clearErr.message });
+      }
+
+      // Resetar unread_count dos participantes
+      await supabase
+        .from('conversation_participants')
+        .update({ unread_count: 0 })
+        .eq('conversation_id', conversationId);
+
+      return res.json({
+        success: true,
+        message: 'Todas as mensagens foram limpas com sucesso.',
+        conversationId
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Mensagens limpas com sucesso (modo local).',
+      conversationId
+    });
+  } catch (error) {
+    console.error('Erro em clearConversationMessages:', error);
+    return res.status(500).json({ success: false, error: 'Erro ao limpar mensagens da conversa.' });
+  }
+}
+
 module.exports = {
   getUserConversations,
   getOrCreateDirectConversation,
   createGroupConversation,
+  deleteConversation,
+  clearConversationMessages,
   BELMONT_CONFERENCE_ID,
   BELMONT_CONFERENCE_LOGO
 };
