@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useAuth } from '../../context/AuthContext';
 import {
   Check,
   CheckCheck,
@@ -28,10 +29,15 @@ const POPULAR_REACTIONS = ['👍', '❤️', '🔥', '😂', '🎉', '👏'];
 import { getFrameAsset, getFrameStyle } from '../../lib/shopCatalog';
 
 const BUBBLE_STYLES = {
-  bubble_cyber_violet: 'bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white shadow-lg shadow-purple-500/20',
-  bubble_royal_gold: 'bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 text-amber-50 shadow-lg shadow-amber-500/25 border border-amber-400/40',
-  bubble_matrix_emerald: 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-lg shadow-emerald-500/20 border border-emerald-400/30',
-  bubble_rose_velvet: 'bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-lg shadow-pink-500/20'
+  bubble_cyber_violet: 'bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white shadow-lg shadow-purple-500/25 border border-purple-400/40',
+  bubble_royal_gold: 'bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 text-slate-950 font-medium shadow-lg shadow-amber-500/30 border border-amber-300/80',
+  bubble_matrix_emerald: 'bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 text-white shadow-lg shadow-emerald-500/25 border border-emerald-400/40',
+  bubble_rose_velvet: 'bg-gradient-to-r from-pink-600 via-rose-600 to-rose-700 text-white shadow-lg shadow-pink-500/25 border border-pink-400/40',
+  bubble_neon_cyan: 'bg-gradient-to-r from-cyan-600 via-sky-600 to-blue-600 text-white shadow-lg shadow-cyan-500/25 border border-cyan-400/40',
+  bubble_sunset_blaze: 'bg-gradient-to-r from-orange-600 via-amber-600 to-rose-600 text-white shadow-lg shadow-orange-500/25 border border-orange-400/40',
+  bubble_deep_obsidian: 'bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 text-slate-100 shadow-lg border border-slate-700/80',
+  bubble_plasma_purple: 'bg-gradient-to-r from-fuchsia-600 via-purple-600 to-indigo-700 text-white shadow-lg shadow-fuchsia-500/25 border border-fuchsia-400/40',
+  bubble_midnight_blue: 'bg-gradient-to-r from-blue-700 via-indigo-800 to-slate-900 text-white shadow-lg shadow-blue-500/25 border border-blue-400/40'
 };
 
 const NAME_STYLES = {
@@ -64,25 +70,43 @@ export function MessageBubble({
   onImageClick,
   onOpenProfile
 }) {
+  const { user: currentUser } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
-  const sender = message.sender || {};
+  const sender = message.sender || (isOwn ? currentUser : {}) || {};
   const isDeleted = Boolean(message.is_deleted);
   const badgeInfo = BADGE_LABELS[sender.equipped_badge];
-  const nameStyle = NAME_STYLES[sender.equipped_name_color] || 'text-brand-400 font-bold';
-  const animatedFrameUrl = getFrameAsset(sender.equipped_frame);
-  const frameClass = getFrameStyle(sender.equipped_frame) || (!animatedFrameUrl ? 'border border-slate-700' : '');
+  const nameStyle = NAME_STYLES[sender.equipped_name_color] || (isOwn ? 'text-indigo-300 font-bold' : 'text-brand-400 font-bold');
+  
+  // Resolução de Moldura e Foto para Remetente e Próprio Usuário
+  const effectiveFrameKey = isOwn
+    ? (currentUser?.equipped_frame || sender.equipped_frame)
+    : sender.equipped_frame;
+  const animatedFrameUrl = getFrameAsset(effectiveFrameKey);
+  const frameClass = getFrameStyle(effectiveFrameKey) || (!animatedFrameUrl ? (isOwn ? 'border border-indigo-500/40' : 'border border-slate-700/80') : '');
+
+  const avatarUrl = isOwn
+    ? (currentUser?.avatar_url || sender.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser?.id || sender.id || 'me'}`)
+    : (sender.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${sender.id || sender.username || 'nexus'}`);
 
   const isAdmin = sender.role === 'admin' || sender.username?.toLowerCase() === 'damon';
   const isModerator = sender.role === 'moderator';
 
+  // Resolução de Cores do Balão (Shop Bubbles & Defaults)
+  const equippedBubbleKey = isOwn
+    ? (currentUser?.equipped_bubble || sender.equipped_bubble)
+    : sender.equipped_bubble;
+  const bubbleThemeClass = BUBBLE_STYLES[equippedBubbleKey];
+
   const customBubble = isDeleted
     ? 'bg-slate-900/60 border border-slate-800 text-slate-400'
+    : bubbleThemeClass
+    ? `${bubbleThemeClass} ${isOwn ? 'rounded-br-sm' : 'rounded-bl-sm'}`
     : isOwn
-    ? (BUBBLE_STYLES[sender.equipped_bubble] || 'bubble-sent text-white')
-    : 'bubble-received text-slate-100';
+    ? 'bubble-sent-default'
+    : 'bubble-received-default';
 
   const formattedTime = message.created_at
     ? format(new Date(message.created_at), 'HH:mm', { locale: ptBR })
@@ -103,42 +127,43 @@ export function MessageBubble({
 
   return (
     <div
-      className={`group relative flex my-1.5 transition-all w-full max-w-full min-w-0 ${
-        isOwn ? 'justify-end' : 'justify-start items-end gap-1.5 sm:gap-2'
+      className={`group relative flex my-2 transition-all w-full max-w-full min-w-0 items-end gap-1.5 sm:gap-2.5 ${
+        isOwn ? 'justify-end' : 'justify-start'
       }`}
     >
-      {/* Bolinha da Imagem do Usuário (Visível em grupos e conversas com mais de 2 pessoas) */}
-      {!isOwn && showSenderInfo && (
+      {/* 1. Foto do Usuário Remetente (Mensagem Recebida - à Esquerda) */}
+      {!isOwn && (
         <div
           onClick={() => onOpenProfile && onOpenProfile(sender)}
-          className="relative inline-flex items-center justify-center cursor-pointer flex-shrink-0 group-hover:scale-105 transition-transform mb-1 w-7 h-7 sm:w-8 sm:h-8"
-          title={`Ver perfil de ${sender.display_name || sender.username}`}
+          className="relative inline-flex items-center justify-center cursor-pointer flex-shrink-0 group-hover:scale-105 transition-transform mb-1 w-8 h-8 sm:w-9 sm:h-9"
+          title={`Ver perfil de ${sender.display_name || sender.username || 'Usuário'}`}
         >
           <img
-            src={sender.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${sender.id || 'nexus'}`}
+            src={avatarUrl}
             alt={sender.display_name || 'avatar'}
-            className={`w-full h-full rounded-full object-cover shadow bg-slate-900 ${frameClass}`}
+            className={`w-full h-full rounded-full object-cover shadow-md bg-slate-900 ${frameClass}`}
           />
           {animatedFrameUrl && (
             <img
               src={animatedFrameUrl}
               alt="Moldura"
-              className="absolute -inset-[22%] w-[144%] h-[144%] max-w-none pointer-events-none object-contain z-10 select-none"
+              className="absolute -inset-[22%] w-[144%] h-[144%] max-w-none pointer-events-none object-contain z-10 select-none drop-shadow"
             />
           )}
         </div>
       )}
 
-      <div className={`flex flex-col min-w-0 ${isOwn ? 'items-end' : 'items-start'} max-w-[88%] sm:max-w-[75%]`}>
-        {/* Nome do Remetente e Badges de Cargo (Admin / Mod / Títulos Nomeados / Badges) */}
+      {/* 2. Coluna Principal do Balão */}
+      <div className={`flex flex-col min-w-0 ${isOwn ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-[75%]`}>
+        {/* Nome do Remetente e Badges (Em mensagens recebidas quando showSenderInfo) */}
         {!isOwn && showSenderInfo && !isDeleted && (
           <div
             onClick={() => onOpenProfile && onOpenProfile(sender)}
             className="flex flex-wrap items-center gap-1 sm:gap-1.5 mb-1 ml-1 cursor-pointer hover:opacity-85 transition-opacity max-w-full min-w-0"
             title="Ver perfil do membro"
           >
-            <span className={`text-[11px] truncate max-w-[120px] sm:max-w-none ${nameStyle}`}>
-              {sender.display_name || sender.username}
+            <span className={`text-[11px] truncate max-w-[140px] sm:max-w-none ${nameStyle}`}>
+              {sender.display_name || sender.username || 'Membro Nexus'}
             </span>
 
             {/* Badge de Admin Damon com Efeito Glow */}
@@ -450,6 +475,28 @@ export function MessageBubble({
         </div>
       )}
     </div>
-  </div>
+
+      {/* 3. Foto do Usuário (Mensagem Enviada - à Direita) */}
+      {isOwn && (
+        <div
+          onClick={() => onOpenProfile && onOpenProfile(currentUser || sender)}
+          className="relative inline-flex items-center justify-center cursor-pointer flex-shrink-0 group-hover:scale-105 transition-transform mb-1 w-8 h-8 sm:w-9 sm:h-9"
+          title={`Meu perfil (${currentUser?.display_name || currentUser?.username || 'Eu'})`}
+        >
+          <img
+            src={avatarUrl}
+            alt={currentUser?.display_name || 'meu avatar'}
+            className={`w-full h-full rounded-full object-cover shadow-md bg-slate-900 ${frameClass}`}
+          />
+          {animatedFrameUrl && (
+            <img
+              src={animatedFrameUrl}
+              alt="Moldura"
+              className="absolute -inset-[22%] w-[144%] h-[144%] max-w-none pointer-events-none object-contain z-10 select-none drop-shadow"
+            />
+          )}
+        </div>
+      )}
+    </div>
   );
 }

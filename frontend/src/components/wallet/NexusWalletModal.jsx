@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 export function NexusWalletModal({ isOpen, onClose }) {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [activeTab, setActiveTab] = useState('history'); // 'history' | 'transfer'
   const [wallet, setWallet] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -76,6 +76,14 @@ export function NexusWalletModal({ isOpen, onClose }) {
         setFeedback({ text: res.message, type: 'success' });
         setTargetUsername('');
         setTransferAmount('');
+
+        if (res.newBalance !== undefined) {
+          if (updateProfile) {
+            updateProfile({ nexus_coins: res.newBalance });
+          }
+          setWallet((prev) => prev ? { ...prev, balance: res.newBalance } : prev);
+        }
+
         loadWallet();
       } else {
         setFeedback({ text: res.error || 'Erro ao realizar transferência.', type: 'error' });

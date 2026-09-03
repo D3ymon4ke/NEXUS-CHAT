@@ -349,6 +349,74 @@ export function Sidebar({
     }
   };
 
+  // Função auxiliar para formatar a prévia da última mensagem sem exibir JSON puro
+  const formatLastMessagePreview = (lastMsg) => {
+    if (!lastMsg) return 'Nenhuma mensagem ainda';
+    if (lastMsg.is_deleted) return '🚫 Mensagem apagada';
+
+    // 1. Checagem por tipo explícito
+    if (lastMsg.type === 'nexus_burst') return '⚡ Nexus Burst (+20 Coins)';
+    if (lastMsg.type === 'ghost') return '👻 Mensagem Fantasma';
+    if (lastMsg.type === 'coffee_invite') return '☕ Convite para Café';
+    if (lastMsg.type === 'poll') return '📊 Enquete';
+    if (lastMsg.type === 'image') return '📷 Foto';
+    if (lastMsg.type === 'audio') return '🎵 Áudio';
+    if (lastMsg.type === 'file') return '📎 Arquivo';
+
+    const rawContent = (lastMsg.content || '').trim();
+
+    // 2. Checagem por JSON embutido no conteúdo
+    if (rawContent.startsWith('{') && rawContent.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(rawContent);
+        if (parsed.nexus_burst) {
+          return '⚡ Nexus Burst (+20 Coins)';
+        }
+        if (parsed.ghost_message) {
+          return '👻 Mensagem Fantasma';
+        }
+        if (parsed.coffee_invite) {
+          return '☕ Convite para Café';
+        }
+        if (parsed.poll) {
+          return `📊 Enquete: ${parsed.poll.question || 'Votação'}`;
+        }
+        if (parsed.text || parsed.content) {
+          return parsed.text || parsed.content;
+        }
+      } catch (e) {
+        // Ignora erro e continua para limpeza de markdown
+      }
+    }
+
+    // 3. Checagem por anexos de mídia
+    if (lastMsg.attachments && lastMsg.attachments.length > 0) {
+      const first = lastMsg.attachments[0];
+      if (first.file_type === 'image' || first.file_url?.match(/\.(jpeg|jpg|gif|png|webp)/i)) {
+        return '📷 Foto';
+      }
+      if (first.file_type === 'audio' || first.file_url?.match(/\.(mp3|wav|ogg)/i)) {
+        return '🎵 Áudio';
+      }
+      return `📎 ${first.file_name || 'Arquivo'}`;
+    }
+
+    if (rawContent.startsWith('data:image/')) return '📷 Imagem';
+    if (rawContent.startsWith('data:audio/')) return '🎵 Áudio';
+
+    // 4. Limpeza de formatações Markdown para texto puro na prévia
+    const cleanText = rawContent
+      .replace(/```[\s\S]*?```/g, '💻 Código')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
+      .replace(/_([^_]+)_/g, '$1')
+      .replace(/~~([^~]+)~~/g, '$1')
+      .replace(/\|\|([^|]+)\|\|/g, 'Spoiler');
+
+    return cleanText || 'Mensagem';
+  };
+
   // Filtragem de Conversas
   const filteredConversations = conversations.filter((conv) => {
     const isBelmont = conv.id === BELMONT_ID || conv.is_permanent;
@@ -362,8 +430,8 @@ export function Sidebar({
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
     const name = (conv.type === 'group' ? conv.name : conv.direct_user?.display_name || conv.direct_user?.username || '').toLowerCase();
-    const lastContent = (conv.last_message?.content || '').toLowerCase();
-    return name.includes(term) || lastContent.includes(term);
+    const lastPreview = formatLastMessagePreview(conv.last_message).toLowerCase();
+    return name.includes(term) || lastPreview.includes(term);
   });
 
   const formatLastMessageTime = (dateString) => {
@@ -873,7 +941,7 @@ export function Sidebar({
                       }`}
                     >
                       {conv.last_message ? (
-                        <span>{conv.last_message.content || 'Anexo'}</span>
+                        <span>{formatLastMessagePreview(conv.last_message)}</span>
                       ) : isBelmont ? (
                         <span className="text-amber-400/80">Sala permanente para todos os membros</span>
                       ) : (

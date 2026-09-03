@@ -91,6 +91,31 @@ export function UserProfileModal({
     loadReceivedGifts();
   }, [isOpen, targetUser?.id, currentUser?.id]);
 
+  // Inscrição em Tempo Real para novos presentes recebidos
+  useEffect(() => {
+    if (!isOpen || !targetUser?.id || !isSupabaseConfigured || !supabase) return;
+
+    const channel = supabase
+      .channel(`realtime_gifts_${targetUser.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'user_gifts',
+          filter: `recipient_id=eq.${targetUser.id}`
+        },
+        () => {
+          loadReceivedGifts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isOpen, targetUser?.id]);
+
   const checkFriendship = async () => {
     if (!isSupabaseConfigured || !supabase || isOwnProfile) return;
     try {
@@ -131,18 +156,68 @@ export function UserProfileModal({
   };
 
   const loadReceivedGifts = async () => {
-    if (!isSupabaseConfigured || !supabase || !targetUser) return;
+    if (!targetUser) return;
     try {
       setLoadingGifts(true);
-      const { data, error } = await supabase
-        .from('user_gifts')
-        .select('*, sender:profiles(id, username, display_name, avatar_url)')
-        .eq('recipient_id', targetUser.id)
-        .order('created_at', { ascending: false });
+      let giftsList = [];
 
-      if (data) {
-        setReceivedGifts(data);
+      if (isSupabaseConfigured && supabase) {
+        // Tentativa 1: Query explícita com chave estrangeira PostgREST sender_id
+        const { data: joinData, error: joinError } = await supabase
+          .from('user_gifts')
+          .select('*, sender:profiles!sender_id(id, username, display_name, avatar_url)')
+          .eq('recipient_id', targetUser.id)
+          .order('created_at', { ascending: false });
+
+        if (!joinError && Array.isArray(joinData)) {
+          giftsList = joinData;
+        } else {
+          // Tentativa 2: Fallback resiliente separando a query da tabela e dos perfis
+          const { data: rawGifts, error: rawError } = await supabase
+            .from('user_gifts')
+            .select('*')
+            .eq('recipient_id', targetUser.id)
+            .order('created_at', { ascending: false });
+
+          if (!rawError && Array.isArray(rawGifts) && rawGifts.length > 0) {
+            const senderIds = [...new Set(rawGifts.map(g => g.sender_id).filter(Boolean))];
+            let sendersMap = {};
+            if (senderIds.length > 0) {
+              const { data: profiles } = await supabase
+                .from('profiles')
+                .select('id, username, display_name, avatar_url')
+                .in('id', senderIds);
+              if (profiles) {
+                sendersMap = Object.fromEntries(profiles.map(p => [p.id, p]));
+              }
+            }
+            giftsList = rawGifts.map(g => ({
+              ...g,
+              sender: sendersMap[g.sender_id] || {
+                id: g.sender_id,
+                username: 'Membro Nexus',
+                display_name: 'Membro Nexus',
+                avatar_url: null
+              }
+            }));
+          }
+        }
       }
+
+      // Adicionar presentes do cache local (resiliência para dados recentes e offline)
+      try {
+        const localKey = `nexus_gifts_${targetUser.id}`;
+        const savedLocal = JSON.parse(localStorage.getItem(localKey) || '[]');
+        if (Array.isArray(savedLocal) && savedLocal.length > 0) {
+          const existingIds = new Set(giftsList.map(g => g.id));
+          const newFromLocal = savedLocal.filter(g => !existingIds.has(g.id));
+          giftsList = [...newFromLocal, ...giftsList];
+        }
+      } catch (e) {
+        console.warn('Erro ao ler cache local de presentes:', e);
+      }
+
+      setReceivedGifts(giftsList);
     } catch (err) {
       console.warn('Erro ao carregar presentes recebidos:', err);
     } finally {
@@ -567,7 +642,14 @@ export function UserProfileModal({
         isOpen={showSendGiftModal}
         onClose={() => setShowSendGiftModal(false)}
         targetUser={targetUser}
-        onGiftSent={() => {
+        onGiftSent={(newGift) => {
+          if (newGift) {
+            setReceivedGifts(prev => {
+              const exists = prev.some(g => g.id === newGift.id);
+              if (exists) return prev;
+              return [newGift, ...prev];
+            });
+          }
           loadReceivedGifts();
         }}
       />

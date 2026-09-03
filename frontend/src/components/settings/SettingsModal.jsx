@@ -29,10 +29,11 @@ import {
   Trash2,
   Loader2,
   ExternalLink,
+  Gift,
   Image as ImageIcon
 } from 'lucide-react';
 
-export function SettingsModal({ isOpen, onClose }) {
+export function SettingsModal({ isOpen, onClose, onOpenProfile }) {
   const { user, updateProfile, logout, isConfigured } = useAuth();
   const { soundEnabled, toggleSound } = useChat();
 
@@ -244,7 +245,20 @@ export function SettingsModal({ isOpen, onClose }) {
 
         {/* ABA 1: PERFIL */}
         {activeTab === 'profile' && (
-          <form onSubmit={handleSaveProfile} className="space-y-4">
+          <div className="space-y-4">
+            {onOpenProfile && (
+              <button
+                type="button"
+                onClick={() => onOpenProfile(user)}
+                className="w-full p-2.5 rounded-2xl bg-gradient-to-r from-purple-900/40 via-indigo-900/40 to-amber-900/40 border border-purple-500/40 hover:border-purple-400 text-purple-200 text-xs font-bold flex items-center justify-center gap-2 shadow transition-all hover:scale-[1.01] active:scale-95"
+              >
+                <Gift className="w-4 h-4 text-amber-400 animate-pulse" />
+                <span>Ver Meu Perfil Público & Vitrine de Presentes</span>
+                <ExternalLink className="w-3.5 h-3.5 text-slate-400 ml-1" />
+              </button>
+            )}
+
+            <form onSubmit={handleSaveProfile} className="space-y-4">
             <div className="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-2xl bg-background-surface/60 border border-slate-700/50">
               <div className="relative group">
                 <img
@@ -568,6 +582,7 @@ export function SettingsModal({ isOpen, onClose }) {
               {saving ? 'Salvando...' : 'Salvar Alterações do Perfil'}
             </button>
           </form>
+          </div>
         )}
 
         {/* ABA 2: MEU INVENTÁRIO (Equipar / Desequipar) */}

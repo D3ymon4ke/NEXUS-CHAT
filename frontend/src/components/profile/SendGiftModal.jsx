@@ -61,13 +61,18 @@ export function SendGiftModal({
 
       // 1. Atualizar saldo do remetente
       if (isSupabaseConfigured && supabase) {
-        await supabase
+        const { error: profileError } = await supabase
           .from('profiles')
           .update({ nexus_coins: newCoins })
           .eq('id', currentUser.id);
 
+        if (profileError) {
+          console.error('Erro ao debitar moedas:', profileError);
+          throw new Error(profileError.message || 'Erro ao descontar moedas do remetente.');
+        }
+
         // 2. Inserir registro em user_gifts
-        await supabase
+        const { data: insertedGifts, error: giftError } = await supabase
           .from('user_gifts')
           .insert({
             sender_id: currentUser.id,
@@ -79,10 +84,21 @@ export function SendGiftModal({
             price: selectedGift.price,
             quantity: quantity,
             message: message.trim() || null
-          });
+          })
+          .select();
+
+        if (giftError) {
+          console.error('Erro ao registrar presente na tabela user_gifts:', giftError);
+          // Reverter saldo se a inserção falhar
+          await supabase
+            .from('profiles')
+            .update({ nexus_coins: userCoins })
+            .eq('id', currentUser.id);
+          throw new Error(giftError.message || 'Erro ao registrar o presente no banco de dados.');
+        }
 
         // 3. Registrar transação
-        await supabase
+        const { error: txError } = await supabase
           .from('nexus_transactions')
           .insert({
             user_id: currentUser.id,
@@ -90,6 +106,40 @@ export function SendGiftModal({
             type: 'gift_sent',
             description: `Presente enviado para @${targetUser.username}: ${selectedGift.name} (x${quantity})`
           });
+
+        if (txError) {
+          console.warn('Aviso ao registrar transação:', txError);
+        }
+      }
+
+      // Criar objeto completo do presente para UI instantânea
+      const createdGiftRecord = {
+        id: (typeof insertedGifts !== 'undefined' && insertedGifts?.[0]?.id) || `gift_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+        sender_id: currentUser.id,
+        recipient_id: targetUser.id,
+        gift_id: selectedGift.id,
+        gift_name: selectedGift.name,
+        gift_icon: selectedGift.icon,
+        rarity: selectedGift.rarity,
+        price: selectedGift.price,
+        quantity: quantity,
+        message: message.trim() || null,
+        created_at: new Date().toISOString(),
+        sender: {
+          id: currentUser.id,
+          username: currentUser.username,
+          display_name: currentUser.display_name || currentUser.username,
+          avatar_url: currentUser.avatar_url
+        }
+      };
+
+      // Salvar em cache local de presentes do destinatário
+      try {
+        const localKey = `nexus_gifts_${targetUser.id}`;
+        const currentSaved = JSON.parse(localStorage.getItem(localKey) || '[]');
+        localStorage.setItem(localKey, JSON.stringify([createdGiftRecord, ...currentSaved]));
+      } catch (e) {
+        console.warn('Aviso de localStorage:', e);
       }
 
       // Atualizar localmente no AuthContext
@@ -105,25 +155,21 @@ export function SendGiftModal({
       });
 
       setFeedbackMsg({
-        text: `🎉 Presente "${selectedGift.name}" enviado com sucesso para ${targetUser.display_name || targetUser.username}!`,
+        text: `🎉 Presente "${selectedGift.name}" (x${quantity}) enviado com sucesso para ${targetUser.display_name || targetUser.username}!`,
         type: 'success'
       });
 
       if (onGiftSent) {
-        onGiftSent({
-          gift: selectedGift,
-          quantity,
-          message: message.trim(),
-          recipient: targetUser
-        });
+        onGiftSent(createdGiftRecord);
       }
 
       setTimeout(() => {
         onClose();
-      }, 1500);
+      }, 1200);
     } catch (err) {
       console.error('Erro ao enviar presente:', err);
-      setFeedbackMsg({ text: 'Erro ao enviar presente.', type: 'error' });
+      sounds.playError?.();
+      setFeedbackMsg({ text: err.message || 'Erro ao enviar presente.', type: 'error' });
     } finally {
       setSending(false);
     }

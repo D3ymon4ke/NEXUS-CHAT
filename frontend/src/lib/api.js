@@ -222,7 +222,7 @@ export async function apiRequest(endpoint, options = {}) {
           { data: transactions }
         ] = await Promise.all([
           supabase.from('profiles').select('nexus_coins, daily_streak, last_daily_claim').eq('id', currentUser.id).single(),
-          supabase.from('nexus_transactions').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(20)
+          supabase.from('nexus_transactions').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(30)
         ]);
 
         const totalEarned = (transactions || []).filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
@@ -230,7 +230,7 @@ export async function apiRequest(endpoint, options = {}) {
         return {
           success: true,
           wallet: {
-            balance: profile?.nexus_coins || 100,
+            balance: profile?.nexus_coins ?? 100,
             dailyStreak: profile?.daily_streak || 0,
             lastDailyClaim: profile?.last_daily_claim || null,
             totalEarned,
@@ -239,7 +239,139 @@ export async function apiRequest(endpoint, options = {}) {
         };
       }
 
-      // 6. /users/profile (Atualização direta do Perfil via Supabase)
+      // 5.1 /wallet/transfer (Transferência de Nexus Coins entre Usuários)
+      if (cleanEndpoint === '/wallet/transfer' && options.method === 'POST') {
+        const body = typeof options.body === 'string' ? JSON.parse(options.body) : (options.body || {});
+        const targetUsername = (body.targetUsername || '').trim().replace(/^@/, '');
+        const amount = parseInt(body.amount, 10);
+
+        if (!targetUsername) {
+          return { success: false, error: 'Informe o @username do destinatário.' };
+        }
+
+        if (isNaN(amount) || amount <= 0) {
+          return { success: false, error: 'Informe uma quantidade válida de moedas (mínimo 1).' };
+        }
+
+        // Tentar via Postgres RPC 'transfer_nexus_coins' se disponível
+        try {
+          const { data: rpcRes, error: rpcErr } = await supabase.rpc('transfer_nexus_coins', {
+            p_recipient_username: targetUsername,
+            p_amount: amount
+          });
+          if (!rpcErr && rpcRes) {
+            return rpcRes;
+          }
+        } catch (rpcEx) {
+          // Segue para fallback direto em JavaScript
+        }
+
+        // 1. Obter saldo atual do remetente
+        const { data: senderProfile, error: senderErr } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, nexus_coins')
+          .eq('id', currentUser.id)
+          .single();
+
+        if (senderErr || !senderProfile) {
+          return { success: false, error: 'Erro ao verificar saldo do remetente.' };
+        }
+
+        const senderCoins = senderProfile.nexus_coins ?? 0;
+        if (senderCoins < amount) {
+          return {
+            success: false,
+            error: `Saldo insuficiente. Você tem ${senderCoins} coins e tentou enviar ${amount}.`
+          };
+        }
+
+        // 2. Buscar perfil do destinatário (por username, display_name ou ID)
+        const { data: recipientProfile, error: recErr } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, nexus_coins')
+          .or(`username.ilike.${targetUsername},display_name.ilike.${targetUsername}`)
+          .maybeSingle();
+
+        if (recErr || !recipientProfile) {
+          return {
+            success: false,
+            error: `Usuário @${targetUsername} não foi encontrado no Nexus Chat.`
+          };
+        }
+
+        if (recipientProfile.id === currentUser.id) {
+          return {
+            success: false,
+            error: 'Você não pode transferir moedas para sua própria conta.'
+          };
+        }
+
+        const newSenderCoins = senderCoins - amount;
+        const newRecipientCoins = (recipientProfile.nexus_coins ?? 0) + amount;
+
+        // 3. Atualizar saldo do remetente
+        const { error: updSenderErr } = await supabase
+          .from('profiles')
+          .update({ nexus_coins: newSenderCoins })
+          .eq('id', currentUser.id);
+
+        if (updSenderErr) {
+          return { success: false, error: 'Erro ao debitar moedas do remetente.' };
+        }
+
+        // 4. Atualizar saldo do destinatário
+        const { error: updRecErr } = await supabase
+          .from('profiles')
+          .update({ nexus_coins: newRecipientCoins })
+          .eq('id', recipientProfile.id);
+
+        if (updRecErr) {
+          // Reverter débito se falhar
+          await supabase.from('profiles').update({ nexus_coins: senderCoins }).eq('id', currentUser.id);
+          return { success: false, error: 'Erro ao creditar moedas para o destinatário.' };
+        }
+
+        // 5. Registrar transações no histórico
+        try {
+          await supabase.from('nexus_transactions').insert([
+            {
+              user_id: currentUser.id,
+              amount: -amount,
+              type: 'transfer_sent',
+              description: `Transferência enviada para @${recipientProfile.username || targetUsername}`
+            },
+            {
+              user_id: recipientProfile.id,
+              amount: amount,
+              type: 'transfer_received',
+              description: `Transferência recebida de @${senderProfile.username || 'membro'}`
+            }
+          ]);
+        } catch (txErr) {
+          console.warn('Aviso: Erro ao registrar transação no histórico:', txErr);
+        }
+
+        return {
+          success: true,
+          message: `✨ ${amount} Nexus Coins transferidos com sucesso para @${recipientProfile.username || targetUsername}!`,
+          newBalance: newSenderCoins
+        };
+      }
+
+      // 6. /users/search
+      if (cleanEndpoint.startsWith('/users/search')) {
+        const urlObj = new URL(`http://localhost${cleanEndpoint}`);
+        const q = urlObj.searchParams.get('q') || '';
+        const { data: users } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, avatar_url, bio, is_online, role')
+          .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
+          .limit(20);
+
+        return { success: true, users: users || [] };
+      }
+
+      // 7. /users/profile (Atualização direta do Perfil via Supabase)
       if (cleanEndpoint === '/users/profile' && options.method === 'PUT') {
         const body = typeof options.body === 'string' ? JSON.parse(options.body) : (options.body || {});
         const { data: updatedProfile, error: updErr } = await supabase

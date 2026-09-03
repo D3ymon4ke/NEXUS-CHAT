@@ -53,7 +53,24 @@ export function GiftDetailModal({
             </div>
           ) : (
             giftEntries.map((entry, idx) => {
-              const sender = entry.sender || { username: 'Amigo Nexus', display_name: 'Amigo Nexus' };
+              const sender = entry.sender || { username: 'Amigo Nexus', display_name: 'Amigo Nexus', id: entry.sender_id || 'friend' };
+              const senderAvatar = sender.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${sender.id || entry.sender_id || 'friend'}`;
+              
+              let formattedDate = 'Recente';
+              if (entry.created_at) {
+                try {
+                  const d = new Date(entry.created_at);
+                  if (!isNaN(d.getTime())) {
+                    formattedDate = d.toLocaleDateString('pt-BR', {
+                      day: '2-digit',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    });
+                  }
+                } catch (e) {}
+              }
+
               return (
                 <div
                   key={idx}
@@ -62,7 +79,7 @@ export function GiftDetailModal({
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <img
-                        src={sender.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${sender.id || 'friend'}`}
+                        src={senderAvatar}
                         alt="avatar"
                         className="w-6 h-6 rounded-full object-cover border border-slate-700 flex-shrink-0"
                       />
@@ -81,7 +98,7 @@ export function GiftDetailModal({
                   )}
 
                   <div className="text-[9px] text-slate-500 text-right">
-                    {entry.created_at ? new Date(entry.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Recente'}
+                    {formattedDate}
                   </div>
                 </div>
               );

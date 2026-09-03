@@ -219,6 +219,10 @@ function ChatDashboard() {
       <SettingsModal
         isOpen={Boolean(user && showSettingsModal)}
         onClose={() => setShowSettingsModal(false)}
+        onOpenProfile={(u) => {
+          setShowSettingsModal(false);
+          setTargetUserProfile(u || user);
+        }}
       />
 
       <NexusShopModal

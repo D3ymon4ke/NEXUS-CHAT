@@ -233,17 +233,17 @@ export const SHOP_CATALOG = [
     name: 'Violeta Cyberpunk',
     description: 'Gradiente elétrico de roxo para azul neon',
     price: 200,
-    icon: '💬',
-    cssClass: 'bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white shadow-lg shadow-purple-500/20'
+    icon: '🔮',
+    cssClass: 'bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white shadow-lg shadow-purple-500/25 border border-purple-400/40'
   },
   {
     id: 'bubble_royal_gold',
     category: 'bubbles',
     name: 'Ouro Imperial',
-    description: 'Dourado real metálico sofisticado',
+    description: 'Dourado real metálico brilhante com detalhes em ouro',
     price: 350,
     icon: '🪙',
-    cssClass: 'bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 text-amber-50 shadow-lg shadow-amber-500/25 border border-amber-400/40'
+    cssClass: 'bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 text-slate-950 font-medium shadow-lg shadow-amber-500/30 border border-amber-300/80'
   },
   {
     id: 'bubble_matrix_emerald',
@@ -252,7 +252,7 @@ export const SHOP_CATALOG = [
     description: 'Verde hacker brilhante de alta tecnologia',
     price: 180,
     icon: '🟢',
-    cssClass: 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-lg shadow-emerald-500/20 border border-emerald-400/30'
+    cssClass: 'bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 text-white shadow-lg shadow-emerald-500/25 border border-emerald-400/40'
   },
   {
     id: 'bubble_rose_velvet',
@@ -261,7 +261,43 @@ export const SHOP_CATALOG = [
     description: 'Rosa magenta vibrante e moderno',
     price: 220,
     icon: '🌸',
-    cssClass: 'bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-lg shadow-pink-500/20'
+    cssClass: 'bg-gradient-to-r from-pink-600 via-rose-600 to-rose-700 text-white shadow-lg shadow-pink-500/25 border border-pink-400/40'
+  },
+  {
+    id: 'bubble_neon_cyan',
+    category: 'bubbles',
+    name: 'Ciano Holográfico',
+    description: 'Azul ciano elétrico de alta velocidade',
+    price: 240,
+    icon: '💎',
+    cssClass: 'bg-gradient-to-r from-cyan-600 via-sky-600 to-blue-600 text-white shadow-lg shadow-cyan-500/25 border border-cyan-400/40'
+  },
+  {
+    id: 'bubble_sunset_blaze',
+    category: 'bubbles',
+    name: 'Pôr do Sol Flamejante',
+    description: 'Gradiente quente de laranja, âmbar e rubi',
+    price: 260,
+    icon: '🔥',
+    cssClass: 'bg-gradient-to-r from-orange-600 via-amber-600 to-rose-600 text-white shadow-lg shadow-orange-500/25 border border-orange-400/40'
+  },
+  {
+    id: 'bubble_plasma_purple',
+    category: 'bubbles',
+    name: 'Plasma Fúcsia',
+    description: 'Roxo elétrico com brilho espacial',
+    price: 280,
+    icon: '✨',
+    cssClass: 'bg-gradient-to-r from-fuchsia-600 via-purple-600 to-indigo-700 text-white shadow-lg shadow-fuchsia-500/25 border border-fuchsia-400/40'
+  },
+  {
+    id: 'bubble_deep_obsidian',
+    category: 'bubbles',
+    name: 'Obsidian Minimal',
+    description: 'Preto ultra escuro com bordas iluminadas',
+    price: 150,
+    icon: '🖤',
+    cssClass: 'bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 text-slate-100 shadow-lg border border-slate-700/80'
   },
 
   // --- TÍTULOS & BADGES DE PRESTÍGIO ---

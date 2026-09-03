@@ -392,11 +392,122 @@ CREATE INDEX IF NOT EXISTS idx_user_gifts_sender ON public.user_gifts(sender_id)
 
 ALTER TABLE public.user_gifts ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Presentes visíveis para todos os usuários autenticados"
-    ON public.user_gifts FOR SELECT
-    USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Presentes visíveis para todos os usuários autenticados" ON public.user_gifts;
+DROP POLICY IF EXISTS "Usuários autenticados podem enviar presentes" ON public.user_gifts;
+DROP POLICY IF EXISTS "Public select user_gifts" ON public.user_gifts;
+DROP POLICY IF EXISTS "Public insert user_gifts" ON public.user_gifts;
 
-CREATE POLICY "Usuários autenticados podem enviar presentes"
+CREATE POLICY "Public select user_gifts"
+    ON public.user_gifts FOR SELECT
+    USING (true);
+
+CREATE POLICY "Public insert user_gifts"
     ON public.user_gifts FOR INSERT
-    WITH CHECK (auth.uid() = sender_id);
+    WITH CHECK (true);
+
+-- ==============================================================================
+-- 19. Tabela de Transações e Histórico da Carteira (Nexus Transactions)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.nexus_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    amount INTEGER NOT NULL,
+    type TEXT NOT NULL DEFAULT 'transfer',
+    description TEXT,
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_nexus_transactions_user ON public.nexus_transactions(user_id, created_at DESC);
+
+ALTER TABLE public.nexus_transactions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public select nexus_transactions" ON public.nexus_transactions;
+DROP POLICY IF EXISTS "Public insert nexus_transactions" ON public.nexus_transactions;
+
+CREATE POLICY "Public select nexus_transactions"
+    ON public.nexus_transactions FOR SELECT
+    USING (true);
+
+CREATE POLICY "Public insert nexus_transactions"
+    ON public.nexus_transactions FOR INSERT
+    WITH CHECK (true);
+
+-- ==============================================================================
+-- 20. Função PostgreSQL de Transferência Atômica de Moedas (RPC)
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.transfer_nexus_coins(
+    p_recipient_username TEXT,
+    p_amount INTEGER
+)
+RETURNS JSONB AS $$
+DECLARE
+    v_sender_id UUID := auth.uid();
+    v_sender_coins INTEGER;
+    v_recipient RECORD;
+    v_new_sender_coins INTEGER;
+    v_new_recipient_coins INTEGER;
+    v_clean_username TEXT;
+BEGIN
+    IF v_sender_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Usuário não autenticado.');
+    END IF;
+
+    IF p_amount <= 0 THEN
+        RETURN jsonb_build_object('success', false, 'error', 'A quantidade de moedas deve ser maior que zero.');
+    END IF;
+
+    v_clean_username := TRIM(REPLACE(p_recipient_username, '@', ''));
+
+    -- 1. Buscar destinatário por username ou display_name
+    SELECT id, username, display_name, COALESCE(nexus_coins, 0) AS nexus_coins
+    INTO v_recipient
+    FROM public.profiles
+    WHERE LOWER(username) = LOWER(v_clean_username)
+       OR LOWER(display_name) = LOWER(v_clean_username)
+    LIMIT 1;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Destinatário @' || v_clean_username || ' não foi encontrado.');
+    END IF;
+
+    IF v_recipient.id = v_sender_id THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Você não pode transferir moedas para sua própria conta.');
+    END IF;
+
+    -- 2. Verificar saldo do remetente
+    SELECT COALESCE(nexus_coins, 0)
+    INTO v_sender_coins
+    FROM public.profiles
+    WHERE id = v_sender_id;
+
+    IF v_sender_coins < p_amount THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Saldo insuficiente. Você possui ' || v_sender_coins || ' coins e tentou enviar ' || p_amount || '.');
+    END IF;
+
+    -- 3. Atualizar saldos atômicos
+    v_new_sender_coins := v_sender_coins - p_amount;
+    v_new_recipient_coins := v_recipient.nexus_coins + p_amount;
+
+    UPDATE public.profiles
+    SET nexus_coins = v_new_sender_coins
+    WHERE id = v_sender_id;
+
+    UPDATE public.profiles
+    SET nexus_coins = v_new_recipient_coins
+    WHERE id = v_recipient.id;
+
+    -- 4. Gravar registros no histórico de transações
+    INSERT INTO public.nexus_transactions (user_id, amount, type, description)
+    VALUES 
+        (v_sender_id, -p_amount, 'transfer_sent', 'Transferência enviada para @' || v_recipient.username),
+        (v_recipient.id, p_amount, 'transfer_received', 'Transferência recebida de @' || (SELECT username FROM public.profiles WHERE id = v_sender_id));
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'message', '✨ ' || p_amount || ' Nexus Coins transferidos com sucesso para @' || v_recipient.username || '!',
+        'newBalance', v_new_sender_coins
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 
