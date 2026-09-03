@@ -268,6 +268,9 @@ ALTER TABLE public.message_status ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
 
 -- Políticas para Profiles
+DROP POLICY IF EXISTS "Perfis visíveis para todos os usuários autenticados" ON public.profiles;
+DROP POLICY IF EXISTS "Usuários podem atualizar seus próprios perfis" ON public.profiles;
+
 CREATE POLICY "Perfis visíveis para todos os usuários autenticados"
     ON public.profiles FOR SELECT
     USING (auth.role() = 'authenticated');
@@ -277,6 +280,10 @@ CREATE POLICY "Usuários podem atualizar seus próprios perfis"
     USING (auth.uid() = id);
 
 -- Políticas para Conversas
+DROP POLICY IF EXISTS "Usuários podem ver conversas das quais participam" ON public.conversations;
+DROP POLICY IF EXISTS "Usuários autenticados podem criar conversas" ON public.conversations;
+DROP POLICY IF EXISTS "Admins podem atualizar detalhes da conversa" ON public.conversations;
+
 CREATE POLICY "Usuários podem ver conversas das quais participam"
     ON public.conversations FOR SELECT
     USING (
@@ -304,6 +311,9 @@ CREATE POLICY "Admins podem atualizar detalhes da conversa"
     );
 
 -- Políticas para Participantes
+DROP POLICY IF EXISTS "Participantes visíveis para quem está na conversa" ON public.conversation_participants;
+DROP POLICY IF EXISTS "Inserir participantes" ON public.conversation_participants;
+
 CREATE POLICY "Participantes visíveis para quem está na conversa"
     ON public.conversation_participants FOR SELECT
     USING (
@@ -320,6 +330,10 @@ CREATE POLICY "Inserir participantes"
     WITH CHECK (auth.role() = 'authenticated');
 
 -- Políticas para Mensagens
+DROP POLICY IF EXISTS "Mensagens visíveis para membros da conversa" ON public.messages;
+DROP POLICY IF EXISTS "Membros podem enviar mensagens na conversa" ON public.messages;
+DROP POLICY IF EXISTS "Usuários podem editar ou excluir suas próprias mensagens" ON public.messages;
+
 CREATE POLICY "Mensagens visíveis para membros da conversa"
     ON public.messages FOR SELECT
     USING (
@@ -350,6 +364,10 @@ CREATE POLICY "Usuários podem editar ou excluir suas próprias mensagens"
     USING (auth.uid() = sender_id);
 
 -- Políticas para Reações
+DROP POLICY IF EXISTS "Reações visíveis para membros da conversa" ON public.message_reactions;
+DROP POLICY IF EXISTS "Membros podem adicionar reações" ON public.message_reactions;
+DROP POLICY IF EXISTS "Usuários podem remover suas reações" ON public.message_reactions;
+
 CREATE POLICY "Reações visíveis para membros da conversa"
     ON public.message_reactions FOR SELECT
     USING (
@@ -368,6 +386,8 @@ CREATE POLICY "Usuários podem remover suas reações"
     USING (auth.uid() = user_id);
 
 -- Políticas para Configurações
+DROP POLICY IF EXISTS "Usuários podem ver e editar apenas suas próprias configurações" ON public.user_settings;
+
 CREATE POLICY "Usuários podem ver e editar apenas suas próprias configurações"
     ON public.user_settings FOR ALL
     USING (auth.uid() = user_id);
