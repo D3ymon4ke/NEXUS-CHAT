@@ -911,6 +911,103 @@ export function ChatProvider({ children }) {
     }
   };
 
+  // Iniciar ou abrir conversa direta com um usuário
+  const startDirectChat = async (targetUser) => {
+    if (!user || !targetUser) return;
+    try {
+      setLoadingConversations(true);
+
+      // 1. Verificar se já existe conversa direta carregada localmente
+      const existingConv = conversations.find(
+        (c) =>
+          c.type === 'direct' &&
+          (c.direct_user?.id === targetUser.id ||
+            c.id === targetUser.conversation_id ||
+            (c.participants && c.participants.some((p) => p.user_id === targetUser.id)))
+      );
+
+      if (existingConv) {
+        setActiveConversationId(existingConv.id);
+        return existingConv;
+      }
+
+      // 2. Se Supabase ativo, verificar participações mútuas no banco
+      if (isSupabaseConfigured && supabase) {
+        const { data: myConvs } = await supabase
+          .from('conversation_participants')
+          .select('conversation_id')
+          .eq('user_id', user.id);
+
+        const myConvIds = (myConvs || []).map((p) => p.conversation_id);
+
+        if (myConvIds.length > 0) {
+          const { data: sharedConvs } = await supabase
+            .from('conversation_participants')
+            .select('conversation_id, conversations!inner(type)')
+            .eq('user_id', targetUser.id)
+            .in('conversation_id', myConvIds)
+            .eq('conversations.type', 'direct')
+            .limit(1);
+
+          if (sharedConvs && sharedConvs.length > 0) {
+            const matchedId = sharedConvs[0].conversation_id;
+            setActiveConversationId(matchedId);
+            if (loadConversations) await loadConversations();
+            return { id: matchedId };
+          }
+        }
+
+        // 3. Criar nova conversa direta no Supabase
+        const { data: newConv, error: convErr } = await supabase
+          .from('conversations')
+          .insert({ type: 'direct' })
+          .select()
+          .single();
+
+        if (newConv && !convErr) {
+          await supabase.from('conversation_participants').insert([
+            { conversation_id: newConv.id, user_id: user.id, role: 'member' },
+            { conversation_id: newConv.id, user_id: targetUser.id, role: 'member' }
+          ]);
+
+          const formattedNewConv = {
+            ...newConv,
+            type: 'direct',
+            name: targetUser.display_name || targetUser.username,
+            avatar_url: targetUser.avatar_url,
+            direct_user: targetUser,
+            unread_count: 0,
+            last_message: null
+          };
+
+          setConversations((prev) => [formattedNewConv, ...prev]);
+          setActiveConversationId(newConv.id);
+          return formattedNewConv;
+        }
+      }
+
+      // Fallback local caso esteja sem conexão
+      const localDirectId = `direct-${Date.now()}`;
+      const localConv = {
+        id: localDirectId,
+        type: 'direct',
+        name: targetUser.display_name || targetUser.username,
+        avatar_url: targetUser.avatar_url,
+        direct_user: targetUser,
+        unread_count: 0,
+        last_message: null
+      };
+
+      setConversations((prev) => [localConv, ...prev]);
+      setActiveConversationId(localDirectId);
+      return localConv;
+    } catch (err) {
+      console.error('Erro ao iniciar chat direto:', err);
+    } finally {
+      setLoadingConversations(false);
+    }
+  };
+
   return (
     <ChatContext.Provider
       value={{
@@ -933,6 +1030,7 @@ export function ChatProvider({ children }) {
         clearConversation,
         pinMessage,
         reactToMessage,
+        startDirectChat,
         setReplyingTo,
         setEditingMessage,
         emitTyping,

@@ -71,9 +71,9 @@ export function NexusWalletModal({ isOpen, onClose }) {
       });
 
       if (res.success) {
-        sounds.playSent();
+        sounds.playSuccess?.();
         confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
-        setFeedback({ text: res.message, type: 'success' });
+        setFeedback({ text: res.message || 'Transferência realizada com sucesso!', type: 'success' });
         setTargetUsername('');
         setTransferAmount('');
 
@@ -81,15 +81,18 @@ export function NexusWalletModal({ isOpen, onClose }) {
           if (updateProfile) {
             updateProfile({ nexus_coins: res.newBalance });
           }
-          setWallet((prev) => prev ? { ...prev, balance: res.newBalance } : prev);
+          setWallet((prev) => (prev ? { ...prev, balance: res.newBalance } : prev));
         }
 
         loadWallet();
       } else {
+        sounds.playError?.();
         setFeedback({ text: res.error || 'Erro ao realizar transferência.', type: 'error' });
       }
     } catch (err) {
-      setFeedback({ text: 'Erro de conexão.', type: 'error' });
+      console.error('Erro ao transferir moedas:', err);
+      sounds.playError?.();
+      setFeedback({ text: err.message || 'Erro ao processar transferência.', type: 'error' });
     } finally {
       setTransferring(false);
     }

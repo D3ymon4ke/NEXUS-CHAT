@@ -30,6 +30,7 @@ function ChatDashboard() {
     activeConversationId,
     setActiveConversationId,
     loadConversations,
+    startDirectChat,
     showPollModal,
     setShowPollModal
   } = useChat();
@@ -83,25 +84,10 @@ function ChatDashboard() {
   const handleStartDirectChat = async (targetUser) => {
     if (!user || !targetUser) return;
     try {
-      if (isSupabaseConfigured && supabase) {
-        // Criar conversa direta no Supabase
-        const { data: newConv } = await supabase
-          .from('conversations')
-          .insert({ type: 'direct' })
-          .select()
-          .single();
-
-        if (newConv) {
-          await supabase.from('conversation_participants').insert([
-            { conversation_id: newConv.id, user_id: user.id, role: 'member' },
-            { conversation_id: newConv.id, user_id: targetUser.id, role: 'member' }
-          ]);
-
-          if (loadConversations) await loadConversations();
-          setActiveConversationId(newConv.id);
-          setMobileView('chat');
-        }
+      if (startDirectChat) {
+        await startDirectChat(targetUser);
       }
+      setMobileView('chat');
     } catch (err) {
       console.error('Erro ao iniciar chat direto:', err);
     }

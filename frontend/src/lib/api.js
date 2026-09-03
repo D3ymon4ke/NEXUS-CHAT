@@ -20,11 +20,28 @@ export async function apiRequest(endpoint, options = {}) {
   let currentUser = null;
 
   if (isSupabaseConfigured && supabase) {
-    const sessionRes = await supabase.auth.getSession();
-    const session = sessionRes.data.session;
-    token = session?.access_token;
-    currentUser = session?.user;
-  } else {
+    try {
+      const sessionRes = await supabase.auth.getSession();
+      const session = sessionRes.data?.session;
+      token = session?.access_token;
+      currentUser = session?.user;
+      if (!currentUser) {
+        const { data: userData } = await supabase.auth.getUser();
+        currentUser = userData?.user;
+      }
+    } catch (e) {}
+  }
+
+  if (!currentUser) {
+    try {
+      const savedUser = localStorage.getItem('nexus_user');
+      if (savedUser) {
+        currentUser = JSON.parse(savedUser);
+      }
+    } catch (e) {}
+  }
+
+  if (!token) {
     token = localStorage.getItem('demo_auth_token') || 'demo-jwt-token';
   }
 
@@ -276,22 +293,24 @@ export async function apiRequest(endpoint, options = {}) {
             p_recipient_username: targetUsername,
             p_amount: amount
           });
-          if (!rpcErr && rpcRes) {
-            return rpcRes;
+          if (!rpcErr && rpcRes && typeof rpcRes === 'object') {
+            if (rpcRes.success) {
+              return rpcRes;
+            } else if (rpcRes.error && !rpcRes.error.includes('não autenticado')) {
+              return rpcRes;
+            }
           }
-        } catch (rpcEx) {
-          // Segue para fallback direto em JavaScript
-        }
+        } catch (rpcEx) {}
 
         // 1. Obter saldo atual do remetente
         const { data: senderProfile, error: senderErr } = await supabase
           .from('profiles')
           .select('id, username, display_name, nexus_coins')
           .eq('id', currentUser.id)
-          .single();
+          .maybeSingle();
 
         if (senderErr || !senderProfile) {
-          return { success: false, error: 'Erro ao verificar saldo do remetente.' };
+          return { success: false, error: 'Erro ao verificar saldo da sua conta.' };
         }
 
         const senderCoins = senderProfile.nexus_coins ?? 0;
@@ -302,17 +321,23 @@ export async function apiRequest(endpoint, options = {}) {
           };
         }
 
-        // 2. Buscar perfil do destinatário (por username, display_name ou ID)
-        const { data: recipientProfile, error: recErr } = await supabase
+        // 2. Buscar perfil do destinatário
+        const cleanTarget = targetUsername.toLowerCase().trim();
+        const { data: allProfiles } = await supabase
           .from('profiles')
-          .select('id, username, display_name, nexus_coins')
-          .or(`username.ilike.${targetUsername},display_name.ilike.${targetUsername}`)
-          .maybeSingle();
+          .select('id, username, display_name, nexus_coins');
 
-        if (recErr || !recipientProfile) {
+        const recipientProfile = (allProfiles || []).find(
+          (p) =>
+            p.username?.toLowerCase() === cleanTarget ||
+            p.display_name?.toLowerCase() === cleanTarget ||
+            p.username?.toLowerCase().replace(/[^a-z0-9]/g, '') === cleanTarget.replace(/[^a-z0-9]/g, '')
+        );
+
+        if (!recipientProfile) {
           return {
             success: false,
-            error: `Usuário @${targetUsername} não foi encontrado no Nexus Chat.`
+            error: `Usuário "@${targetUsername}" não foi encontrado no Nexus Chat.`
           };
         }
 

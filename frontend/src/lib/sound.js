@@ -75,6 +75,37 @@ class SoundEffects {
     }
   }
 
+  playSent() {
+    this.playSend();
+  }
+
+  playError() {
+    if (!this.enabled) return;
+    try {
+      this.initContext();
+      if (!this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+      osc.frequency.setValueAtTime(150, this.ctx.currentTime + 0.08);
+
+      gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.2);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.2);
+    } catch (e) {}
+  }
+
+  playSuccess() {
+    this.playReceive();
+  }
+
   playPop() {
     if (!this.enabled) return;
     try {
