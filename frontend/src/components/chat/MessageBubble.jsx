@@ -339,15 +339,26 @@ export function MessageBubble({
             <div
               className={`mb-1.5 p-2 rounded-lg border-l-2 text-xs flex flex-col ${
                 isOwn
-                  ? 'bg-black/20 border-white/60 text-white/90'
-                  : 'bg-background-dark/50 border-brand-500 text-slate-300'
+                  ? 'bg-black/25 border-white/70 text-white/90'
+                  : 'bg-background-dark/60 border-brand-500 text-slate-300'
               }`}
             >
-              <span className="font-semibold text-[11px] text-brand-300">
-                {message.reply_to.sender?.display_name || 'Usuário'}
-              </span>
-              <span className="truncate text-[11px] opacity-80">
-                {message.reply_to.content || 'Anexo'}
+              <div className="flex items-center gap-1 font-semibold text-[11px] text-brand-300">
+                <Reply className="w-3 h-3 rotate-180 opacity-75 inline-block" />
+                <span>
+                  {typeof message.reply_to.sender === 'object'
+                    ? (message.reply_to.sender?.display_name || message.reply_to.sender?.username || 'Usuário')
+                    : (message.reply_to.sender || 'Usuário')}
+                </span>
+              </div>
+              <span className="truncate text-[11px] opacity-80 mt-0.5">
+                {message.reply_to.content?.startsWith('data:image') || message.reply_to.type === 'image'
+                  ? '📷 Foto'
+                  : message.reply_to.content?.includes('"nexus_burst"')
+                  ? '⚡ Nexus Burst (+20 Coins)'
+                  : message.reply_to.content?.includes('"ghost_message"')
+                  ? '👻 Mensagem Fantasma'
+                  : (message.reply_to.content || 'Anexo')}
               </span>
             </div>
           )}

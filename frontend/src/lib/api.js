@@ -182,14 +182,31 @@ export async function apiRequest(endpoint, options = {}) {
         const parts = cleanEndpoint.split('/');
         const convId = parts[2];
 
-        const { data: messages } = await supabase
+        const { data: rawMessages } = await supabase
           .from('messages')
           .select('*, sender:profiles(*), attachments:message_attachments(*), reactions:message_reactions(*)')
           .eq('conversation_id', convId)
           .order('created_at', { ascending: true })
-          .limit(100);
+          .limit(200);
 
-        return { success: true, messages: messages || [] };
+        const messages = rawMessages || [];
+        const msgMap = new Map();
+        messages.forEach((m) => msgMap.set(m.id, m));
+
+        const resolved = messages.map((m) => {
+          let replyTo = m.reply_to;
+          if (!replyTo && m.reply_to_id && msgMap.has(m.reply_to_id)) {
+            const target = msgMap.get(m.reply_to_id);
+            replyTo = {
+              id: target.id,
+              content: target.content,
+              sender: target.sender
+            };
+          }
+          return { ...m, reply_to: replyTo || null };
+        });
+
+        return { success: true, messages: resolved };
       }
 
       // 4. /economy/shop

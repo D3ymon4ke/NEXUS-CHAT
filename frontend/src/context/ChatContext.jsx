@@ -108,9 +108,59 @@ export function ChatProvider({ children }) {
               .limit(200);
 
             if (dbMsgs && !dbErr) {
-              setMessages(dbMsgs);
+              // Reconstruir citações de respostas (reply_to) a partir de reply_to_id
+              const msgMap = new Map();
+              dbMsgs.forEach((m) => msgMap.set(m.id, m));
+
+              const resolvedMsgs = dbMsgs.map((m) => {
+                let resolvedReply = m.reply_to;
+                if (!resolvedReply && m.reply_to_id && msgMap.has(m.reply_to_id)) {
+                  const target = msgMap.get(m.reply_to_id);
+                  resolvedReply = {
+                    id: target.id,
+                    content: target.content,
+                    sender: target.sender
+                  };
+                }
+                return {
+                  ...m,
+                  reply_to: resolvedReply || null
+                };
+              });
+
+              // Buscar mensagens citadas antigas que não estejam no bloco atual
+              const missingReplyIds = resolvedMsgs
+                .filter((m) => m.reply_to_id && !m.reply_to)
+                .map((m) => m.reply_to_id);
+
+              if (missingReplyIds.length > 0) {
+                try {
+                  const { data: missingTargets } = await supabase
+                    .from('messages')
+                    .select('id, content, sender:profiles(*)')
+                    .in('id', missingReplyIds);
+
+                  if (missingTargets && missingTargets.length > 0) {
+                    const missingMap = new Map(missingTargets.map((t) => [t.id, t]));
+                    resolvedMsgs.forEach((m) => {
+                      if (m.reply_to_id && !m.reply_to && missingMap.has(m.reply_to_id)) {
+                        const target = missingMap.get(m.reply_to_id);
+                        m.reply_to = {
+                          id: target.id,
+                          content: target.content,
+                          sender: target.sender
+                        };
+                      }
+                    });
+                  }
+                } catch (missErr) {
+                  console.warn('Aviso ao buscar mensagens citadas:', missErr);
+                }
+              }
+
+              setMessages(resolvedMsgs);
               try {
-                localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(dbMsgs));
+                localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(resolvedMsgs));
               } catch (cacheErr) {}
               return;
             } else if (dbErr) {
@@ -275,6 +325,53 @@ export function ChatProvider({ children }) {
             setMessages([]);
           }
           if (loadConversations) loadConversations();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'message_reactions'
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newReaction = payload.new;
+            if (newReaction) {
+              setMessages((prev) => {
+                const updated = prev.map((m) => {
+                  if (m.id === newReaction.message_id) {
+                    const reactions = m.reactions || [];
+                    if (!reactions.some((r) => r.id === newReaction.id || (r.user_id === newReaction.user_id && r.emoji === newReaction.emoji))) {
+                      return { ...m, reactions: [...reactions, newReaction] };
+                    }
+                  }
+                  return m;
+                });
+                try {
+                  localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
+                } catch (e) {}
+                return updated;
+              });
+            }
+          } else if (payload.eventType === 'DELETE') {
+            const oldReaction = payload.old;
+            if (oldReaction) {
+              setMessages((prev) => {
+                const updated = prev.map((m) => {
+                  const reactions = m.reactions || [];
+                  if (reactions.some((r) => r.id === oldReaction.id)) {
+                    return { ...m, reactions: reactions.filter((r) => r.id !== oldReaction.id) };
+                  }
+                  return m;
+                });
+                try {
+                  localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
+                } catch (e) {}
+                return updated;
+              });
+            }
+          }
         }
       )
       .subscribe();
@@ -733,17 +830,81 @@ export function ChatProvider({ children }) {
 
   const reactToMessage = async (messageId, emoji) => {
     if (!user) return;
-    setMessages(prev => prev.map(m => {
-      if (m.id === messageId) {
-        const reactions = m.reactions || [];
-        const exists = reactions.some(r => r.user_id === user.id && r.emoji === emoji);
-        const updated = exists
-          ? reactions.filter(r => !(r.user_id === user.id && r.emoji === emoji))
-          : [...reactions, { id: `temp-${Date.now()}`, message_id: messageId, user_id: user.id, emoji }];
-        return { ...m, reactions: updated };
+
+    let isRemoving = false;
+
+    // 1. Atualização Otimista Local + Cache
+    setMessages((prev) => {
+      const updated = prev.map((m) => {
+        if (m.id === messageId) {
+          const reactions = m.reactions || [];
+          const exists = reactions.some((r) => r.user_id === user.id && r.emoji === emoji);
+          isRemoving = exists;
+          const nextReactions = exists
+            ? reactions.filter((r) => !(r.user_id === user.id && r.emoji === emoji))
+            : [...reactions, { id: `temp-${Date.now()}`, message_id: messageId, user_id: user.id, emoji }];
+          return { ...m, reactions: nextReactions };
+        }
+        return m;
+      });
+
+      try {
+        localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
+      } catch (e) {}
+
+      return updated;
+    });
+
+    sounds.playPop();
+
+    // 2. Persistência no Banco Supabase
+    if (isSupabaseConfigured && supabase) {
+      try {
+        if (isRemoving) {
+          await supabase
+            .from('message_reactions')
+            .delete()
+            .eq('message_id', messageId)
+            .eq('user_id', user.id)
+            .eq('emoji', emoji);
+        } else {
+          const { data: insertedReaction, error: reactErr } = await supabase
+            .from('message_reactions')
+            .insert({
+              message_id: messageId,
+              user_id: user.id,
+              emoji
+            })
+            .select()
+            .single();
+
+          if (insertedReaction) {
+            setMessages((prev) => {
+              const updated = prev.map((m) => {
+                if (m.id === messageId) {
+                  const reactions = m.reactions || [];
+                  return {
+                    ...m,
+                    reactions: reactions.map((r) =>
+                      r.user_id === user.id && r.emoji === emoji ? insertedReaction : r
+                    )
+                  };
+                }
+                return m;
+              });
+              try {
+                localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
+              } catch (e) {}
+              return updated;
+            });
+          } else if (reactErr) {
+            console.warn('Erro ao salvar reação no Supabase:', reactErr);
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao persistir reação:', err);
       }
-      return m;
-    }));
+    }
 
     if (socket && connected) {
       socket.emit('react_message', { messageId, conversationId: activeConversationId, userId: user.id, emoji });
