@@ -270,127 +270,81 @@ ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
 -- Políticas para Profiles
 DROP POLICY IF EXISTS "Perfis visíveis para todos os usuários autenticados" ON public.profiles;
 DROP POLICY IF EXISTS "Usuários podem atualizar seus próprios perfis" ON public.profiles;
+DROP POLICY IF EXISTS "Public select profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Public update profiles" ON public.profiles;
 
-CREATE POLICY "Perfis visíveis para todos os usuários autenticados"
-    ON public.profiles FOR SELECT
-    USING (auth.role() = 'authenticated');
-
-CREATE POLICY "Usuários podem atualizar seus próprios perfis"
-    ON public.profiles FOR UPDATE
-    USING (auth.uid() = id);
+CREATE POLICY "Public select profiles" ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "Public update profiles" ON public.profiles FOR UPDATE USING (true);
 
 -- Políticas para Conversas
-DROP POLICY IF EXISTS "Usuários podem ver conversas das quais participam" ON public.conversations;
-DROP POLICY IF EXISTS "Usuários autenticados podem criar conversas" ON public.conversations;
-DROP POLICY IF EXISTS "Admins podem atualizar detalhes da conversa" ON public.conversations;
+DROP POLICY IF EXISTS "Public select conversations" ON public.conversations;
+DROP POLICY IF EXISTS "Public insert conversations" ON public.conversations;
+DROP POLICY IF EXISTS "Public update conversations" ON public.conversations;
+DROP POLICY IF EXISTS "Public delete conversations" ON public.conversations;
 
-CREATE POLICY "Usuários podem ver conversas das quais participam"
-    ON public.conversations FOR SELECT
-    USING (
-        is_permanent = true OR
-        EXISTS (
-            SELECT 1 FROM public.conversation_participants
-            WHERE conversation_participants.conversation_id = conversations.id
-            AND conversation_participants.user_id = auth.uid()
-        )
-    );
-
-CREATE POLICY "Usuários autenticados podem criar conversas"
-    ON public.conversations FOR INSERT
-    WITH CHECK (auth.role() = 'authenticated');
-
-CREATE POLICY "Admins podem atualizar detalhes da conversa"
-    ON public.conversations FOR UPDATE
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.conversation_participants
-            WHERE conversation_participants.conversation_id = conversations.id
-            AND conversation_participants.user_id = auth.uid()
-            AND conversation_participants.role = 'admin'
-        )
-    );
+CREATE POLICY "Public select conversations" ON public.conversations FOR SELECT USING (true);
+CREATE POLICY "Public insert conversations" ON public.conversations FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update conversations" ON public.conversations FOR UPDATE USING (true);
+CREATE POLICY "Public delete conversations" ON public.conversations FOR DELETE USING (true);
 
 -- Políticas para Participantes
-DROP POLICY IF EXISTS "Participantes visíveis para quem está na conversa" ON public.conversation_participants;
-DROP POLICY IF EXISTS "Inserir participantes" ON public.conversation_participants;
+DROP POLICY IF EXISTS "Public select conversation_participants" ON public.conversation_participants;
+DROP POLICY IF EXISTS "Public insert conversation_participants" ON public.conversation_participants;
+DROP POLICY IF EXISTS "Public update conversation_participants" ON public.conversation_participants;
+DROP POLICY IF EXISTS "Public delete conversation_participants" ON public.conversation_participants;
 
-CREATE POLICY "Participantes visíveis para quem está na conversa"
-    ON public.conversation_participants FOR SELECT
-    USING (
-        conversation_id = '00000000-0000-0000-0000-000000000001' OR
-        EXISTS (
-            SELECT 1 FROM public.conversation_participants cp
-            WHERE cp.conversation_id = conversation_participants.conversation_id
-            AND cp.user_id = auth.uid()
-        )
-    );
-
-CREATE POLICY "Inserir participantes"
-    ON public.conversation_participants FOR INSERT
-    WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Public select conversation_participants" ON public.conversation_participants FOR SELECT USING (true);
+CREATE POLICY "Public insert conversation_participants" ON public.conversation_participants FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update conversation_participants" ON public.conversation_participants FOR UPDATE USING (true);
+CREATE POLICY "Public delete conversation_participants" ON public.conversation_participants FOR DELETE USING (true);
 
 -- Políticas para Mensagens
-DROP POLICY IF EXISTS "Mensagens visíveis para membros da conversa" ON public.messages;
-DROP POLICY IF EXISTS "Membros podem enviar mensagens na conversa" ON public.messages;
-DROP POLICY IF EXISTS "Usuários podem editar ou excluir suas próprias mensagens" ON public.messages;
+DROP POLICY IF EXISTS "Public select messages" ON public.messages;
+DROP POLICY IF EXISTS "Public insert messages" ON public.messages;
+DROP POLICY IF EXISTS "Public update messages" ON public.messages;
+DROP POLICY IF EXISTS "Public delete messages" ON public.messages;
 
-CREATE POLICY "Mensagens visíveis para membros da conversa"
-    ON public.messages FOR SELECT
-    USING (
-        conversation_id = '00000000-0000-0000-0000-000000000001' OR
-        EXISTS (
-            SELECT 1 FROM public.conversation_participants
-            WHERE conversation_participants.conversation_id = messages.conversation_id
-            AND conversation_participants.user_id = auth.uid()
-        )
-    );
+CREATE POLICY "Public select messages" ON public.messages FOR SELECT USING (true);
+CREATE POLICY "Public insert messages" ON public.messages FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update messages" ON public.messages FOR UPDATE USING (true);
+CREATE POLICY "Public delete messages" ON public.messages FOR DELETE USING (true);
 
-CREATE POLICY "Membros podem enviar mensagens na conversa"
-    ON public.messages FOR INSERT
-    WITH CHECK (
-        auth.uid() = sender_id AND
-        (
-            conversation_id = '00000000-0000-0000-0000-000000000001' OR
-            EXISTS (
-                SELECT 1 FROM public.conversation_participants
-                WHERE conversation_participants.conversation_id = messages.conversation_id
-                AND conversation_participants.user_id = auth.uid()
-            )
-        )
-    );
+-- Políticas para Anexos
+DROP POLICY IF EXISTS "Public select message_attachments" ON public.message_attachments;
+DROP POLICY IF EXISTS "Public insert message_attachments" ON public.message_attachments;
+DROP POLICY IF EXISTS "Public update message_attachments" ON public.message_attachments;
+DROP POLICY IF EXISTS "Public delete message_attachments" ON public.message_attachments;
 
-CREATE POLICY "Usuários podem editar ou excluir suas próprias mensagens"
-    ON public.messages FOR UPDATE
-    USING (auth.uid() = sender_id);
+CREATE POLICY "Public select message_attachments" ON public.message_attachments FOR SELECT USING (true);
+CREATE POLICY "Public insert message_attachments" ON public.message_attachments FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update message_attachments" ON public.message_attachments FOR UPDATE USING (true);
+CREATE POLICY "Public delete message_attachments" ON public.message_attachments FOR DELETE USING (true);
 
 -- Políticas para Reações
-DROP POLICY IF EXISTS "Reações visíveis para membros da conversa" ON public.message_reactions;
-DROP POLICY IF EXISTS "Membros podem adicionar reações" ON public.message_reactions;
-DROP POLICY IF EXISTS "Usuários podem remover suas reações" ON public.message_reactions;
+DROP POLICY IF EXISTS "Public select message_reactions" ON public.message_reactions;
+DROP POLICY IF EXISTS "Public insert message_reactions" ON public.message_reactions;
+DROP POLICY IF EXISTS "Public update message_reactions" ON public.message_reactions;
+DROP POLICY IF EXISTS "Public delete message_reactions" ON public.message_reactions;
 
-CREATE POLICY "Reações visíveis para membros da conversa"
-    ON public.message_reactions FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.messages m
-            WHERE m.id = message_reactions.message_id
-        )
-    );
+CREATE POLICY "Public select message_reactions" ON public.message_reactions FOR SELECT USING (true);
+CREATE POLICY "Public insert message_reactions" ON public.message_reactions FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update message_reactions" ON public.message_reactions FOR UPDATE USING (true);
+CREATE POLICY "Public delete message_reactions" ON public.message_reactions FOR DELETE USING (true);
 
-CREATE POLICY "Membros podem adicionar reações"
-    ON public.message_reactions FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
+-- Políticas para Status de Leitura
+DROP POLICY IF EXISTS "Public select message_status" ON public.message_status;
+DROP POLICY IF EXISTS "Public insert message_status" ON public.message_status;
+DROP POLICY IF EXISTS "Public update message_status" ON public.message_status;
+DROP POLICY IF EXISTS "Public delete message_status" ON public.message_status;
 
-CREATE POLICY "Usuários podem remover suas reações"
-    ON public.message_reactions FOR DELETE
-    USING (auth.uid() = user_id);
+CREATE POLICY "Public select message_status" ON public.message_status FOR SELECT USING (true);
+CREATE POLICY "Public insert message_status" ON public.message_status FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update message_status" ON public.message_status FOR UPDATE USING (true);
+CREATE POLICY "Public delete message_status" ON public.message_status FOR DELETE USING (true);
 
 -- Políticas para Configurações
-DROP POLICY IF EXISTS "Usuários podem ver e editar apenas suas próprias configurações" ON public.user_settings;
-
-CREATE POLICY "Usuários podem ver e editar apenas suas próprias configurações"
-    ON public.user_settings FOR ALL
-    USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Public all user_settings" ON public.user_settings;
+CREATE POLICY "Public all user_settings" ON public.user_settings FOR ALL USING (true);
 
 -- 18. Tabela de Presentes do Usuário (User Gifts & Showcase)
 CREATE TABLE IF NOT EXISTS public.user_gifts (

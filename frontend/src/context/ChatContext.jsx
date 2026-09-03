@@ -77,6 +77,19 @@ export function ChatProvider({ children }) {
       return;
     }
 
+    // 1. Carregamento instantâneo do cache local para resposta imediata
+    try {
+      const cached = localStorage.getItem(`nexus_msgs_${activeConversationId}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao ler cache de mensagens:', e);
+    }
+
     async function loadMessages() {
       try {
         setLoadingMessages(true);
@@ -92,11 +105,16 @@ export function ChatProvider({ children }) {
               `)
               .eq('conversation_id', activeConversationId)
               .order('created_at', { ascending: true })
-              .limit(150);
+              .limit(200);
 
             if (dbMsgs && !dbErr) {
               setMessages(dbMsgs);
+              try {
+                localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(dbMsgs));
+              } catch (cacheErr) {}
               return;
+            } else if (dbErr) {
+              console.warn('Aviso Supabase ao carregar mensagens:', dbErr);
             }
           } catch (supaErr) {
             console.warn('Fallback para API de mensagens:', supaErr);
@@ -106,6 +124,9 @@ export function ChatProvider({ children }) {
         const res = await apiRequest(`/conversations/${activeConversationId}/messages`);
         if (res.success && res.messages) {
           setMessages(res.messages);
+          try {
+            localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(res.messages));
+          } catch (cacheErr) {}
         }
       } catch (err) {
         console.error('Erro ao carregar mensagens:', err);
