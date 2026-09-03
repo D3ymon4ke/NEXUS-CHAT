@@ -407,6 +407,22 @@ export function MessageBubble({
             </div>
           )}
 
+          {/* Fallback de Imagem Direta no Conteúdo (caso attachments não tenha sido carregado) */}
+          {!isDeleted && (!message.attachments || message.attachments.length === 0) && (
+            (message.type === 'image' && message.content) ||
+            message.content?.startsWith('data:image/') ||
+            (message.content?.startsWith('http') && message.content?.match(/\.(jpeg|jpg|gif|png|webp|svg)(\?.*)?$/i))
+          ) && (
+            <div className="mb-1.5">
+              <img
+                src={message.content}
+                alt="Foto"
+                onClick={() => onImageClick && onImageClick(message.content)}
+                className="max-h-64 rounded-xl object-cover cursor-pointer hover:opacity-95 transition-opacity shadow-sm"
+              />
+            </div>
+          )}
+
           {/* Conteúdo de Texto, Enquete, Convite para Café, Modo Fantasma ou Estado Excluído */}
           {isDeleted ? (
             <div className="flex items-center gap-1.5 text-xs text-slate-400 italic py-0.5">
@@ -422,7 +438,9 @@ export function MessageBubble({
           ) : message.type === 'poll' ? (
             <PollCard message={message} />
           ) : (
-            message.content && (
+            message.content &&
+            !message.content.startsWith('data:image/') &&
+            !(message.type === 'image' && (!message.attachments || message.attachments.length === 0) && message.content.startsWith('http')) && (
               <div className="text-sm">
                 <FormattedText text={message.content} isOwn={isOwn} />
               </div>

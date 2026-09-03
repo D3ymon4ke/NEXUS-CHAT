@@ -6,6 +6,7 @@ import { sounds } from '../../lib/sound';
 import confetti from 'canvas-confetti';
 import { ANIMATED_STICKERS, STICKER_PRICE } from '../../lib/animatedStickers';
 import { CreatePollModal } from '../polls/CreatePollModal';
+import { compressImageFile } from '../../lib/imageCompressor';
 import {
   Send,
   Paperclip,
@@ -305,26 +306,42 @@ export function MessageInput() {
     }
   };
 
-  const readAndAttachImage = (file) => {
-    setUploading(true);
-    const reader = new FileReader();
-    reader.onload = (loadEvent) => {
-      const base64Url = loadEvent.target?.result;
-      if (base64Url) {
+  const readAndAttachImage = async (file) => {
+    try {
+      setUploading(true);
+      const compressedBase64 = await compressImageFile(file, 1200, 1200, 0.84);
+      if (compressedBase64) {
         setAttachments(prev => [
           ...prev,
           {
-            file_name: file.name || 'imagem.png',
-            file_url: base64Url,
+            file_name: file.name || 'imagem.jpg',
+            file_url: compressedBase64,
             file_type: 'image',
-            file_size: file.size
+            file_size: Math.round((compressedBase64.length * 3) / 4)
           }
         ]);
       }
+    } catch (err) {
+      console.warn('Erro ao comprimir imagem, usando fallback:', err);
+      const reader = new FileReader();
+      reader.onload = (loadEvent) => {
+        const base64Url = loadEvent.target?.result;
+        if (base64Url) {
+          setAttachments(prev => [
+            ...prev,
+            {
+              file_name: file.name || 'imagem.png',
+              file_url: base64Url,
+              file_type: 'image',
+              file_size: file.size
+            }
+          ]);
+        }
+      };
+      reader.readAsDataURL(file);
+    } finally {
       setUploading(false);
-    };
-    reader.onerror = () => setUploading(false);
-    reader.readAsDataURL(file);
+    }
   };
 
   const handleSend = async () => {
@@ -385,9 +402,13 @@ export function MessageInput() {
       return;
     }
 
+    const hasImage = messageAttachments.some(a => a.file_type === 'image' || a.file_url?.startsWith('data:image'));
+    const effectiveType = hasImage ? 'image' : (messageAttachments.length > 0 ? (messageAttachments[0].file_type || 'file') : 'text');
+    const effectiveContent = messageContent || (hasImage ? messageAttachments[0]?.file_url : '');
+
     await sendMessage({
-      content: messageContent,
-      type: messageAttachments.length > 0 ? (messageAttachments[0].file_type || 'image') : 'text',
+      content: effectiveContent,
+      type: effectiveType,
       attachments: messageAttachments,
       replyToId: replyingTo?.id || null
     });
@@ -428,7 +449,7 @@ export function MessageInput() {
     sounds.playPop();
 
     await sendMessage({
-      content: '',
+      content: sticker.url,
       type: 'image',
       attachments: [
         {

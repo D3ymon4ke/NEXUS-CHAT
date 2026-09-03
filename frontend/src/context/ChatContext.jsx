@@ -219,22 +219,25 @@ export function ChatProvider({ children }) {
 
             // Se for na conversa ativa e de outro usuário, adicionar à lista de mensagens visíveis
             if (newMsg.conversation_id === activeConversationId && newMsg.sender_id !== user.id) {
-              const { data: sender } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', newMsg.sender_id)
-                .single();
+              const [{ data: sender }, { data: dbAtts }] = await Promise.all([
+                supabase.from('profiles').select('*').eq('id', newMsg.sender_id).maybeSingle(),
+                supabase.from('message_attachments').select('*').eq('message_id', newMsg.id)
+              ]);
 
               const formatted = {
                 ...newMsg,
                 sender: sender || { id: newMsg.sender_id, display_name: 'Usuário' },
-                attachments: [],
+                attachments: dbAtts || [],
                 reactions: []
               };
 
               setMessages((prev) => {
                 if (prev.some((m) => m.id === formatted.id || (m.tempId && m.tempId === formatted.id))) return prev;
-                return [...prev, formatted];
+                const updated = [...prev, formatted];
+                try {
+                  localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
+                } catch (e) {}
+                return updated;
               });
               sounds.playReceive();
             } else if (newMsg.conversation_id !== activeConversationId && newMsg.sender_id !== user.id) {
@@ -358,7 +361,61 @@ export function ChatProvider({ children }) {
         }).select().single();
 
         if (insertedMsg && !insertErr) {
-          setMessages(prev => prev.map(m => m.tempId === tempId ? { ...optimisticMessage, id: insertedMsg.id, status: 'sent' } : m));
+          let savedAttachments = attachments || [];
+
+          // Inserir anexos de mídia na tabela message_attachments
+          if (attachments && attachments.length > 0) {
+            try {
+              const attachmentPayloads = attachments.map((att) => ({
+                message_id: insertedMsg.id,
+                file_url: att.file_url || att.url || '',
+                file_name: att.file_name || att.name || 'imagem.jpg',
+                file_size: att.file_size || att.size || 0,
+                file_type: att.file_type || att.type || (att.file_url?.startsWith('data:image') ? 'image' : 'file')
+              }));
+
+              const { data: dbAtts, error: dbAttErr } = await supabase
+                .from('message_attachments')
+                .insert(attachmentPayloads)
+                .select();
+
+              if (dbAtts && !dbAttErr) {
+                savedAttachments = dbAtts;
+              } else if (dbAttErr) {
+                console.warn('Erro ao inserir message_attachments no Supabase:', dbAttErr);
+              }
+            } catch (attEx) {
+              console.warn('Erro ao processar anexos:', attEx);
+            }
+          }
+
+          const confirmedMsg = {
+            ...optimisticMessage,
+            id: insertedMsg.id,
+            attachments: savedAttachments,
+            status: 'sent'
+          };
+
+          setMessages((prev) => {
+            const updated = prev.map((m) => (m.tempId === tempId ? confirmedMsg : m));
+            try {
+              localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
+            } catch (e) {}
+            return updated;
+          });
+
+          // Atualizar last_message na conversa
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id === activeConversationId
+                ? {
+                    ...c,
+                    last_message: confirmedMsg,
+                    updated_at: new Date().toISOString()
+                  }
+                : c
+            )
+          );
 
           // +5 moedas por envio
           const newBalance = (user.nexus_coins || 100) + 5;
