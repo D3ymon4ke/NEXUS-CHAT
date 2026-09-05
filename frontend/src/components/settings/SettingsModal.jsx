@@ -8,6 +8,7 @@ import { sounds } from '../../lib/sound';
 import { fetchMusicMetadata } from '../../lib/musicUtils';
 import { ProfileMusicPlayer } from '../profile/ProfileMusicPlayer';
 import { compressImageFile } from '../../lib/imageCompressor';
+import { notificationService } from '../../lib/notificationService';
 import {
   Settings,
   X,
@@ -30,7 +31,9 @@ import {
   Loader2,
   ExternalLink,
   Gift,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Bell,
+  BellOff
 } from 'lucide-react';
 
 export function SettingsModal({ isOpen, onClose, onOpenProfile }) {
@@ -54,6 +57,12 @@ export function SettingsModal({ isOpen, onClose, onOpenProfile }) {
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
+  // Notificações Push & Segundo Plano
+  const [notifPermission, setNotifPermission] = useState(() => notificationService.getPermission());
+  const [notifEnabled, setNotifEnabled] = useState(() => notificationService.isEnabled());
+  const [testingNotif, setTestingNotif] = useState(false);
+  const [notifFeedback, setNotifFeedback] = useState('');
+
   // Sincronizar dados do usuário sempre que o modal for aberto ou o usuário mudar
   useEffect(() => {
     if (user && isOpen) {
@@ -66,8 +75,46 @@ export function SettingsModal({ isOpen, onClose, onOpenProfile }) {
       setSongTitle(user.profile_song_title || '');
       setSongArtist(user.profile_song_artist || '');
       setSongCover(user.profile_song_cover || '');
+      setNotifPermission(notificationService.getPermission());
+      setNotifEnabled(notificationService.isEnabled());
     }
   }, [user, isOpen]);
+
+  const handleToggleNotifications = async () => {
+    if (notifPermission !== 'granted') {
+      const res = await notificationService.requestPermission();
+      setNotifPermission(res.status);
+      if (res.success) {
+        setNotifEnabled(true);
+        sounds?.playPop?.();
+      } else if (res.status === 'denied') {
+        sounds?.playError?.();
+        setNotifFeedback('Notificações bloqueadas pelo navegador. Habilite nas permissões do site.');
+      }
+    } else {
+      const next = !notifEnabled;
+      notificationService.setEnabled(next);
+      setNotifEnabled(next);
+      sounds?.playPop?.();
+    }
+  };
+
+  const handleTestNotification = async () => {
+    setTestingNotif(true);
+    setNotifFeedback('');
+    try {
+      const ok = await notificationService.testNotification();
+      if (ok) {
+        setNotifFeedback('Notificação de teste enviada!');
+      } else {
+        setNotifFeedback('Permissão necessária para enviar notificação.');
+      }
+    } catch (e) {
+      setNotifFeedback('Erro ao disparar notificação.');
+    } finally {
+      setTestingNotif(false);
+    }
+  };
 
   if (!isOpen || !user) return null;
 
@@ -671,6 +718,66 @@ export function SettingsModal({ isOpen, onClose, onOpenProfile }) {
               >
                 {soundEnabled ? 'Ativado' : 'Mudo'}
               </button>
+            </div>
+
+            {/* Notificações Push / Segundo Plano */}
+            <div className="p-4 rounded-2xl bg-background-surface/60 border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {notifEnabled && notifPermission === 'granted' ? (
+                    <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                      <Bell className="w-5 h-5" />
+                    </div>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-slate-800 text-slate-400 border border-slate-700">
+                      <BellOff className="w-5 h-5" />
+                    </div>
+                  )}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-bold text-white">Notificações Push / Segundo Plano</h4>
+                      <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-extrabold uppercase border ${
+                        notifPermission === 'granted'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : notifPermission === 'denied'
+                          ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                          : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      }`}>
+                        {notifPermission === 'granted' ? 'Permitido' : notifPermission === 'denied' ? 'Bloqueado' : 'Pendente'}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      Receba avisos de mensagens mesmo com o app em segundo plano ou fechado
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleToggleNotifications}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors flex-shrink-0 ${
+                    notifEnabled && notifPermission === 'granted'
+                      ? 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-600/30'
+                      : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750'
+                  }`}
+                >
+                  {notifEnabled && notifPermission === 'granted' ? 'Ativadas' : 'Ativar'}
+                </button>
+              </div>
+
+              {/* Botão de Testar Notificação & Feedback */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-2">
+                <span className="text-[11px] text-slate-400 truncate">
+                  {notifFeedback || (notifPermission === 'granted' ? 'Notificações prontas para uso' : 'Clique em Ativar para autorizar no navegador')}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleTestNotification}
+                  disabled={testingNotif}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-bold transition-all disabled:opacity-50 flex-shrink-0"
+                >
+                  {testingNotif ? 'Enviando...' : 'Testar Notificação'}
+                </button>
+              </div>
             </div>
 
             <div className="p-4 rounded-2xl bg-background-surface/60 border border-slate-800 flex items-center justify-between">

@@ -4,6 +4,7 @@ import { useSocket } from './SocketContext';
 import { apiRequest } from '../lib/api';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { sounds } from '../lib/sound';
+import { notificationService, formatNotificationPreview } from '../lib/notificationService';
 
 const ChatContext = createContext(null);
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
@@ -74,6 +75,21 @@ export function ChatProvider({ children }) {
       setPinnedConversationIds(stored);
     }
   }, [user?.id]);
+
+  // Listener para eventos de clique em notificações enviados pelo Service Worker
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      const handleSwMessage = (event) => {
+        if (event.data && event.data.type === 'OPEN_CONVERSATION' && event.data.conversationId) {
+          setActiveConversationId(event.data.conversationId);
+        }
+      };
+      navigator.serviceWorker.addEventListener('message', handleSwMessage);
+      return () => {
+        navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+      };
+    }
+  }, []);
 
   // Limpeza periódica de usuários digitando expirados
   useEffect(() => {
@@ -415,6 +431,35 @@ export function ChatProvider({ children }) {
               sounds.playReceive();
             } else if (newMsg.conversation_id !== activeConversationId && newMsg.sender_id !== user.id) {
               sounds.playReceive();
+            }
+
+            // Disparar Notificação Nativa/Push se o app estiver em segundo plano ou em outra conversa
+            if (newMsg.sender_id !== user.id) {
+              const isHidden = typeof document !== 'undefined' && document.hidden;
+              const isOtherConv = newMsg.conversation_id !== activeConversationId;
+              if (isHidden || isOtherConv) {
+                (async () => {
+                  try {
+                    const [{ data: senderData }, { data: attsData }] = await Promise.all([
+                      supabase.from('profiles').select('*').eq('id', newMsg.sender_id).maybeSingle(),
+                      supabase.from('message_attachments').select('*').eq('message_id', newMsg.id)
+                    ]);
+                    const senderName = senderData?.display_name || senderData?.username || 'Novo Membro';
+                    const previewText = formatNotificationPreview(newMsg.content, newMsg.type, attsData);
+                    notificationService.sendNotification({
+                      title: senderName,
+                      body: previewText,
+                      icon: senderData?.avatar_url || '/belmont-logo.jpg',
+                      conversationId: newMsg.conversation_id,
+                      onClick: () => {
+                        setActiveConversationId(newMsg.conversation_id);
+                      }
+                    });
+                  } catch (notifErr) {
+                    console.warn('Aviso de notificação:', notifErr);
+                  }
+                })();
+              }
             }
           }
         }

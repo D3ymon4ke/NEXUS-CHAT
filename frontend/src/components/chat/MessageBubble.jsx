@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '../../context/AuthContext';
+import { sounds } from '../../lib/sound';
 import {
   Check,
   CheckCheck,
@@ -131,12 +132,90 @@ export function MessageBubble({
     return acc;
   }, {});
 
+  // Gesto Swipe-to-Reply no Mobile (Arrastar para Responder)
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const touchStartRef = useRef({ x: 0, y: 0 });
+  const hasVibratedRef = useRef(false);
+
+  const handleTouchStart = (e) => {
+    if (isDeleted || !onReply) return;
+    touchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY
+    };
+    hasVibratedRef.current = false;
+    setIsDragging(true);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!isDragging || isDeleted || !onReply) return;
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const dx = currentX - touchStartRef.current.x;
+    const dy = currentY - touchStartRef.current.y;
+
+    // Permitir rolagem vertical sem travar a lista
+    if (Math.abs(dy) > Math.abs(dx) && Math.abs(dx) < 15) {
+      return;
+    }
+
+    let offset = 0;
+    if (!isOwn && dx > 0) {
+      offset = Math.min(75, dx * 0.55);
+    } else if (isOwn && dx < 0) {
+      offset = Math.min(75, Math.abs(dx) * 0.55);
+    }
+
+    if (offset >= 45 && !hasVibratedRef.current) {
+      hasVibratedRef.current = true;
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate(25); } catch (vErr) {}
+      }
+      sounds?.playPop?.();
+    }
+
+    setDragOffset(offset);
+  };
+
+  const handleTouchEnd = () => {
+    if (dragOffset >= 45 && onReply && !isDeleted) {
+      onReply(message);
+    }
+    setIsDragging(false);
+    setDragOffset(0);
+    hasVibratedRef.current = false;
+  };
+
   return (
     <div
-      className={`group relative flex my-2 transition-all w-full max-w-full min-w-0 items-end gap-1.5 sm:gap-2.5 ${
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
+      style={{
+        transform: `translateX(${!isOwn ? dragOffset : -dragOffset}px)`,
+        transition: isDragging ? 'none' : 'transform 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+      }}
+      className={`group relative flex my-2 w-full max-w-full min-w-0 items-end gap-1.5 sm:gap-2.5 touch-pan-y ${
         isOwn ? 'justify-end' : 'justify-start'
       }`}
     >
+      {/* Ícone Indicador de Resposta por Gesto (Swipe-to-Reply) */}
+      {dragOffset > 8 && (
+        <div
+          style={{
+            transform: `scale(${Math.min(1.2, dragOffset / 40)})`,
+            opacity: Math.min(1, dragOffset / 35)
+          }}
+          className={`absolute top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-brand-600/95 border border-brand-400 text-white flex items-center justify-center shadow-lg pointer-events-none z-0 transition-transform ${
+            !isOwn ? '-left-10' : '-right-10'
+          }`}
+        >
+          <Reply className="w-4 h-4 text-white" />
+        </div>
+      )}
+
       {/* 1. Foto do Usuário Remetente (Mensagem Recebida - à Esquerda) */}
       {!isOwn && (
         <div
