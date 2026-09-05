@@ -72,6 +72,29 @@ function ChatDashboard() {
     }
   }, [user, setShowPollModal]);
 
+  // Verificação periódica de novas versões da Vercel (Auto-Update)
+  useEffect(() => {
+    const checkVersion = async () => {
+      try {
+        const res = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.version && typeof __APP_BUILD_TIME__ !== 'undefined') {
+            if (data.version > __APP_BUILD_TIME__) {
+              if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+                const reg = await navigator.serviceWorker.ready;
+                reg.update().catch(() => {});
+              }
+            }
+          }
+        }
+      } catch (e) {}
+    };
+
+    const interval = setInterval(checkVersion, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleSelectConversation = (convId) => {
     setActiveConversationId(convId);
     setMobileView('chat');
