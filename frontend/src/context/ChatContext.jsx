@@ -203,16 +203,13 @@ export function ChatProvider({ children }) {
         const currentPins = getStoredPins(user?.id);
         const sorted = sortConversationsList(res.conversations, currentPins);
         setConversations(sorted);
-        if (!activeConversationId && sorted.length > 0) {
-          setActiveConversationId(sorted[0].id);
-        }
       }
     } catch (err) {
       console.error('Erro ao carregar conversas:', err);
     } finally {
       setLoadingConversations(false);
     }
-  }, [user, activeConversationId]);
+  }, [user]);
 
   useEffect(() => {
     loadConversations();

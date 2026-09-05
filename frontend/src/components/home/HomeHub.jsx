@@ -87,13 +87,23 @@ const BADGE_COLORS = {
 
 const DEFAULT_FALLBACK_PATCHES = [
   {
+    id: 'p0',
+    tag: 'NOVIDADE',
+    title: '🚀 Notificações Push, Swipe-to-Reply & Auto-Update',
+    version: 'v3.0.0',
+    content: '### 🎉 Grandes Novidades no Nexus Chat!\n\n- 🔔 **Notificações Push em Segundo Plano (Web Push VAPID)**: Receba notificações instantâneas no seu celular ou PC mesmo com o app fechado!\n- 💬 **Swipe-to-Reply Mobile**: Deslize qualquer mensagem para a esquerda para responder rapidamente com vibração háptica!\n- ⚡ **Atualização Automática (PWA Auto-Update)**: O app agora detecta e aplica novas versões silenciosamente.\n- 📢 **Central de Notificações do Administrador**: Envio de comunicados globais e individuais com presets.',
+    author_name: 'Damon',
+    is_pinned: true,
+    created_at: new Date().toISOString()
+  },
+  {
     id: 'p1',
     tag: 'NOVIDADE',
     title: 'Perfil Expandido, Capas & Presentes Animados',
     version: 'v2.6.0',
     content: 'Personalize sua capa de perfil widescreen, visualize avatares em tela cheia (lightbox) e envie presentes animados com raridades e vitrine de troféus.',
     author_name: 'Damon',
-    is_pinned: true,
+    is_pinned: false,
     created_at: new Date().toISOString()
   },
   {

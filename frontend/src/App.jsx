@@ -53,7 +53,7 @@ function ChatDashboard() {
   const [activeStoryGroup, setActiveStoryGroup] = useState(null);
   const [storiesRefreshKey, setStoriesRefreshKey] = useState(Date.now());
 
-  const [mobileView, setMobileView] = useState('sidebar'); // 'sidebar' | 'chat'
+  const [mobileView, setMobileView] = useState('chat'); // Iniciar na Página Inicial (HomeHub)
 
   // Fechar todos os popups/modais de usuário caso a sessão seja encerrada (logout)
   useEffect(() => {
