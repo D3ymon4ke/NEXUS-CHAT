@@ -108,9 +108,15 @@ export function MessageBubble({
     ? 'bubble-sent-default'
     : 'bubble-received-default';
 
-  const formattedTime = message.created_at
-    ? format(new Date(message.created_at), 'HH:mm', { locale: ptBR })
-    : '';
+  const formattedTime = (() => {
+    if (!message?.created_at) return '';
+    try {
+      const d = new Date(message.created_at);
+      return isNaN(d.getTime()) ? '' : format(d, 'HH:mm', { locale: ptBR });
+    } catch (e) {
+      return '';
+    }
+  })();
 
   const handleCopy = () => {
     if (message.content && !isDeleted) {

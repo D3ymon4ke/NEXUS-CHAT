@@ -423,8 +423,9 @@ export function Sidebar({
   };
 
   // Filtragem e Ordenação de Conversas com Prioridade para Fixadas
-  const filteredConversations = conversations
+  const filteredConversations = (Array.isArray(conversations) ? conversations : [])
     .filter((conv) => {
+      if (!conv) return false;
       const isBelmont = conv.id === BELMONT_ID || conv.is_permanent;
 
       if (filterTab === 'master') return true; // Mostra todas no Master
@@ -440,8 +441,9 @@ export function Sidebar({
       return name.includes(term) || lastPreview.includes(term);
     })
     .sort((a, b) => {
-      const aPinned = isConversationPinned(a.id);
-      const bPinned = isConversationPinned(b.id);
+      if (!a || !b) return 0;
+      const aPinned = typeof isConversationPinned === 'function' ? isConversationPinned(a.id) : false;
+      const bPinned = typeof isConversationPinned === 'function' ? isConversationPinned(b.id) : false;
 
       if (aPinned && !bPinned) return -1;
       if (!aPinned && bPinned) return 1;
@@ -449,24 +451,32 @@ export function Sidebar({
       if (aPinned && bPinned) {
         if (a.id === BELMONT_ID) return -1;
         if (b.id === BELMONT_ID) return 1;
-        const indexA = (pinnedConversationIds || []).indexOf(a.id);
-        const indexB = (pinnedConversationIds || []).indexOf(b.id);
+        const safePins = Array.isArray(pinnedConversationIds) ? pinnedConversationIds : [];
+        const indexA = safePins.indexOf(a.id);
+        const indexB = safePins.indexOf(b.id);
         if (indexA !== -1 && indexB !== -1 && indexA !== indexB) {
           return indexA - indexB;
         }
       }
 
-      const timeA = a.last_message ? new Date(a.last_message.created_at).getTime() : 0;
-      const timeB = b.last_message ? new Date(b.last_message.created_at).getTime() : 0;
-      return timeB - timeA;
+      const timeA = a.last_message?.created_at ? new Date(a.last_message.created_at).getTime() : 0;
+      const timeB = b.last_message?.created_at ? new Date(b.last_message.created_at).getTime() : 0;
+      const safeTimeA = isNaN(timeA) ? 0 : timeA;
+      const safeTimeB = isNaN(timeB) ? 0 : timeB;
+      return safeTimeB - safeTimeA;
     });
 
   const formatLastMessageTime = (dateString) => {
     if (!dateString) return '';
-    const date = new Date(dateString);
-    if (isToday(date)) return format(date, 'HH:mm', { locale: ptBR });
-    if (isYesterday(date)) return 'Ontem';
-    return format(date, 'dd/MM', { locale: ptBR });
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '';
+      if (isToday(date)) return format(date, 'HH:mm', { locale: ptBR });
+      if (isYesterday(date)) return 'Ontem';
+      return format(date, 'dd/MM', { locale: ptBR });
+    } catch (e) {
+      return '';
+    }
   };
 
   const tabs = [

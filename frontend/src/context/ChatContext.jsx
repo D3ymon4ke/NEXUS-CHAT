@@ -20,9 +20,12 @@ const getStoredPins = (userId) => {
 };
 
 const sortConversationsList = (convList = [], pinnedIds = []) => {
+  if (!Array.isArray(convList)) return [];
+  const safePinnedIds = Array.isArray(pinnedIds) ? pinnedIds : [];
   return [...convList].sort((a, b) => {
-    const aPinned = pinnedIds.includes(a.id) || a.is_pinned || a.id === BELMONT_ID;
-    const bPinned = pinnedIds.includes(b.id) || b.is_pinned || b.id === BELMONT_ID;
+    if (!a || !b) return 0;
+    const aPinned = safePinnedIds.includes(a.id) || a.is_pinned || a.id === BELMONT_ID;
+    const bPinned = safePinnedIds.includes(b.id) || b.is_pinned || b.id === BELMONT_ID;
 
     // Se um é fixado e o outro não
     if (aPinned && !bPinned) return -1;
@@ -32,17 +35,19 @@ const sortConversationsList = (convList = [], pinnedIds = []) => {
     if (aPinned && bPinned) {
       if (a.id === BELMONT_ID) return -1;
       if (b.id === BELMONT_ID) return 1;
-      const indexA = pinnedIds.indexOf(a.id);
-      const indexB = pinnedIds.indexOf(b.id);
+      const indexA = safePinnedIds.indexOf(a.id);
+      const indexB = safePinnedIds.indexOf(b.id);
       if (indexA !== -1 && indexB !== -1 && indexA !== indexB) {
         return indexA - indexB;
       }
     }
 
     // Ordenação padrão pela mensagem mais recente
-    const timeA = a.last_message ? new Date(a.last_message.created_at).getTime() : 0;
-    const timeB = b.last_message ? new Date(b.last_message.created_at).getTime() : 0;
-    return timeB - timeA;
+    const timeA = a.last_message?.created_at ? new Date(a.last_message.created_at).getTime() : 0;
+    const timeB = b.last_message?.created_at ? new Date(b.last_message.created_at).getTime() : 0;
+    const safeTimeA = isNaN(timeA) ? 0 : timeA;
+    const safeTimeB = isNaN(timeB) ? 0 : timeB;
+    return safeTimeB - safeTimeA;
   });
 };
 
@@ -109,7 +114,7 @@ export function ChatProvider({ children }) {
 
   // Lista de usuários digitando na conversa ativa
   const activeTypingUsers = Array.from(typingUsersMap.values()).filter(
-    (t) => t.conversationId === activeConversationId && t.expiresAt > Date.now()
+    (t) => t && t.conversationId === activeConversationId && (t.expiresAt || 0) > Date.now()
   );
 
   const toggleSound = () => {
@@ -312,7 +317,7 @@ export function ChatProvider({ children }) {
     loadMessages();
     setReplyingTo(null);
     setEditingMessage(null);
-    setTypingUsers(new Map());
+    setTypingUsersMap(new Map());
 
     // Limpar badge de não lidas para a conversa selecionada
     if (activeConversationId) {

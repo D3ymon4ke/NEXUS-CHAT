@@ -86,10 +86,15 @@ export function ChatArea({ onBack, onOpenProfile }) {
   // Função para formatar o divisor de data
   const formatDateSeparator = (dateString) => {
     if (!dateString) return '';
-    const date = new Date(dateString);
-    if (isToday(date)) return 'Hoje';
-    if (isYesterday(date)) return 'Ontem';
-    return format(date, "d 'de' MMMM", { locale: ptBR });
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '';
+      if (isToday(date)) return 'Hoje';
+      if (isYesterday(date)) return 'Ontem';
+      return format(date, "d 'de' MMMM", { locale: ptBR });
+    } catch (e) {
+      return '';
+    }
   };
 
   const wallpaperClass = WALLPAPER_STYLES[user?.equipped_wallpaper] || 'bg-background-darker';
@@ -222,7 +227,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
           })
         )}
 
-        {typingUsers.length > 0 && (
+        {Array.isArray(typingUsers) && typingUsers.length > 0 && (
           <div className="flex items-center gap-2 py-1.5 px-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 w-fit text-xs text-slate-300 shadow-md backdrop-blur animate-fadeIn my-1">
             <div className="flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-bounce [animation-delay:-0.3s]" />
@@ -231,8 +236,8 @@ export function ChatArea({ onBack, onOpenProfile }) {
             </div>
             <span className="text-[11px] font-medium text-slate-300">
               {typingUsers.length === 1
-                ? `${typingUsers[0].displayName} está digitando...`
-                : `${typingUsers.map(u => u.displayName).join(', ')} estão digitando...`}
+                ? `${typingUsers[0]?.displayName || typingUsers[0]?.username || 'Alguém'} está digitando...`
+                : `${typingUsers.map((u) => u?.displayName || u?.username || 'Alguém').join(', ')} estão digitando...`}
             </span>
           </div>
         )}

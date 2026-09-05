@@ -240,7 +240,15 @@ export function NexusWalletModal({ isOpen, onClose }) {
                         <div>
                           <div className="text-xs font-bold text-slate-200">{tx.description}</div>
                           <div className="text-[10px] text-slate-500">
-                            {format(new Date(tx.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                            {(() => {
+                              if (!tx.created_at) return '';
+                              try {
+                                const d = new Date(tx.created_at);
+                                return isNaN(d.getTime()) ? '' : format(d, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+                              } catch (e) {
+                                return '';
+                              }
+                            })()}
                           </div>
                         </div>
                       </div>

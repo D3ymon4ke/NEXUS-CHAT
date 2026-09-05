@@ -153,12 +153,12 @@ export function ChatHeader({ onBack, onSearchToggle, isSearching, onOpenProfile 
             </div>
 
             {/* Indicador de Digitação ou Subtítulo */}
-            {typingUsers.length > 0 ? (
+            {Array.isArray(typingUsers) && typingUsers.length > 0 ? (
               <div className="flex items-center gap-1 text-[11px] sm:text-xs text-brand-400 animate-pulse truncate min-w-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-bounceShort flex-shrink-0" />
                 <span className="truncate">
                   {typingUsers.length === 1
-                    ? `${typingUsers[0].displayName} está digitando...`
+                    ? `${typingUsers[0]?.displayName || typingUsers[0]?.username || 'Usuário'} está digitando...`
                     : 'Várias pessoas digitando...'}
                 </span>
               </div>
