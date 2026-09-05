@@ -253,7 +253,7 @@ export function ChatProvider({ children }) {
               .limit(200);
 
             if (dbMsgs && !dbErr) {
-              // Reconstruir citações de respostas (reply_to) a partir de reply_to_id
+              // Reconstruir citações de respostas (reply_to) e anexos de imagem
               const msgMap = new Map();
               dbMsgs.forEach((m) => msgMap.set(m.id, m));
 
@@ -267,9 +267,26 @@ export function ChatProvider({ children }) {
                     sender: target.sender
                   };
                 }
+
+                let resolvedAttachments = m.attachments || [];
+                if (
+                  resolvedAttachments.length === 0 &&
+                  (m.type === 'image' || m.content?.startsWith('http') || m.content?.startsWith('data:image'))
+                ) {
+                  if (m.content && (m.content.startsWith('http') || m.content.startsWith('data:image'))) {
+                    resolvedAttachments = [{
+                      file_url: m.content,
+                      file_name: 'imagem.jpg',
+                      file_type: 'image',
+                      file_size: 0
+                    }];
+                  }
+                }
+
                 return {
                   ...m,
-                  reply_to: resolvedReply || null
+                  reply_to: resolvedReply || null,
+                  attachments: resolvedAttachments
                 };
               });
 
@@ -413,10 +430,25 @@ export function ChatProvider({ children }) {
                 supabase.from('message_attachments').select('*').eq('message_id', newMsg.id)
               ]);
 
+              let finalAttachments = dbAtts || [];
+              if (
+                finalAttachments.length === 0 &&
+                (newMsg.type === 'image' || newMsg.content?.startsWith('http') || newMsg.content?.startsWith('data:image'))
+              ) {
+                if (newMsg.content && (newMsg.content.startsWith('http') || newMsg.content.startsWith('data:image'))) {
+                  finalAttachments = [{
+                    file_url: newMsg.content,
+                    file_name: 'imagem.jpg',
+                    file_type: 'image',
+                    file_size: 0
+                  }];
+                }
+              }
+
               const formatted = {
                 ...newMsg,
                 sender: sender || { id: newMsg.sender_id, display_name: 'Usuário' },
-                attachments: dbAtts || [],
+                attachments: finalAttachments,
                 reactions: []
               };
 
@@ -671,10 +703,14 @@ export function ChatProvider({ children }) {
     if (isSupabaseConfigured && supabase) {
       try {
         const safeType = (type === 'coffee_invite' || type === 'ghost' || type === 'poll' || type === 'nexus_burst') ? 'text' : (type || 'text');
+        const effectiveContent = (content && content.trim())
+          ? content
+          : (attachments && attachments.length > 0 ? (attachments[0].file_url || '') : '');
+
         const { data: insertedMsg, error: insertErr } = await supabase.from('messages').insert({
           conversation_id: activeConversationId,
           sender_id: effectiveSenderId,
-          content: content || '',
+          content: effectiveContent,
           type: safeType,
           reply_to_id: optimisticMessage.reply_to_id
         }).select().single();

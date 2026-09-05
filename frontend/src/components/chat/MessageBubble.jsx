@@ -452,15 +452,23 @@ export function MessageBubble({
           {!isDeleted && message.attachments && message.attachments.length > 0 && (
             <div className="space-y-1.5 mb-1.5">
               {message.attachments.map((att, idx) => {
-                if (att.file_type === 'image' || att.file_url?.match(/\.(jpeg|jpg|gif|png|webp|svg)/i) || att.file_url?.startsWith('data:image')) {
+                const isImg =
+                  att.file_type === 'image' ||
+                  att.file_url?.match(/\.(jpeg|jpg|gif|png|webp|svg)(\?.*)?$/i) ||
+                  att.file_url?.startsWith('data:image') ||
+                  att.file_url?.includes('/storage/v1/object/public/chat-media/');
+
+                if (isImg) {
                   return (
-                    <img
-                      key={idx}
-                      src={att.file_url}
-                      alt={att.file_name || 'Imagem'}
-                      onClick={() => onImageClick && onImageClick(att.file_url)}
-                      className="max-h-60 rounded-xl object-cover cursor-pointer hover:opacity-95 transition-opacity"
-                    />
+                    <div key={idx} className="relative overflow-hidden rounded-xl bg-black/20 my-1 max-w-full">
+                      <img
+                        src={att.file_url}
+                        alt={att.file_name || 'Imagem'}
+                        onClick={() => onImageClick && onImageClick(att.file_url)}
+                        className="max-h-72 max-w-full rounded-xl object-contain cursor-pointer hover:opacity-95 transition-opacity"
+                        loading="lazy"
+                      />
+                    </div>
                   );
                 }
 
@@ -507,14 +515,17 @@ export function MessageBubble({
           {!isDeleted && (!message.attachments || message.attachments.length === 0) && (
             (message.type === 'image' && message.content) ||
             message.content?.startsWith('data:image/') ||
-            (message.content?.startsWith('http') && message.content?.match(/\.(jpeg|jpg|gif|png|webp|svg)(\?.*)?$/i))
+            (message.content?.startsWith('http') && message.content?.match(/\.(jpeg|jpg|gif|png|webp|svg)(\?.*)?$/i)) ||
+            (message.content?.startsWith('http') && message.content?.includes('/storage/v1/object/public/chat-media/')) ||
+            (message.file_url && (message.file_url.startsWith('http') || message.file_url.startsWith('data:image/')))
           ) && (
-            <div className="mb-1.5">
+            <div className="mb-1.5 relative overflow-hidden rounded-xl bg-black/20 my-1 max-w-full">
               <img
-                src={message.content}
+                src={message.file_url || message.content}
                 alt="Foto"
-                onClick={() => onImageClick && onImageClick(message.content)}
-                className="max-h-64 rounded-xl object-cover cursor-pointer hover:opacity-95 transition-opacity shadow-sm"
+                onClick={() => onImageClick && onImageClick(message.file_url || message.content)}
+                className="max-h-72 max-w-full rounded-xl object-contain cursor-pointer hover:opacity-95 transition-opacity shadow-sm"
+                loading="lazy"
               />
             </div>
           )}
@@ -536,7 +547,12 @@ export function MessageBubble({
           ) : (
             message.content &&
             !message.content.startsWith('data:image/') &&
-            !(message.type === 'image' && (!message.attachments || message.attachments.length === 0) && message.content.startsWith('http')) && (
+            !(
+              (message.content?.startsWith('http') &&
+                (message.content?.match(/\.(jpeg|jpg|gif|png|webp|svg)(\?.*)?$/i) ||
+                  message.content?.includes('/storage/v1/object/public/chat-media/'))) &&
+              (!message.attachments || message.attachments.length === 0 || message.attachments.some((a) => a.file_url === message.content))
+            ) && (
               <div className="text-sm">
                 <FormattedText text={message.content} isOwn={isOwn} />
               </div>

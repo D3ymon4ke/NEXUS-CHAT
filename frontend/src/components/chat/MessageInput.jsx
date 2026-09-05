@@ -5,8 +5,8 @@ import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { sounds } from '../../lib/sound';
 import confetti from 'canvas-confetti';
 import { ANIMATED_STICKERS, STICKER_PRICE } from '../../lib/animatedStickers';
-import { CreatePollModal } from '../polls/CreatePollModal';
 import { compressImageFile } from '../../lib/imageCompressor';
+import { uploadChatMedia } from '../../lib/mediaUploader';
 import {
   Send,
   Paperclip,
@@ -309,20 +309,30 @@ export function MessageInput() {
   const readAndAttachImage = async (file) => {
     try {
       setUploading(true);
-      const compressedBase64 = await compressImageFile(file, 1200, 1200, 0.84);
-      if (compressedBase64) {
-        setAttachments(prev => [
-          ...prev,
-          {
-            file_name: file.name || 'imagem.jpg',
-            file_url: compressedBase64,
-            file_type: 'image',
-            file_size: Math.round((compressedBase64.length * 3) / 4)
-          }
-        ]);
+      const compressedBase64 = await compressImageFile(file, 1600, 1600, 0.85);
+      const previewUrl = compressedBase64 || (typeof URL !== 'undefined' ? URL.createObjectURL(file) : '');
+
+      // Tenta upload imediato para o bucket público do Supabase Storage
+      let uploadedUrl = null;
+      try {
+        uploadedUrl = await uploadChatMedia(compressedBase64 || file, file.name);
+      } catch (upErr) {
+        console.warn('Upload storage inicial falhou, mantendo base64:', upErr);
       }
+
+      setAttachments(prev => [
+        ...prev,
+        {
+          file_name: file.name || 'imagem.jpg',
+          file_url: uploadedUrl || previewUrl,
+          file_type: 'image',
+          file_size: file.size || Math.round(((compressedBase64 || '').length * 3) / 4),
+          _rawFile: file,
+          _base64: compressedBase64
+        }
+      ]);
     } catch (err) {
-      console.warn('Erro ao comprimir imagem, usando fallback:', err);
+      console.warn('Erro ao processar imagem:', err);
       const reader = new FileReader();
       reader.onload = (loadEvent) => {
         const base64Url = loadEvent.target?.result;
@@ -333,7 +343,9 @@ export function MessageInput() {
               file_name: file.name || 'imagem.png',
               file_url: base64Url,
               file_type: 'image',
-              file_size: file.size
+              file_size: file.size,
+              _rawFile: file,
+              _base64: base64Url
             }
           ]);
         }
@@ -356,7 +368,7 @@ export function MessageInput() {
       return;
     }
 
-    const messageAttachments = [...attachments];
+    const currentAttachments = [...attachments];
 
     setContent('');
     setAttachments([]);
@@ -373,13 +385,43 @@ export function MessageInput() {
       return;
     }
 
+    // Processar upload de anexos de imagem para o Supabase Storage caso ainda estejam em base64
+    let processedAttachments = currentAttachments;
+    if (currentAttachments.length > 0) {
+      processedAttachments = await Promise.all(
+        currentAttachments.map(async (att) => {
+          if (att.file_url && (att.file_url.startsWith('data:') || att.file_url.startsWith('blob:'))) {
+            try {
+              const remoteUrl = await uploadChatMedia(att._base64 || att._rawFile || att.file_url, att.file_name);
+              if (remoteUrl) {
+                return {
+                  file_name: att.file_name,
+                  file_url: remoteUrl,
+                  file_type: att.file_type || 'image',
+                  file_size: att.file_size || 0
+                };
+              }
+            } catch (upErr) {
+              console.warn('Erro no upload final de anexo:', upErr);
+            }
+          }
+          return {
+            file_name: att.file_name,
+            file_url: att.file_url,
+            file_type: att.file_type || 'image',
+            file_size: att.file_size || 0
+          };
+        })
+      );
+    }
+
     // Se estiver em Modo Fantasma 👻
     if (ghostMode) {
       const ghostPayload = JSON.stringify({
         ghost_message: {
           ghostType: ghostMode,
           content: messageContent,
-          attachments: messageAttachments,
+          attachments: processedAttachments,
           senderId: user.id,
           senderName: user.display_name || user.username,
           viewedBy: [],
@@ -391,7 +433,7 @@ export function MessageInput() {
       await sendMessage({
         content: ghostPayload,
         type: 'ghost',
-        attachments: [],
+        attachments: processedAttachments,
         replyToId: replyingTo?.id || null
       });
 
@@ -402,14 +444,15 @@ export function MessageInput() {
       return;
     }
 
-    const hasImage = messageAttachments.some(a => a.file_type === 'image' || a.file_url?.startsWith('data:image'));
-    const effectiveType = hasImage ? 'image' : (messageAttachments.length > 0 ? (messageAttachments[0].file_type || 'file') : 'text');
-    const effectiveContent = messageContent || (hasImage ? messageAttachments[0]?.file_url : '');
+    const hasImage = processedAttachments.some(a => a.file_type === 'image' || a.file_url?.startsWith('data:image') || a.file_url?.match(/\.(jpeg|jpg|gif|png|webp|svg)/i));
+    const effectiveType = hasImage ? 'image' : (processedAttachments.length > 0 ? (processedAttachments[0].file_type || 'file') : 'text');
+    const firstMediaUrl = processedAttachments.length > 0 ? processedAttachments[0].file_url : '';
+    const effectiveContent = messageContent || firstMediaUrl || '';
 
     await sendMessage({
       content: effectiveContent,
       type: effectiveType,
-      attachments: messageAttachments,
+      attachments: processedAttachments,
       replyToId: replyingTo?.id || null
     });
   };
@@ -428,22 +471,16 @@ export function MessageInput() {
 
     // Debitar moedas do usuário
     const newCoins = currentCoins - cost;
-    if (updateProfile) {
-      updateProfile({ nexus_coins: newCoins });
-    }
-
-    if (isSupabaseConfigured && supabase && user) {
-      try {
-        await supabase.from('profiles').update({ nexus_coins: newCoins }).eq('id', user.id);
-        await supabase.from('nexus_transactions').insert({
-          user_id: user.id,
-          amount: -cost,
-          type: 'sticker_purchase',
-          description: `Envio de figurinha animada: ${sticker.name}`
-        });
-      } catch (err) {
-        console.error('Erro ao debitar moedas da figurinha:', err);
-      }
+    try {
+      await updateProfile({ nexus_coins: newCoins });
+      await supabase.from('nexus_transactions').insert({
+        user_id: user.id,
+        amount: -cost,
+        type: 'sticker_purchase',
+        description: `Envio de figurinha animada: ${sticker.name}`
+      });
+    } catch (err) {
+      console.error('Erro ao debitar moedas da figurinha:', err);
     }
 
     sounds.playPop();
@@ -463,22 +500,29 @@ export function MessageInput() {
     });
   };
 
-  const handleFileInputChange = (e) => {
+  const handleFileInputChange = async (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    files.forEach(file => {
+    for (const file of files) {
       if (file.type.startsWith('image/')) {
-        readAndAttachImage(file);
+        await readAndAttachImage(file);
       } else {
         // Arquivo genérico
         const reader = new FileReader();
-        reader.onload = (ev) => {
+        reader.onload = async (ev) => {
+          const fileDataUrl = ev.target?.result;
+          let finalFileUrl = fileDataUrl;
+          try {
+            const uploadedUrl = await uploadChatMedia(file, file.name);
+            if (uploadedUrl) finalFileUrl = uploadedUrl;
+          } catch (e) {}
+
           setAttachments(prev => [
             ...prev,
             {
               file_name: file.name,
-              file_url: ev.target?.result,
+              file_url: finalFileUrl,
               file_type: 'file',
               file_size: file.size
             }
@@ -486,7 +530,7 @@ export function MessageInput() {
         };
         reader.readAsDataURL(file);
       }
-    });
+    }
 
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -544,8 +588,8 @@ export function MessageInput() {
       )}
 
       {/* Pré-visualização de Imagens e Anexos Selecionados */}
-      {attachments.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-2 p-2 bg-background-dark/80 rounded-2xl border border-slate-700/80 animate-fadeIn w-full max-w-full box-border">
+      {(attachments.length > 0 || uploading) && (
+        <div className="flex flex-wrap items-center gap-2 mb-2 p-2 bg-background-dark/80 rounded-2xl border border-slate-700/80 animate-fadeIn w-full max-w-full box-border">
           {attachments.map((att, idx) => (
             <div
               key={idx}
@@ -555,7 +599,7 @@ export function MessageInput() {
                 <img
                   src={att.file_url}
                   alt={att.file_name}
-                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg object-cover border border-brand-500/40"
+                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg object-cover border border-brand-500/40 shadow"
                 />
               ) : (
                 <div className="flex items-center gap-2 px-2 py-1">
@@ -572,9 +616,19 @@ export function MessageInput() {
               </button>
             </div>
           ))}
-          <div className="flex items-center text-[10px] sm:text-[11px] text-slate-400 pl-1">
-            <span>Pressione Enter para enviar com a imagem</span>
-          </div>
+
+          {uploading && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-slate-900/90 rounded-xl border border-brand-500/40 text-xs text-brand-300 animate-pulse">
+              <Loader2 className="w-4 h-4 animate-spin text-brand-400" />
+              <span>Otimizando imagem...</span>
+            </div>
+          )}
+
+          {attachments.length > 0 && !uploading && (
+            <div className="flex items-center text-[10px] sm:text-[11px] text-slate-400 pl-1">
+              <span>Pressione Enter para enviar com a imagem</span>
+            </div>
+          )}
         </div>
       )}
 
