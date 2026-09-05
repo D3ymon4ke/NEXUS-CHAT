@@ -1,7 +1,20 @@
-// Serviço Central de Notificações do Navegador / Push Notification Service
 import { sounds } from './sound';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 const STORAGE_KEY = 'nexus_notifications_enabled';
+const VAPID_PUBLIC_KEY = 'BO9BXkFwU2wcyrq2y447fKdKXX8uvWrxQuf9iGwnFUK0YGA6ifnRWnHVrVeCCsvkiZIwSik-9_4qFw59aR3hJyQ';
+
+// Utilitário para converter a chave pública VAPID base64url para Uint8Array
+const urlBase64ToUint8Array = (base64String) => {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+};
 
 // Formatar prévia limpa para o corpo da notificação (sem JSON cru)
 export const formatNotificationPreview = (content, type, attachments = []) => {
@@ -35,6 +48,9 @@ export const formatNotificationPreview = (content, type, attachments = []) => {
 };
 
 export const notificationService = {
+  // Chave pública VAPID para Web Push
+  VAPID_PUBLIC_KEY,
+
   // Verifica se o navegador suporta notificações
   isSupported: () => typeof window !== 'undefined' && 'Notification' in window,
 
@@ -60,8 +76,8 @@ export const notificationService = {
     } catch (e) {}
   },
 
-  // Solicita permissão ao usuário
-  requestPermission: async () => {
+  // Solicita permissão ao usuário e registra Web Push Subscription
+  requestPermission: async (userId = null) => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
       return { success: false, status: 'unsupported' };
     }
@@ -71,6 +87,9 @@ export const notificationService = {
       const isGranted = permission === 'granted';
       if (isGranted) {
         notificationService.setEnabled(true);
+        if (userId) {
+          await notificationService.subscribeToPush(userId);
+        }
       }
       return { success: isGranted, status: permission };
     } catch (err) {
@@ -79,7 +98,54 @@ export const notificationService = {
     }
   },
 
-  // Dispara uma notificação nativa
+  // Inscrever o dispositivo no Web Push Manager e salvar no Supabase
+  subscribeToPush: async (userId) => {
+    if (!userId || typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+      return null;
+    }
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      if (!registration || !registration.pushManager) return null;
+
+      let subscription = await registration.pushManager.getSubscription();
+
+      if (!subscription) {
+        const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey
+        });
+      }
+
+      if (subscription && isSupabaseConfigured && supabase) {
+        const rawKey = subscription.getKey ? subscription.getKey('p256dh') : null;
+        const rawAuth = subscription.getKey ? subscription.getKey('auth') : null;
+
+        const p256dh = rawKey ? btoa(String.fromCharCode.apply(null, new Uint8Array(rawKey))) : '';
+        const auth = rawAuth ? btoa(String.fromCharCode.apply(null, new Uint8Array(rawAuth))) : '';
+
+        // Salvar ou atualizar no banco Supabase
+        await supabase
+          .from('push_subscriptions')
+          .upsert({
+            user_id: userId,
+            endpoint: subscription.endpoint,
+            p256dh,
+            auth,
+            user_agent: navigator.userAgent,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'endpoint' });
+      }
+
+      return subscription;
+    } catch (err) {
+      console.warn('Aviso ao registrar Web Push Subscription:', err);
+      return null;
+    }
+  },
+
+  // Dispara uma notificação nativa local
   sendNotification: async ({
     title = 'Nexus Chat',
     body = 'Nova mensagem',
@@ -138,6 +204,28 @@ export const notificationService = {
     }
   },
 
+  // Disparar Web Push pelo Servidor Vercel (/api/send-push) para destinatários
+  sendServerPush: async ({ recipientIds = [], title, body, icon, data = {}, senderId = null, conversationId = null }) => {
+    if (!Array.isArray(recipientIds) || recipientIds.length === 0) return;
+    try {
+      fetch('/api/send-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipientIds,
+          title,
+          body,
+          icon: icon || '/belmont-logo.jpg',
+          data,
+          senderId,
+          conversationId
+        })
+      }).catch((err) => {
+        console.warn('Aviso ao disparar Web Push no servidor:', err);
+      });
+    } catch (e) {}
+  },
+
   // Testar notificação
   testNotification: async () => {
     const perm = await notificationService.requestPermission();
@@ -145,7 +233,7 @@ export const notificationService = {
       sounds.playReceive?.();
       await notificationService.sendNotification({
         title: '✨ Nexus Chat Notificações',
-        body: 'As notificações em segundo plano estão ativadas e funcionando com sucesso!',
+        body: 'As notificações em segundo plano e Web Push estão ativadas e funcionando com sucesso!',
         tag: 'test-notification'
       });
       return true;
@@ -153,3 +241,4 @@ export const notificationService = {
     return false;
   }
 };
+

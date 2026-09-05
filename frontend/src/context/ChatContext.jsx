@@ -68,11 +68,14 @@ export function ChatProvider({ children }) {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [masterIdentities, setMasterIdentities] = useState(new Map()); // convId -> profileObject
 
-  // Sincronizar pinos locais quando o usuário mudar
+  // Sincronizar pinos locais e inscrever no Web Push quando o usuário mudar
   useEffect(() => {
     if (user?.id) {
       const stored = getStoredPins(user.id);
       setPinnedConversationIds(stored);
+      if (notificationService.getPermission() === 'granted' && notificationService.isEnabled()) {
+        notificationService.subscribeToPush(user.id);
+      }
     }
   }, [user?.id]);
 
@@ -739,6 +742,42 @@ export function ChatProvider({ children }) {
           // +5 moedas por envio
           const newBalance = (user.nexus_coins || 100) + 5;
           await supabase.from('profiles').update({ nexus_coins: newBalance }).eq('id', user.id);
+
+          // 3. Disparar Web Push pelo Servidor Vercel (/api/send-push) para os destinatários da conversa
+          try {
+            let recipientIds = [];
+            if (activeConversation?.type === 'direct' && activeConversation.direct_user?.id) {
+              recipientIds = [activeConversation.direct_user.id];
+            } else if (activeConversation?.participants && activeConversation.participants.length > 0) {
+              recipientIds = activeConversation.participants
+                .map((p) => p.user_id || p.id)
+                .filter((uid) => uid && uid !== effectiveSenderId);
+            } else if (isSupabaseConfigured && supabase) {
+              const { data: parts } = await supabase
+                .from('conversation_participants')
+                .select('user_id')
+                .eq('conversation_id', activeConversationId);
+              if (parts) {
+                recipientIds = parts
+                  .map((p) => p.user_id)
+                  .filter((uid) => uid && uid !== effectiveSenderId);
+              }
+            }
+
+            if (recipientIds.length > 0) {
+              const previewBody = formatNotificationPreview(content, type, savedAttachments);
+              notificationService.sendServerPush({
+                recipientIds,
+                title: effectiveSender.display_name || effectiveSender.username || 'Nexus Chat',
+                body: previewBody,
+                icon: effectiveSender.avatar_url || '/belmont-logo.jpg',
+                senderId: effectiveSenderId,
+                conversationId: activeConversationId
+              });
+            }
+          } catch (pushEx) {
+            console.warn('Aviso ao disparar Web Push do servidor:', pushEx);
+          }
         } else if (insertErr) {
           console.warn('Erro ao inserir mensagem no Supabase:', insertErr);
         }
