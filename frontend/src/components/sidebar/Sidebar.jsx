@@ -33,6 +33,8 @@ import {
   CheckCheck,
   Lock,
   AlertCircle,
+  Pin,
+  PinOff,
   X
 } from 'lucide-react';
 
@@ -116,7 +118,10 @@ export function Sidebar({
     setMasterIdentityForConv,
     loadConversations,
     deleteConversation,
-    clearConversation
+    clearConversation,
+    pinnedConversationIds,
+    togglePinConversation,
+    isConversationPinned
   } = useChat();
   const { isUserOnline, connected } = useSocket();
 
@@ -417,22 +422,44 @@ export function Sidebar({
     return cleanText || 'Mensagem';
   };
 
-  // Filtragem de Conversas
-  const filteredConversations = conversations.filter((conv) => {
-    const isBelmont = conv.id === BELMONT_ID || conv.is_permanent;
+  // Filtragem e Ordenação de Conversas com Prioridade para Fixadas
+  const filteredConversations = conversations
+    .filter((conv) => {
+      const isBelmont = conv.id === BELMONT_ID || conv.is_permanent;
 
-    if (filterTab === 'master') return true; // Mostra todas no Master
-    if (filterTab === 'direct' && isBelmont) return false;
-    if (filterTab === 'unread' && (!conv.unread_count || conv.unread_count === 0)) return false;
-    if (filterTab === 'direct' && conv.type !== 'direct') return false;
-    if (filterTab === 'group' && conv.type !== 'group' && !isBelmont) return false;
+      if (filterTab === 'master') return true; // Mostra todas no Master
+      if (filterTab === 'direct' && isBelmont) return false;
+      if (filterTab === 'unread' && (!conv.unread_count || conv.unread_count === 0)) return false;
+      if (filterTab === 'direct' && conv.type !== 'direct') return false;
+      if (filterTab === 'group' && conv.type !== 'group' && !isBelmont) return false;
 
-    if (!searchTerm.trim()) return true;
-    const term = searchTerm.toLowerCase();
-    const name = (conv.type === 'group' ? conv.name : conv.direct_user?.display_name || conv.direct_user?.username || '').toLowerCase();
-    const lastPreview = formatLastMessagePreview(conv.last_message).toLowerCase();
-    return name.includes(term) || lastPreview.includes(term);
-  });
+      if (!searchTerm.trim()) return true;
+      const term = searchTerm.toLowerCase();
+      const name = (conv.type === 'group' ? conv.name : conv.direct_user?.display_name || conv.direct_user?.username || '').toLowerCase();
+      const lastPreview = formatLastMessagePreview(conv.last_message).toLowerCase();
+      return name.includes(term) || lastPreview.includes(term);
+    })
+    .sort((a, b) => {
+      const aPinned = isConversationPinned(a.id);
+      const bPinned = isConversationPinned(b.id);
+
+      if (aPinned && !bPinned) return -1;
+      if (!aPinned && bPinned) return 1;
+
+      if (aPinned && bPinned) {
+        if (a.id === BELMONT_ID) return -1;
+        if (b.id === BELMONT_ID) return 1;
+        const indexA = (pinnedConversationIds || []).indexOf(a.id);
+        const indexB = (pinnedConversationIds || []).indexOf(b.id);
+        if (indexA !== -1 && indexB !== -1 && indexA !== indexB) {
+          return indexA - indexB;
+        }
+      }
+
+      const timeA = a.last_message ? new Date(a.last_message.created_at).getTime() : 0;
+      const timeB = b.last_message ? new Date(b.last_message.created_at).getTime() : 0;
+      return timeB - timeA;
+    });
 
   const formatLastMessageTime = (dateString) => {
     if (!dateString) return '';
@@ -811,6 +838,7 @@ export function Sidebar({
           filteredConversations.map((conv) => {
             const isBelmont = conv.id === BELMONT_ID || conv.is_permanent;
             const isActive = activeConversationId === conv.id;
+            const isPinned = isConversationPinned(conv.id);
             const directUser = conv.direct_user;
             const isDirect = conv.type === 'direct';
             const isOnline = isDirect && directUser && isUserOnline(directUser.id);
@@ -855,6 +883,8 @@ export function Sidebar({
                     ? 'bg-brand-600/20 border-brand-500/60 shadow-sm'
                     : hasUnread
                     ? 'bg-gradient-to-r from-rose-950/60 via-purple-950/40 to-slate-900 border-rose-500/70 shadow-lg shadow-rose-900/25 ring-1 ring-rose-500/40'
+                    : isPinned
+                    ? 'bg-amber-950/15 border-amber-500/30 hover:border-amber-500/60 hover:bg-slate-800/60 shadow-sm'
                     : 'bg-background-surface/50 border-slate-800/80 hover:border-slate-700/80 hover:bg-background-surface'
                 }`}
               >
@@ -874,6 +904,8 @@ export function Sidebar({
                         ? 'border-2 border-amber-400'
                         : hasUnread
                         ? 'border-2 border-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]'
+                        : isPinned
+                        ? 'border-2 border-amber-400/60 shadow-[0_0_8px_rgba(251,191,36,0.3)]'
                         : 'border border-slate-700'
                     }`}
                   />
@@ -906,11 +938,18 @@ export function Sidebar({
                             ? 'text-amber-300 font-extrabold tracking-wide'
                             : hasUnread
                             ? 'text-white font-extrabold drop-shadow-[0_0_6px_rgba(244,63,94,0.4)]'
+                            : isPinned
+                            ? 'text-amber-100 font-bold'
                             : 'text-slate-100 font-bold'
                         }`}
                       >
                         {convName}
                       </span>
+                      {isPinned && !isBelmont && (
+                        <span title="Conversa Fixada no Topo">
+                          <Pin className="w-3 h-3 text-amber-400 fill-amber-400/40 rotate-45 flex-shrink-0" />
+                        </span>
+                      )}
                       {isBelmont && (
                         <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-extrabold uppercase">
                           Principal
@@ -918,7 +957,7 @@ export function Sidebar({
                       )}
                     </div>
                     {conv.last_message && (
-                      <span className={`text-[10px] font-medium ${hasUnread ? 'text-rose-300 font-bold' : 'text-slate-500'}`}>
+                      <span className={`text-[10px] font-medium ${hasUnread ? 'text-rose-300 font-bold' : isPinned ? 'text-amber-300/80' : 'text-slate-500'}`}>
                         {formatLastMessageTime(conv.last_message.created_at)}
                       </span>
                     )}
@@ -1005,6 +1044,26 @@ export function Sidebar({
               {contextMenu.conv.id === BELMONT_ID && <Lock className="w-3.5 h-3.5 text-amber-400" />}
             </div>
 
+            {/* Fixar / Desafixar Conversa */}
+            <button
+              onClick={() => {
+                const targetId = contextMenu.conv.id;
+                setContextMenu(null);
+                togglePinConversation(targetId);
+              }}
+              className="w-full px-3.5 py-2 text-left text-amber-300 hover:bg-amber-500/10 flex items-center gap-2.5 transition-colors"
+            >
+              {isConversationPinned(contextMenu.conv.id) ? (
+                <>
+                  <PinOff className="w-4 h-4 text-amber-400 flex-shrink-0" /> Desafixar conversa
+                </>
+              ) : (
+                <>
+                  <Pin className="w-4 h-4 text-amber-400 flex-shrink-0" /> Fixar conversa no topo
+                </>
+              )}
+            </button>
+
             {/* Marcar como lida */}
             <button
               onClick={() => {
@@ -1022,7 +1081,7 @@ export function Sidebar({
               }}
               className="w-full px-3.5 py-2 text-left text-slate-200 hover:bg-slate-800/80 flex items-center gap-2.5 transition-colors"
             >
-              <CheckCheck className="w-4 h-4 text-sky-400" /> Marcar como lida
+              <CheckCheck className="w-4 h-4 text-sky-400 flex-shrink-0" /> Marcar como lida
             </button>
 
             {/* Limpar Mensagens */}
@@ -1034,7 +1093,7 @@ export function Sidebar({
               }}
               className="w-full px-3.5 py-2 text-left text-amber-300 hover:bg-amber-500/10 flex items-center gap-2.5 transition-colors"
             >
-              <Eraser className="w-4 h-4 text-amber-400" /> Limpar mensagens
+              <Eraser className="w-4 h-4 text-amber-400 flex-shrink-0" /> Limpar mensagens
             </button>
 
             {/* Apagar Conversa */}

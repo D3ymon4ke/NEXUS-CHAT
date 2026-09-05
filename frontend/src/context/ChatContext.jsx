@@ -8,6 +8,44 @@ import { sounds } from '../lib/sound';
 const ChatContext = createContext(null);
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
 
+const getStoredPins = (userId) => {
+  try {
+    const raw = localStorage.getItem(`nexus_pinned_convs_${userId || 'guest'}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {}
+  return [BELMONT_ID];
+};
+
+const sortConversationsList = (convList = [], pinnedIds = []) => {
+  return [...convList].sort((a, b) => {
+    const aPinned = pinnedIds.includes(a.id) || a.is_pinned || a.id === BELMONT_ID;
+    const bPinned = pinnedIds.includes(b.id) || b.is_pinned || b.id === BELMONT_ID;
+
+    // Se um é fixado e o outro não
+    if (aPinned && !bPinned) return -1;
+    if (!aPinned && bPinned) return 1;
+
+    // Se ambos forem fixados
+    if (aPinned && bPinned) {
+      if (a.id === BELMONT_ID) return -1;
+      if (b.id === BELMONT_ID) return 1;
+      const indexA = pinnedIds.indexOf(a.id);
+      const indexB = pinnedIds.indexOf(b.id);
+      if (indexA !== -1 && indexB !== -1 && indexA !== indexB) {
+        return indexA - indexB;
+      }
+    }
+
+    // Ordenação padrão pela mensagem mais recente
+    const timeA = a.last_message ? new Date(a.last_message.created_at).getTime() : 0;
+    const timeB = b.last_message ? new Date(b.last_message.created_at).getTime() : 0;
+    return timeB - timeA;
+  });
+};
+
 export function ChatProvider({ children }) {
   const { user } = useAuth();
   const { socket, connected } = useSocket();
@@ -17,11 +55,41 @@ export function ChatProvider({ children }) {
   const [messages, setMessages] = useState([]);
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const [typingUsers, setTypingUsers] = useState(new Map()); // userId -> userObj
+  const [pinnedConversationIds, setPinnedConversationIds] = useState(() => getStoredPins(user?.id));
+  const [typingUsersMap, setTypingUsersMap] = useState(new Map()); // `${convId}_${userId}` -> userObj
   const [replyingTo, setReplyingTo] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [masterIdentities, setMasterIdentities] = useState(new Map()); // convId -> profileObject
+
+  // Sincronizar pinos locais quando o usuário mudar
+  useEffect(() => {
+    if (user?.id) {
+      const stored = getStoredPins(user.id);
+      setPinnedConversationIds(stored);
+    }
+  }, [user?.id]);
+
+  // Limpeza periódica de usuários digitando expirados
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setTypingUsersMap((prev) => {
+        let hasExpired = false;
+        const next = new Map();
+        prev.forEach((val, key) => {
+          if (val.expiresAt > now) {
+            next.set(key, val);
+          } else {
+            hasExpired = true;
+          }
+        });
+        return hasExpired ? next : prev;
+      });
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const setMasterIdentityForConv = (convId, profileObj) => {
     setMasterIdentities(prev => new Map(prev).set(convId, profileObj));
@@ -39,6 +107,11 @@ export function ChatProvider({ children }) {
     ? conversations.find(c => c.id === activeConversationId) || null
     : null;
 
+  // Lista de usuários digitando na conversa ativa
+  const activeTypingUsers = Array.from(typingUsersMap.values()).filter(
+    (t) => t.conversationId === activeConversationId && t.expiresAt > Date.now()
+  );
+
   const toggleSound = () => {
     setSoundEnabled(prev => {
       const next = !prev;
@@ -47,6 +120,55 @@ export function ChatProvider({ children }) {
     });
   };
 
+  // Fixar / Desafixar Conversa no Topo
+  const togglePinConversation = useCallback((conversationId) => {
+    if (!conversationId) return;
+    sounds.playPop();
+
+    setPinnedConversationIds((prev) => {
+      const isCurrentlyPinned = prev.includes(conversationId);
+      let next;
+      if (isCurrentlyPinned) {
+        next = prev.filter((id) => id !== conversationId);
+      } else {
+        next = [conversationId, ...prev.filter((id) => id !== conversationId)];
+      }
+
+      if (user?.id) {
+        try {
+          localStorage.setItem(`nexus_pinned_convs_${user.id}`, JSON.stringify(next));
+        } catch (e) {}
+      }
+
+      setConversations((currentConvs) =>
+        sortConversationsList(
+          currentConvs.map((c) => (c.id === conversationId ? { ...c, is_pinned: !isCurrentlyPinned } : c)),
+          next
+        )
+      );
+
+      return next;
+    });
+
+    if (isSupabaseConfigured && supabase && user?.id) {
+      try {
+        const isPinnedNow = !pinnedConversationIds.includes(conversationId);
+        supabase
+          .from('conversation_participants')
+          .update({ is_pinned: isPinnedNow })
+          .eq('conversation_id', conversationId)
+          .eq('user_id', user.id)
+          .then(() => {})
+          .catch(() => {});
+      } catch (err) {}
+    }
+  }, [user?.id, pinnedConversationIds]);
+
+  const isConversationPinned = useCallback((conversationId) => {
+    if (!conversationId) return false;
+    return conversationId === BELMONT_ID || pinnedConversationIds.includes(conversationId);
+  }, [pinnedConversationIds]);
+
   // Carregar conversas do usuário
   const loadConversations = useCallback(async () => {
     if (!user) return;
@@ -54,9 +176,11 @@ export function ChatProvider({ children }) {
       setLoadingConversations(true);
       const res = await apiRequest('/conversations');
       if (res.success && res.conversations) {
-        setConversations(res.conversations);
-        if (!activeConversationId && res.conversations.length > 0) {
-          setActiveConversationId(res.conversations[0].id);
+        const currentPins = getStoredPins(user?.id);
+        const sorted = sortConversationsList(res.conversations, currentPins);
+        setConversations(sorted);
+        if (!activeConversationId && sorted.length > 0) {
+          setActiveConversationId(sorted[0].id);
         }
       }
     } catch (err) {
@@ -215,7 +339,7 @@ export function ChatProvider({ children }) {
     };
   }, [activeConversationId, socket, connected, user?.id]);
 
-  // --- SUPABASE REALTIME (Mensagens Globais & Notificações de Conversas em Tempo Real) ---
+  // --- SUPABASE REALTIME (Mensagens Globais, Broadcast & Notificações de Conversas em Tempo Real) ---
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase || !user) return;
 
@@ -258,13 +382,7 @@ export function ChatProvider({ children }) {
                 loadConversations();
               }
 
-              return next.sort((a, b) => {
-                if (a.id === BELMONT_ID) return -1;
-                if (b.id === BELMONT_ID) return 1;
-                const timeA = a.last_message ? new Date(a.last_message.created_at).getTime() : 0;
-                const timeB = b.last_message ? new Date(b.last_message.created_at).getTime() : 0;
-                return timeB - timeA;
-              });
+              return sortConversationsList(next, pinnedConversationIds);
             });
 
             // Se for na conversa ativa e de outro usuário, adicionar à lista de mensagens visíveis
@@ -374,12 +492,66 @@ export function ChatProvider({ children }) {
           }
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'conversations'
+        },
+        () => {
+          if (loadConversations) loadConversations();
+        }
+      )
+      .on('broadcast', { event: 'typing' }, (eventPayload) => {
+        const payload = eventPayload?.payload;
+        if (!payload || payload.userId === user?.id) return;
+        const { conversationId, userId, displayName, avatarUrl, username, isTyping } = payload;
+        const key = `${conversationId}_${userId}`;
+        setTypingUsersMap((prev) => {
+          const next = new Map(prev);
+          if (isTyping) {
+            next.set(key, {
+              conversationId,
+              userId,
+              displayName: displayName || username || 'Usuário',
+              avatarUrl,
+              username,
+              expiresAt: Date.now() + 4000
+            });
+          } else {
+            next.delete(key);
+          }
+          return next;
+        });
+      })
+      .on('broadcast', { event: 'instant_reaction' }, (eventPayload) => {
+        const { messageId, conversationId, userId, emoji, isRemoving } = eventPayload?.payload || {};
+        if (!messageId || userId === user?.id) return;
+        if (conversationId === activeConversationId) {
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id === messageId) {
+                const reactions = m.reactions || [];
+                const nextReactions = isRemoving
+                  ? reactions.filter((r) => !(r.user_id === userId && r.emoji === emoji))
+                  : [
+                      ...reactions.filter((r) => !(r.user_id === userId && r.emoji === emoji)),
+                      { id: `realtime-${Date.now()}`, message_id: messageId, user_id: userId, emoji }
+                    ];
+                return { ...m, reactions: nextReactions };
+              }
+              return m;
+            })
+          );
+        }
+      })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeConversationId, user?.id, loadConversations]);
+  }, [activeConversationId, user?.id, loadConversations, pinnedConversationIds]);
 
   const [showPollModal, setShowPollModal] = useState(false);
 
@@ -797,22 +969,42 @@ export function ChatProvider({ children }) {
   }, [socket, connected, activeConversationId, user?.id, loadConversations]);
 
   const emitTyping = (isTyping) => {
-    if (!socket || !connected || !activeConversationId || !user) return;
-    if (isTyping) {
-      socket.emit('typing_start', {
-        conversationId: activeConversationId,
-        user: {
-          id: user.id,
-          displayName: user.display_name,
+    if (!activeConversationId || !user) return;
+
+    // 1. Broadcast instantâneo via Supabase Realtime (funciona em produção na Vercel)
+    if (isSupabaseConfigured && supabase) {
+      supabase.channel('chat_global_messages_listener').send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: {
+          conversationId: activeConversationId,
+          userId: user.id,
+          displayName: user.display_name || user.username,
           username: user.username,
-          avatarUrl: user.avatar_url
+          avatarUrl: user.avatar_url,
+          isTyping
         }
-      });
-    } else {
-      socket.emit('typing_stop', {
-        conversationId: activeConversationId,
-        user: { id: user.id }
-      });
+      }).catch(() => {});
+    }
+
+    // 2. Socket.IO (quando configurado)
+    if (socket && connected) {
+      if (isTyping) {
+        socket.emit('typing_start', {
+          conversationId: activeConversationId,
+          user: {
+            id: user.id,
+            displayName: user.display_name,
+            username: user.username,
+            avatarUrl: user.avatar_url
+          }
+        });
+      } else {
+        socket.emit('typing_stop', {
+          conversationId: activeConversationId,
+          user: { id: user.id }
+        });
+      }
     }
   };
 
@@ -856,6 +1048,21 @@ export function ChatProvider({ children }) {
     });
 
     sounds.playPop();
+
+    // Broadcast instantâneo via Supabase Realtime
+    if (isSupabaseConfigured && supabase && activeConversationId) {
+      supabase.channel('chat_global_messages_listener').send({
+        type: 'broadcast',
+        event: 'instant_reaction',
+        payload: {
+          messageId,
+          conversationId: activeConversationId,
+          userId: user.id,
+          emoji,
+          isRemoving
+        }
+      }).catch(() => {});
+    }
 
     // 2. Persistência no Banco Supabase
     if (isSupabaseConfigured && supabase) {
@@ -1017,7 +1224,10 @@ export function ChatProvider({ children }) {
         messages,
         loadingConversations,
         loadingMessages,
-        typingUsers,
+        typingUsers: activeTypingUsers,
+        pinnedConversationIds,
+        togglePinConversation,
+        isConversationPinned,
         replyingTo,
         editingMessage,
         soundEnabled,

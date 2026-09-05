@@ -111,7 +111,7 @@ export async function apiRequest(endpoint, options = {}) {
         // 1. Obter IDs das conversas das quais o usuário participa
         const { data: myParticipations } = await supabase
           .from('conversation_participants')
-          .select('conversation_id, role, unread_count, is_muted')
+          .select('*')
           .eq('user_id', currentUser.id);
 
         const convIds = (myParticipations || []).map(p => p.conversation_id);
@@ -171,7 +171,8 @@ export async function apiRequest(endpoint, options = {}) {
               avatar_url: isBelmont ? '/belmont-logo.jpg' : (conv.type === 'direct' ? directUser?.avatar_url : conv.avatar_url),
               direct_user: directUser,
               last_message: lastMsg || null,
-              unread_count: myPart?.unread_count || 0
+              unread_count: myPart?.unread_count || 0,
+              is_pinned: Boolean(myPart?.is_pinned)
             };
           })
         );

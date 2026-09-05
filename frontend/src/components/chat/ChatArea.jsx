@@ -18,6 +18,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
     activeConversationId,
     messages,
     loadingMessages,
+    typingUsers = [],
     sendMessage,
     editMessage,
     deleteMessage,
@@ -219,6 +220,21 @@ export function ChatArea({ onBack, onOpenProfile }) {
               </React.Fragment>
             );
           })
+        )}
+
+        {typingUsers.length > 0 && (
+          <div className="flex items-center gap-2 py-1.5 px-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 w-fit text-xs text-slate-300 shadow-md backdrop-blur animate-fadeIn my-1">
+            <div className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-bounce [animation-delay:-0.3s]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-bounce [animation-delay:-0.15s]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-bounce" />
+            </div>
+            <span className="text-[11px] font-medium text-slate-300">
+              {typingUsers.length === 1
+                ? `${typingUsers[0].displayName} está digitando...`
+                : `${typingUsers.map(u => u.displayName).join(', ')} estão digitando...`}
+            </span>
+          </div>
         )}
 
         <div ref={messagesEndRef} />

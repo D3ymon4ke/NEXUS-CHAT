@@ -16,13 +16,22 @@ import {
   Trash2,
   Eraser,
   AlertTriangle,
+  Pin,
+  PinOff,
   X
 } from 'lucide-react';
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
 
 export function ChatHeader({ onBack, onSearchToggle, isSearching, onOpenProfile }) {
-  const { activeConversation, typingUsers, deleteConversation, clearConversation } = useChat();
+  const {
+    activeConversation,
+    typingUsers = [],
+    deleteConversation,
+    clearConversation,
+    isConversationPinned,
+    togglePinConversation
+  } = useChat();
   const { isUserOnline } = useSocket();
   const [showMenu, setShowMenu] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null); // null | 'clear' | 'delete'
@@ -126,6 +135,11 @@ export function ChatHeader({ onBack, onSearchToggle, isSearching, onOpenProfile 
               }`}>
                 {title}
               </h2>
+              {isConversationPinned?.(activeConversation.id) && !isBelmont && (
+                <span title="Conversa Fixada no Topo">
+                  <Pin className="w-3.5 h-3.5 text-amber-400 fill-amber-400/40 rotate-45 flex-shrink-0" />
+                </span>
+              )}
               {isBelmont ? (
                 <span className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 flex-shrink-0">
                   <Crown className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400" />
@@ -217,6 +231,25 @@ export function ChatHeader({ onBack, onSearchToggle, isSearching, onOpenProfile 
                       <span className="font-semibold text-slate-300">Opções da Conversa</span>
                     )}
                   </div>
+
+                  {/* Fixar / Desafixar Conversa */}
+                  <button
+                    onClick={() => {
+                      setShowMenu(false);
+                      togglePinConversation?.(activeConversation.id);
+                    }}
+                    className="w-full px-3 py-2 text-left text-amber-300 hover:bg-amber-500/10 flex items-center gap-2 transition-colors"
+                  >
+                    {isConversationPinned?.(activeConversation.id) ? (
+                      <>
+                        <PinOff className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" /> Desafixar conversa
+                      </>
+                    ) : (
+                      <>
+                        <Pin className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" /> Fixar conversa no topo
+                      </>
+                    )}
+                  </button>
 
                   <button
                     onClick={() => {
