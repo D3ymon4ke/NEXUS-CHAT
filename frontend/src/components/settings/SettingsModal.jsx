@@ -82,10 +82,13 @@ export function SettingsModal({ isOpen, onClose, onOpenProfile }) {
 
   const handleToggleNotifications = async () => {
     if (notifPermission !== 'granted') {
-      const res = await notificationService.requestPermission();
+      const res = await notificationService.requestPermission(user?.id);
       setNotifPermission(res.status);
       if (res.success) {
         setNotifEnabled(true);
+        if (user?.id) {
+          await notificationService.subscribeToPush(user.id);
+        }
         sounds?.playPop?.();
       } else if (res.status === 'denied') {
         sounds?.playError?.();
@@ -95,6 +98,9 @@ export function SettingsModal({ isOpen, onClose, onOpenProfile }) {
       const next = !notifEnabled;
       notificationService.setEnabled(next);
       setNotifEnabled(next);
+      if (next && user?.id) {
+        await notificationService.subscribeToPush(user.id);
+      }
       sounds?.playPop?.();
     }
   };

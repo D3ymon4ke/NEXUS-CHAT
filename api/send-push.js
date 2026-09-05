@@ -60,11 +60,14 @@ module.exports = async (req, res) => {
       return res.status(200).json({ success: true, sent: 0, message: 'No active push subscriptions found' });
     }
 
+    const safeIcon = icon ? (icon.startsWith('http') ? icon : 'https://nexus-chat-green.vercel.app' + (icon.startsWith('/') ? icon : '/' + icon)) : 'https://nexus-chat-green.vercel.app/belmont-logo.jpg';
+    const safeBadge = 'https://nexus-chat-green.vercel.app/belmont-logo.jpg';
+
     const payload = JSON.stringify({
-      title,
-      body,
-      icon: icon || '/belmont-logo.jpg',
-      badge: '/belmont-logo.jpg',
+      title: title || 'Nexus Chat',
+      body: body || 'Nova mensagem',
+      icon: safeIcon,
+      badge: safeBadge,
       tag: `conv-${conversationId || Date.now()}`,
       data: {
         conversationId,
@@ -88,7 +91,11 @@ module.exports = async (req, res) => {
           };
 
           await webpush.sendNotification(pushSubscription, payload, {
-            TTL: 86400 // 24 horas de retenção nos servidores de push
+            TTL: 86400, // 24 horas de retenção
+            urgency: 'high',
+            headers: {
+              Urgency: 'high'
+            }
           });
           successCount++;
         } catch (pushErr) {

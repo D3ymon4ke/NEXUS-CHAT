@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nexus-chat-v1';
+const CACHE_NAME = 'nexus-chat-v2';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -44,29 +44,41 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-// Suporte para Web Push Event
+// Suporte para Web Push Event em segundo plano e com app fechado
 self.addEventListener('push', (event) => {
-  if (!event.data) return;
-  try {
-    const data = event.data.json();
-    const title = data.title || 'Nexus Chat';
-    const options = {
-      body: data.body || 'Nova mensagem recebida',
-      icon: data.icon || '/belmont-logo.jpg',
-      badge: data.badge || '/belmont-logo.jpg',
-      tag: data.tag || 'nexus-push-message',
-      data: data.data || {},
-      vibrate: [100, 50, 100]
-    };
-    event.waitUntil(self.registration.showNotification(title, options));
-  } catch (err) {
-    const text = event.data.text();
-    event.waitUntil(
-      self.registration.showNotification('Nexus Chat', {
-        body: text,
-        icon: '/belmont-logo.jpg'
-      })
-    );
+  let title = 'Nexus Chat';
+  const defaultIcon = self.location.origin + '/belmont-logo.jpg';
+  let options = {
+    body: 'Nova mensagem recebida',
+    icon: defaultIcon,
+    badge: defaultIcon,
+    tag: 'nexus-push-message',
+    vibrate: [150, 75, 150],
+    data: { url: '/' }
+  };
+
+  if (event.data) {
+    try {
+      const data = event.data.json();
+      if (data.title) title = data.title;
+      if (data.body) options.body = data.body;
+      if (data.icon) {
+        options.icon = data.icon.startsWith('http') ? data.icon : self.location.origin + (data.icon.startsWith('/') ? data.icon : '/' + data.icon);
+      }
+      if (data.badge) {
+        options.badge = data.badge.startsWith('http') ? data.badge : self.location.origin + (data.badge.startsWith('/') ? data.badge : '/' + data.badge);
+      }
+      if (data.tag) options.tag = data.tag;
+      if (data.data) options.data = data.data;
+    } catch (jsonErr) {
+      try {
+        options.body = event.data.text();
+      } catch (textErr) {}
+    }
   }
+
+  event.waitUntil(
+    self.registration.showNotification(title, options)
+  );
 });
 
