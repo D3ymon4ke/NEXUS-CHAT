@@ -54,11 +54,63 @@ import {
   RefreshCw,
   SlidersHorizontal,
   FolderUp,
-  ExternalLink
+  ExternalLink,
+  Bell,
+  BellRing,
+  Megaphone,
+  Smartphone
 } from 'lucide-react';
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
 const BADGE_OPTIONS = ['PATCH', 'ATUALIZAÇÃO', 'NOVIDADE', 'EVENTO', 'CORREÇÃO', 'ANÚNCIO'];
+
+const PUSH_NOTIFICATION_PRESETS = [
+  {
+    label: '📢 Comunicado Geral',
+    title: '📢 Comunicado Oficial do Administrador',
+    body: 'O Admin Damon publicou uma nova mensagem importante para a comunidade. Toque para conferir!',
+    action: 'open_belmont',
+    alsoBelmont: true,
+    icon: '/belmont-logo.jpg',
+    color: 'from-rose-500/20 to-red-500/20 border-rose-500/40 text-rose-300'
+  },
+  {
+    label: '🎁 Bônus de Moedas',
+    title: '🎁 Bônus Especial de Nexus Coins!',
+    body: 'Você recebeu um presente de moedas na sua conta! Visite a Loja Nexus para resgatar molduras exclusivas.',
+    action: 'open_shop',
+    alsoBelmont: false,
+    icon: '/nexus-coin.jpg',
+    color: 'from-amber-500/20 to-yellow-500/20 border-amber-500/40 text-amber-300'
+  },
+  {
+    label: '🧪 Testadores Beta VIP',
+    title: '🧪 Novidades no Programa Beta Nexus',
+    body: 'Novos recursos e molduras experimentais acabaram de ser liberados para testes! Venha conferir.',
+    action: 'open_app',
+    alsoBelmont: true,
+    icon: '/belmont-logo.jpg',
+    color: 'from-cyan-500/20 to-teal-500/20 border-cyan-500/40 text-cyan-300'
+  },
+  {
+    label: '🔥 Evento Belmont',
+    title: '🔥 Evento Especial na Belmont Conference!',
+    body: 'Transmissão e bate-papo especial ao vivo acontecendo agora na sala Belmont! Participe!',
+    action: 'open_belmont',
+    alsoBelmont: true,
+    icon: '/belmont-logo.jpg',
+    color: 'from-orange-500/20 to-amber-500/20 border-orange-500/40 text-orange-300'
+  },
+  {
+    label: '⚡ Atualização do App',
+    title: '⚡ Nova Versão do Nexus Chat Disponível',
+    body: 'O Nexus Chat foi atualizado com melhorias de velocidade e novas funções. Abra o app para conferir!',
+    action: 'open_app',
+    alsoBelmont: false,
+    icon: '/belmont-logo.jpg',
+    color: 'from-purple-500/20 to-indigo-500/20 border-purple-500/40 text-purple-300'
+  }
+];
 
 export function AdminModal({ isOpen, onClose }) {
   const { user } = useAuth();
@@ -80,9 +132,16 @@ export function AdminModal({ isOpen, onClose }) {
   const [selectedUserForCoins, setSelectedUserForCoins] = useState(null);
   const [customCoinsAmount, setCustomCoinsAmount] = useState('100');
 
-  // Substate Transmissão
+  // Substate Transmissão & Notificações Push 📢
   const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [pushTargetType, setPushTargetType] = useState('all'); // 'all' | 'user'
+  const [pushTargetUserId, setPushTargetUserId] = useState('');
+  const [pushNotificationTitle, setPushNotificationTitle] = useState('📢 Comunicado Oficial do Administrador');
+  const [pushNotificationBody, setPushNotificationBody] = useState('O Admin Damon publicou uma nova mensagem importante para a comunidade. Toque para conferir!');
+  const [pushNotificationIcon, setPushNotificationIcon] = useState('/belmont-logo.jpg');
+  const [pushNotificationAction, setPushNotificationAction] = useState('open_belmont'); // 'open_belmont' | 'open_shop' | 'open_app'
+  const [pushAlsoPostBelmont, setPushAlsoPostBelmont] = useState(true);
 
   // Substate Criar/Editar Moldura & Itens na Loja
   const [newItemName, setNewItemName] = useState('');
@@ -710,13 +769,59 @@ export function AdminModal({ isOpen, onClose }) {
 
   const handleSendBroadcast = async (e) => {
     e.preventDefault();
-    if (!broadcastMessage.trim()) return;
+    if (!pushNotificationTitle.trim() || !pushNotificationBody.trim()) {
+      setFeedback({ text: 'Por favor, preencha o título e a mensagem da notificação.', type: 'error' });
+      return;
+    }
 
     try {
       setActionLoading(true);
-      const broadcastContent = `📢 **COMUNICADO OFICIAL DAMON**\n\n${broadcastTitle ? `### ${broadcastTitle}\n` : ''}${broadcastMessage}`;
 
-      if (isSupabaseConfigured && supabase && user) {
+      let recipientIds = [];
+      let targetUserName = '';
+
+      if (pushTargetType === 'all') {
+        recipientIds = users.map((u) => u.id).filter(Boolean);
+      } else {
+        if (!pushTargetUserId) {
+          setFeedback({ text: 'Selecione o usuário destinatário da notificação.', type: 'error' });
+          setActionLoading(false);
+          return;
+        }
+        recipientIds = [pushTargetUserId];
+        const targetU = users.find((u) => u.id === pushTargetUserId);
+        targetUserName = targetU ? (targetU.display_name || targetU.username) : '';
+      }
+
+      const targetConversationId = pushNotificationAction === 'open_belmont' ? BELMONT_ID : null;
+
+      // 1. Disparar Web Push pelo Servidor Vercel (/api/send-push)
+      let serverResult = null;
+      try {
+        const pushRes = await fetch('/api/send-push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipientIds,
+            title: pushNotificationTitle.trim(),
+            body: pushNotificationBody.trim(),
+            icon: pushNotificationIcon || '/belmont-logo.jpg',
+            senderId: user?.id,
+            conversationId: targetConversationId,
+            data: {
+              action: pushNotificationAction,
+              url: pushNotificationAction === 'open_shop' ? '/#shop' : '/'
+            }
+          })
+        });
+        serverResult = await pushRes.json();
+      } catch (pushErr) {
+        console.warn('Aviso ao disparar Web Push no servidor:', pushErr);
+      }
+
+      // 2. Se marcado para postar na Belmont Conference
+      if (pushAlsoPostBelmont && isSupabaseConfigured && supabase && user) {
+        const broadcastContent = `📢 **COMUNICADO OFICIAL DAMON**\n\n### ${pushNotificationTitle.trim()}\n\n${pushNotificationBody.trim()}\n\n*— Enviado via Notificação Push para ${pushTargetType === 'all' ? 'todos os membros' : `@${targetUserName || 'usuário'}`}*`;
         await supabase.from('messages').insert({
           conversation_id: BELMONT_ID,
           sender_id: user.id,
@@ -725,13 +830,29 @@ export function AdminModal({ isOpen, onClose }) {
         });
       }
 
+      // 3. Feedback sonoro e confetes
       sounds.playPop();
       confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
-      setFeedback({ text: 'Transmissão oficial enviada para a Belmont Conference!', type: 'success' });
-      setBroadcastTitle('');
-      setBroadcastMessage('');
+
+      const sentCount = serverResult?.sent ?? recipientIds.length;
+      const totalSubs = serverResult?.totalSubscribers ?? 0;
+
+      let successMsg = `🚀 Notificação push disparada com sucesso! (${sentCount} entregas`;
+      if (totalSubs > 0) {
+        successMsg += ` enviadas para ${totalSubs} dispositivo(s) cadastrados)`;
+      } else {
+        successMsg += `)`;
+      }
+
+      setFeedback({
+        text: successMsg,
+        type: 'success'
+      });
+
+      if (loadConversations) loadConversations();
     } catch (err) {
-      setFeedback({ text: 'Erro ao enviar transmissão.', type: 'error' });
+      console.error('Erro ao enviar push notification:', err);
+      setFeedback({ text: 'Erro ao enviar notificação push: ' + (err.message || ''), type: 'error' });
     } finally {
       setActionLoading(false);
     }
@@ -1066,7 +1187,7 @@ export function AdminModal({ isOpen, onClose }) {
     { id: 'users', label: 'Usuários & Coins', icon: Users },
     { id: 'patches', label: 'Patch Notes', icon: FileText },
     { id: 'cleanup', label: 'Limpeza de Chat', icon: Trash2 },
-    { id: 'broadcast', label: 'Transmissão Belmont', icon: Radio }
+    { id: 'broadcast', label: 'Notificações Push', icon: BellRing, badge: 'Push' }
   ];
 
   return (
@@ -1866,6 +1987,21 @@ export function AdminModal({ isOpen, onClose }) {
                     </div>
 
                     <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 w-full xs:w-auto justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('broadcast');
+                          setPushTargetType('user');
+                          setPushTargetUserId(u.id);
+                          setPushNotificationTitle(`Olá @${u.username}! 👋`);
+                          setPushNotificationBody(`Mensagem do Administrador Damon para você.`);
+                        }}
+                        className="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl bg-cyan-600/20 text-cyan-300 hover:bg-cyan-600/30 border border-cyan-500/40 text-[11px] sm:text-xs font-bold flex items-center gap-1 transition-all shadow-sm active:scale-95 flex-1 xs:flex-initial justify-center"
+                        title="Enviar notificação push direta para este usuário"
+                      >
+                        <BellRing className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> <span className="truncate">Notificar</span>
+                      </button>
+
                       <label
                         className="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl bg-purple-600/20 text-purple-300 hover:bg-purple-600/30 border border-purple-500/40 text-[11px] sm:text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95 flex-1 xs:flex-initial justify-center"
                         title="Trocar a foto de perfil deste usuário"
@@ -2840,44 +2976,301 @@ export function AdminModal({ isOpen, onClose }) {
             </div>
           )}
 
-          {/* ABA 7: TRANSMISSÃO BELMONT */}
+          {/* ABA: NOTIFICAÇÕES PUSH & TRANSMISSÃO GLOBAL 📢 */}
           {activeTab === 'broadcast' && (
-            <form onSubmit={handleSendBroadcast} className="space-y-2.5 sm:space-y-3.5 p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-900/90 border border-rose-500/30 shadow-xl min-w-0 box-border">
-              <div className="p-3 rounded-xl sm:rounded-2xl bg-brand-500/10 border border-brand-500/30 text-[11px] sm:text-xs text-brand-300">
-                Envie um comunicado oficial em destaque na sala <strong>BELMONT CONFERENCE</strong> para todos os membros.
+            <div className="space-y-3.5 sm:space-y-4 min-w-0">
+              {/* Banner da Central */}
+              <div className="p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-rose-950/60 via-slate-900 to-red-950/50 border border-rose-500/40 flex items-center justify-between gap-3 shadow-xl min-w-0 box-border">
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                  <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-rose-600 to-red-600 text-white flex items-center justify-center font-extrabold shadow-lg shadow-rose-600/30 border border-rose-400/50 flex-shrink-0">
+                    <BellRing className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wide truncate">
+                        Central de Notificações Push & Transmissão
+                      </h3>
+                      <span className="text-[9px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-extrabold border border-rose-500/40">
+                        Web Push VAPID
+                      </span>
+                    </div>
+                    <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">
+                      Envie notificações em tempo real direto para os dispositivos móveis e navegadores dos usuários!
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">Título do Comunicado</label>
-                <input
-                  type="text"
-                  value={broadcastTitle}
-                  onChange={(e) => setBroadcastTitle(e.target.value)}
-                  placeholder="Ex: Atualização do Sistema, Novas Regras..."
-                  className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-rose-500"
-                />
-              </div>
+              {/* Grid: Formulário + Simulador de Push */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-4 min-w-0">
+                {/* Coluna 1: Formulário (7 Colunas) */}
+                <form
+                  onSubmit={handleSendBroadcast}
+                  className="lg:col-span-7 p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-900/90 border border-rose-500/30 space-y-3 sm:space-y-3.5 shadow-xl min-w-0 box-border"
+                >
+                  {/* Destinatário */}
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-300 uppercase block mb-1">
+                      Destinatário(s) da Notificação:
+                    </label>
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPushTargetType('all');
+                          setPushTargetUserId('');
+                        }}
+                        className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                          pushTargetType === 'all'
+                            ? 'bg-rose-600 text-white border-rose-400 shadow-md shadow-rose-600/30'
+                            : 'bg-background-dark text-slate-400 border-slate-700 hover:text-white'
+                        }`}
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        <span>Todos ({users.length} membros)</span>
+                      </button>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">Mensagem</label>
-                <textarea
-                  rows={4}
-                  required
-                  value={broadcastMessage}
-                  onChange={(e) => setBroadcastMessage(e.target.value)}
-                  placeholder="Escreva a mensagem da transmissão..."
-                  className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-rose-500 resize-none"
-                />
-              </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPushTargetType('user');
+                          if (!pushTargetUserId && users.length > 0) {
+                            setPushTargetUserId(users[0].id);
+                          }
+                        }}
+                        className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                          pushTargetType === 'user'
+                            ? 'bg-rose-600 text-white border-rose-400 shadow-md shadow-rose-600/30'
+                            : 'bg-background-dark text-slate-400 border-slate-700 hover:text-white'
+                        }`}
+                      >
+                        <UserCheck2 className="w-3.5 h-3.5" />
+                        <span>Usuário Específico</span>
+                      </button>
+                    </div>
 
-              <button
-                type="submit"
-                disabled={actionLoading}
-                className="w-full py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 text-white font-extrabold text-xs shadow-lg shadow-rose-600/30 transition-all flex items-center justify-center gap-1.5 active:scale-95"
-              >
-                <Radio className="w-4 h-4 animate-pulse" /> Enviar Transmissão Oficial
-              </button>
-            </form>
+                    {pushTargetType === 'user' && (
+                      <select
+                        value={pushTargetUserId}
+                        onChange={(e) => setPushTargetUserId(e.target.value)}
+                        required
+                        className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-rose-500 font-semibold"
+                      >
+                        <option value="">Selecione o usuário...</option>
+                        {users.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.display_name || u.username} (@{u.username})
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  {/* Presets Rápidos */}
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">
+                      Modelos & Presets Rápidos:
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {PUSH_NOTIFICATION_PRESETS.map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setPushNotificationTitle(preset.title);
+                            setPushNotificationBody(preset.body);
+                            setPushNotificationAction(preset.action);
+                            setPushNotificationIcon(preset.icon);
+                            setPushAlsoPostBelmont(preset.alsoBelmont);
+                          }}
+                          className={`p-2 rounded-xl bg-gradient-to-r ${preset.color} border text-left text-xs font-bold transition-all hover:scale-[1.01] active:scale-95 flex items-center gap-1.5`}
+                        >
+                          <span className="text-sm">{preset.label.split(' ')[0]}</span>
+                          <span className="truncate">{preset.label.substring(2)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Título da Notificação */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[10px] font-bold text-slate-300 uppercase">
+                        Título da Notificação Push
+                      </label>
+                      <span className="text-[10px] text-slate-500">{pushNotificationTitle.length}/60</span>
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      maxLength={60}
+                      value={pushNotificationTitle}
+                      onChange={(e) => setPushNotificationTitle(e.target.value)}
+                      placeholder="Ex: 📢 Comunicado Oficial do Administrador"
+                      className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-rose-500 font-bold"
+                    />
+                  </div>
+
+                  {/* Mensagem / Corpo */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[10px] font-bold text-slate-300 uppercase">
+                        Mensagem / Corpo da Notificação
+                      </label>
+                      <span className="text-[10px] text-slate-500">{pushNotificationBody.length}/180</span>
+                    </div>
+                    <textarea
+                      rows={3}
+                      required
+                      maxLength={180}
+                      value={pushNotificationBody}
+                      onChange={(e) => setPushNotificationBody(e.target.value)}
+                      placeholder="Escreva a mensagem que aparecerá na tela do celular..."
+                      className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-rose-500 resize-none"
+                    />
+                  </div>
+
+                  {/* Ação ao Clicar */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
+                        Ação ao Tocar na Notificação:
+                      </label>
+                      <select
+                        value={pushNotificationAction}
+                        onChange={(e) => setPushNotificationAction(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-rose-500"
+                      >
+                        <option value="open_belmont">👑 Abrir Belmont Conference</option>
+                        <option value="open_shop">🛍️ Abrir Loja Nexus</option>
+                        <option value="open_app">📱 Abrir Nexus Chat (Início)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
+                        Ícone do Push:
+                      </label>
+                      <select
+                        value={pushNotificationIcon}
+                        onChange={(e) => setPushNotificationIcon(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-rose-500"
+                      >
+                        <option value="/belmont-logo.jpg">🛡️ Logo Belmont Core</option>
+                        <option value="/nexus-coin.jpg">🪙 Nexus Coin (Moeda)</option>
+                        <option value={user?.avatar_url || '/belmont-logo.jpg'}>👑 Meu Avatar de Admin</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Opção Publicar na Belmont Conference */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="checkbox"
+                      id="pushAlsoPostBelmont"
+                      checked={pushAlsoPostBelmont}
+                      onChange={(e) => setPushAlsoPostBelmont(e.target.checked)}
+                      className="rounded border-slate-700 text-rose-600 focus:ring-rose-500 flex-shrink-0"
+                    />
+                    <label htmlFor="pushAlsoPostBelmont" className="text-[11px] sm:text-xs text-slate-300 cursor-pointer">
+                      Publicar também como comunicado oficial no chat da <strong>Belmont Conference</strong>
+                    </label>
+                  </div>
+
+                  {/* Botão de Disparo */}
+                  <button
+                    type="submit"
+                    disabled={actionLoading}
+                    className="w-full py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 hover:from-rose-500 hover:to-red-500 text-white font-extrabold text-xs sm:text-sm shadow-xl shadow-rose-600/30 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                  >
+                    {actionLoading ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" /> Disparando Notificação Push...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" /> Disparar Notificação Push Imediata 🚀
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                {/* Coluna 2: Simulador Visual de Notificação no Dispositivo (5 Colunas) */}
+                <div className="lg:col-span-5 p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-slate-900/95 via-slate-950 to-black border border-rose-500/30 flex flex-col justify-between shadow-2xl min-w-0">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+                      <div className="flex items-center gap-1.5 text-xs font-extrabold text-rose-300 uppercase tracking-wide">
+                        <Smartphone className="w-4 h-4 text-rose-400" />
+                        <span>Simulador de Notificação Push</span>
+                      </div>
+                      <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live Preview
+                      </span>
+                    </div>
+
+                    <p className="text-[10px] text-slate-400">
+                      É assim que o banner de notificação aparecerá na barra de status e tela de bloqueio do celular do usuário:
+                    </p>
+
+                    {/* Card de Simulação do Push no Celular */}
+                    <div className="p-3.5 rounded-2xl bg-slate-800/90 border border-slate-700/80 shadow-2xl space-y-2 backdrop-blur-md relative overflow-hidden group">
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 pb-1 border-b border-slate-700/40">
+                        <div className="flex items-center gap-1.5 font-semibold text-slate-300">
+                          <img src="/belmont-logo.jpg" alt="Nexus" className="w-3.5 h-3.5 rounded object-cover" />
+                          <span>NEXUS CHAT</span>
+                        </div>
+                        <span className="text-[9px] text-slate-400">agora</span>
+                      </div>
+
+                      <div className="flex items-start gap-2.5 pt-1">
+                        <img
+                          src={pushNotificationIcon || '/belmont-logo.jpg'}
+                          alt="Ícone Push"
+                          className="w-9 h-9 rounded-xl object-cover bg-slate-900 border border-slate-600 shadow-md flex-shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <h5 className="text-xs font-extrabold text-white leading-tight truncate">
+                            {pushNotificationTitle || 'Título da Notificação'}
+                          </h5>
+                          <p className="text-[11px] text-slate-300 leading-snug mt-0.5 line-clamp-3">
+                            {pushNotificationBody || 'A mensagem da notificação aparecerá aqui detalhada com estilo limpo.'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[9px] text-slate-400 pt-1">
+                        <span className="text-rose-300 font-bold flex items-center gap-1">
+                          <ExternalLink className="w-3 h-3" />
+                          {pushNotificationAction === 'open_belmont'
+                            ? 'Abrirá a Belmont Conference'
+                            : pushNotificationAction === 'open_shop'
+                            ? 'Abrirá a Loja Nexus'
+                            : 'Abrirá a Página Inicial'}
+                        </span>
+                        <span>Deslize para abrir</span>
+                      </div>
+                    </div>
+
+                    {/* Dica do Sistema Web Push */}
+                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[10px] text-slate-400 space-y-1">
+                      <div className="flex items-center gap-1 font-bold text-amber-400">
+                        <span>💡 Como funciona a entrega:</span>
+                      </div>
+                      <p>
+                        A notificação é despachada via <strong>Vercel Serverless Push API</strong> e entregue mesmo com o app fechado no Android, iOS (PWA adicionado) e Desktop via Service Worker.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
+                    <span>Destino atual:</span>
+                    <strong className="text-white">
+                      {pushTargetType === 'all' ? `🌟 Todos (${users.length} usuários)` : '👤 Usuário Selecionado'}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
 
