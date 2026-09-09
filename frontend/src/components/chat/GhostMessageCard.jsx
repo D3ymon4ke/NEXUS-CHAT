@@ -280,11 +280,11 @@ export function GhostMessageCard({ message, isOwn }) {
             {secretAttachments.length > 0 && (
               <div className="space-y-1.5">
                 {secretAttachments.map((att, idx) => (
-                  <div key={idx} className="rounded-xl overflow-hidden border border-purple-500/40 bg-black/40">
+                  <div key={idx} className="rounded-2xl overflow-hidden border border-purple-500/40 bg-black/60 flex items-center justify-center p-1">
                     <img
                       src={att.file_url}
                       alt={att.file_name || 'Foto fantasma'}
-                      className="w-full max-h-64 object-contain rounded-xl select-none"
+                      className="max-h-80 w-auto max-w-full object-contain rounded-xl select-none"
                     />
                   </div>
                 ))}
@@ -301,54 +301,54 @@ export function GhostMessageCard({ message, isOwn }) {
         )}
       </div>
 
-      {/* Modal de Visualização Única Fullscreen (1x) */}
+      {/* Modal de Visualização Única Fullscreen (1x) com Safe Areas */}
       {showFullViewModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/95 backdrop-blur-2xl animate-fadeIn select-none">
-          <div className="relative max-w-2xl w-full flex flex-col items-center">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center safe-modal-overlay bg-black/95 backdrop-blur-2xl animate-fadeIn select-none p-2 sm:p-4">
+          <div className="relative max-w-xl w-full flex flex-col items-center max-h-[100%] h-full justify-between py-2">
             {/* Header com Aviso de 1x */}
-            <div className="w-full flex items-center justify-between p-3 rounded-2xl bg-purple-950/90 border border-purple-500/50 mb-3 shadow-2xl">
+            <div className="w-full flex items-center justify-between p-3 rounded-2xl bg-purple-950/90 border border-purple-500/50 mb-2 shadow-2xl flex-shrink-0">
               <div className="flex items-center gap-2 text-purple-300 font-extrabold text-xs min-w-0 flex-1 mr-2">
                 <Ghost className="w-4 h-4 text-purple-400 flex-shrink-0" />
                 <span className="truncate">VISUALIZAÇÃO ÚNICA (1x)</span>
                 <span className="text-[10px] text-purple-200 font-normal ml-1 hidden sm:inline truncate">
-                  • Fechar esta janela destruirá a mensagem
+                  • Destruição ao fechar
                 </span>
               </div>
               <button
                 onClick={handleCloseViewOnce}
-                className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 border border-rose-400/50 shadow-lg shadow-rose-600/30 flex-shrink-0"
+                className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 border border-rose-400/50 shadow-lg shadow-rose-600/30 flex-shrink-0 active:scale-95"
               >
                 <X className="w-4 h-4" />
                 <span>Fechar & Destruir</span>
               </button>
             </div>
 
-            {/* Imagem / Conteúdo Secreto */}
-            <div className="rounded-3xl overflow-hidden border-2 border-purple-500/50 shadow-2xl max-h-[75vh] w-full flex items-center justify-center bg-black/90 p-2">
+            {/* Imagem / Conteúdo Secreto Ajustado para não cortar */}
+            <div className="rounded-2xl sm:rounded-3xl overflow-hidden border border-purple-500/40 shadow-2xl flex-1 w-full flex items-center justify-center bg-black/80 p-2 min-h-0">
               {secretAttachments.length > 0 ? (
-                <div className="flex flex-col items-center gap-2 max-h-[72vh] overflow-y-auto w-full">
+                <div className="flex flex-col items-center justify-center gap-2 w-full h-full min-h-0">
                   <img
                     src={secretAttachments[0].file_url}
                     alt="Foto 1x"
-                    className="max-h-[68vh] w-auto object-contain pointer-events-none rounded-2xl"
+                    className="max-h-full max-w-full w-auto h-auto object-contain pointer-events-none rounded-xl"
                   />
                   {secretContent && (
-                    <p className="text-xs text-slate-200 bg-slate-900/90 px-3 py-2 rounded-xl border border-purple-500/30 max-w-md text-center">
+                    <p className="text-xs text-slate-200 bg-slate-900/90 px-3 py-1.5 rounded-xl border border-purple-500/30 max-w-md text-center flex-shrink-0">
                       {secretContent}
                     </p>
                   )}
                 </div>
               ) : (
-                <div className="p-8 text-center text-white text-sm sm:text-base max-w-md leading-relaxed">
+                <div className="p-6 text-center text-white text-sm sm:text-base max-w-md leading-relaxed overflow-y-auto">
                   {secretContent}
                 </div>
               )}
             </div>
 
             {/* Rodapé Informativo */}
-            <div className="mt-3 text-[11px] text-slate-400 flex items-center gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-              <span>Esta mensagem será destruída permanentemente assim que você fechar.</span>
+            <div className="mt-2 text-[10px] sm:text-[11px] text-slate-400 flex items-center gap-1.5 flex-shrink-0">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+              <span>Esta mensagem será apagada permanentemente assim que você fechar.</span>
             </div>
           </div>
         </div>

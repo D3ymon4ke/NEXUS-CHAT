@@ -424,7 +424,11 @@ export function MessageBubble({
         )}
 
         {/* Corpo do Balão da Mensagem */}
-        <div className={`relative px-3.5 py-2 rounded-2xl shadow-sm transition-all ${customBubble}`}>
+        <div className={`relative transition-all ${
+          !isDeleted && (message.type === 'ghost' || (message.content && message.content.includes('"ghost_message"')))
+            ? 'p-0 bg-transparent border-0 shadow-none'
+            : `px-3.5 py-2 rounded-2xl shadow-sm ${customBubble}`
+        }`}>
           {/* Citação da Resposta (Reply Quote) */}
           {!isDeleted && message.reply_to && (
             <div
@@ -565,29 +569,31 @@ export function MessageBubble({
             )
           )}
 
-          {/* Rodapé do Balão: Timestamp + Status + Indicador de Editada */}
-          <div className="flex items-center justify-end gap-1 mt-1 text-[10px] opacity-75 select-none float-right ml-2 -mb-0.5">
-            {!isDeleted && message.is_pinned && (
-              <Pin className="w-2.5 h-2.5 fill-current rotate-45 mr-0.5" />
-            )}
-            {!isDeleted && message.is_edited && (
-              <span className="italic mr-0.5 text-amber-300/90 font-medium">(editada)</span>
-            )}
-            <span>{formattedTime}</span>
+          {/* Rodapé do Balão: Timestamp + Status + Indicador de Editada (Apenas para mensagens regulares) */}
+          {!(!isDeleted && (message.type === 'ghost' || (message.content && message.content.includes('"ghost_message"')))) && (
+            <div className="flex items-center justify-end gap-1 mt-1 text-[10px] opacity-75 select-none float-right ml-2 -mb-0.5">
+              {!isDeleted && message.is_pinned && (
+                <Pin className="w-2.5 h-2.5 fill-current rotate-45 mr-0.5" />
+              )}
+              {!isDeleted && message.is_edited && (
+                <span className="italic mr-0.5 text-amber-300/90 font-medium">(editada)</span>
+              )}
+              <span>{formattedTime}</span>
 
-            {/* Ícone de status de leitura para mensagens enviadas */}
-            {isOwn && !isDeleted && (
-              <span className="ml-0.5">
-                {message.status === 'read' ? (
-                  <CheckCheck className="w-3.5 h-3.5 text-sky-300" />
-                ) : message.status === 'delivered' ? (
-                  <CheckCheck className="w-3.5 h-3.5" />
-                ) : (
-                  <Check className="w-3 h-3" />
-                )}
-              </span>
-            )}
-          </div>
+              {/* Ícone de status de leitura para mensagens enviadas */}
+              {isOwn && !isDeleted && (
+                <span className="ml-0.5">
+                  {message.status === 'read' ? (
+                    <CheckCheck className="w-3.5 h-3.5 text-sky-300" />
+                  ) : message.status === 'delivered' ? (
+                    <CheckCheck className="w-3.5 h-3.5" />
+                  ) : (
+                    <Check className="w-3 h-3" />
+                  )}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
