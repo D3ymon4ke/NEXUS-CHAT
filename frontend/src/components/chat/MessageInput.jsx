@@ -639,7 +639,15 @@ export function MessageInput() {
             <Ghost className="w-4 h-4 text-purple-400 animate-pulse flex-shrink-0" />
             <span className="font-extrabold text-purple-300 hidden xs:inline flex-shrink-0">Fantasma:</span>
             <span className="font-bold text-white bg-purple-600/40 px-2 py-0.5 rounded-lg border border-purple-500/40 truncate text-[10px] sm:text-xs">
-              {ghostMode === 'view_once' ? '👁️ 1x Visualização' : `⏱️ Autodestruição em ${ghostMode}`}
+              {ghostMode === 'view_once'
+                ? '👁️ Visualização Única (1x)'
+                : ghostMode === '10s'
+                ? '⏱️ 10 Segundos'
+                : ghostMode === '1m'
+                ? '⏱️ 1 Minuto'
+                : ghostMode === '1h'
+                ? '⏱️ 1 Hora'
+                : `⏱️ Autodestruição em ${ghostMode}`}
             </span>
           </div>
           <button

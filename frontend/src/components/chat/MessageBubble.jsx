@@ -448,8 +448,8 @@ export function MessageBubble({
             </div>
           )}
 
-          {/* Anexos de Mídia (Ocultados se mensagem excluída) */}
-          {!isDeleted && message.attachments && message.attachments.length > 0 && (
+          {/* Anexos de Mídia (Ocultados se mensagem excluída ou Modo Fantasma) */}
+          {!isDeleted && !(message.type === 'ghost' || (message.content && message.content.includes('"ghost_message"'))) && message.attachments && message.attachments.length > 0 && (
             <div className="space-y-1.5 mb-1.5">
               {message.attachments.map((att, idx) => {
                 const isImg =
@@ -511,8 +511,8 @@ export function MessageBubble({
             </div>
           )}
 
-          {/* Fallback de Imagem Direta no Conteúdo (caso attachments não tenha sido carregado) */}
-          {!isDeleted && (!message.attachments || message.attachments.length === 0) && (
+          {/* Fallback de Imagem Direta no Conteúdo (caso attachments não tenha sido carregado e NÃO seja mensagem fantasma) */}
+          {!isDeleted && !(message.type === 'ghost' || (message.content && message.content.includes('"ghost_message"'))) && (!message.attachments || message.attachments.length === 0) && (
             (message.type === 'image' && message.content) ||
             message.content?.startsWith('data:image/') ||
             (message.content?.startsWith('http') && message.content?.match(/\.(jpeg|jpg|gif|png|webp|svg)(\?.*)?$/i)) ||

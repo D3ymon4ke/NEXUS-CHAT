@@ -233,11 +233,10 @@ export function SendGiftModal({
         {/* Feedback Alert */}
         {feedbackMsg.text && (
           <div
-            className={`my-2 p-2.5 rounded-xl text-xs font-semibold flex items-center justify-between animate-fadeIn flex-shrink-0 ${
-              feedbackMsg.type === 'success'
-                ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 shadow-emerald-500/10'
-                : 'bg-rose-500/15 border border-rose-500/30 text-rose-300 shadow-rose-500/10'
-            }`}
+            className={`my-2 p-2.5 rounded-xl text-xs font-semibold flex items-center justify-between animate-fadeIn flex-shrink-0 ${feedbackMsg.type === 'success'
+              ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 shadow-emerald-500/10'
+              : 'bg-rose-500/15 border border-rose-500/30 text-rose-300 shadow-rose-500/10'
+              }`}
           >
             <span className="truncate mr-2">{feedbackMsg.text}</span>
             <button onClick={() => setFeedbackMsg({ text: '', type: '' })}>
@@ -254,11 +253,10 @@ export function SendGiftModal({
               <button
                 key={r.id}
                 onClick={() => setSelectedRarity(r.id)}
-                className={`py-1 px-2.5 sm:px-3 text-xs font-bold rounded-lg transition-all whitespace-nowrap flex-shrink-0 ${
-                  isActive
-                    ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-black shadow font-extrabold'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
+                className={`py-1 px-2.5 sm:px-3 text-xs font-bold rounded-lg transition-all whitespace-nowrap flex-shrink-0 ${isActive
+                  ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-black shadow font-extrabold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
               >
                 {r.label}
               </button>
@@ -277,11 +275,10 @@ export function SendGiftModal({
                 <div
                   key={gift.id}
                   onClick={() => setSelectedGift(gift)}
-                  className={`p-2.5 sm:p-3 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden group select-none min-w-0 ${
-                    isSelected
-                      ? `bg-slate-900 ${rarityConfig.borderClass} ${rarityConfig.glowClass} ring-2 ring-amber-400/50 scale-[1.02]`
-                      : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
-                  }`}
+                  className={`p-2.5 sm:p-3 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden group select-none min-w-0 ${isSelected
+                    ? `bg-slate-900 ${rarityConfig.borderClass} ${rarityConfig.glowClass} ring-2 ring-amber-400/50 scale-[1.02]`
+                    : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+                    }`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className={`text-[8px] sm:text-[9px] px-1.5 py-0.2 rounded-full font-extrabold uppercase border ${rarityConfig.badgeClass}`}>
@@ -319,11 +316,10 @@ export function SendGiftModal({
                   key={qty}
                   type="button"
                   onClick={() => setQuantity(qty)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors ${
-                    quantity === qty
-                      ? 'bg-amber-500 text-black border-amber-400 font-extrabold shadow'
-                      : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750'
-                  }`}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors ${quantity === qty
+                    ? 'bg-amber-500 text-black border-amber-400 font-extrabold shadow'
+                    : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750'
+                    }`}
                 >
                   {qty}x
                 </button>
@@ -347,11 +343,10 @@ export function SendGiftModal({
           <button
             type="submit"
             disabled={sending || !canAfford}
-            className={`w-full py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg transition-all active:scale-95 ${
-              canAfford
-                ? 'bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 text-black shadow-amber-500/20'
-                : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
-            }`}
+            className={`w-full py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg transition-all active:scale-95 ${canAfford
+              ? 'bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 text-black shadow-amber-500/20'
+              : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+              }`}
           >
             <Send className="w-4 h-4 flex-shrink-0" />
             <span className="truncate">

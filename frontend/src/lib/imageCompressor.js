@@ -1,7 +1,21 @@
 /**
  * Redimensiona e comprime uma imagem para um tamanho ideal de alta resolução e baixo peso
  */
-export function compressImageFile(file, maxWidth = 1280, maxHeight = 1280, quality = 0.85) {
+export function compressImageFile(file, maxWidthParam = 1280, maxHeightParam = 1280, qualityParam = 0.85) {
+  let maxWidth = 1280;
+  let maxHeight = 1280;
+  let quality = 0.85;
+
+  if (maxWidthParam && typeof maxWidthParam === 'object') {
+    maxWidth = maxWidthParam.maxWidth || 1280;
+    maxHeight = maxWidthParam.maxHeight || 1280;
+    quality = typeof maxWidthParam.quality === 'number' ? maxWidthParam.quality : 0.85;
+  } else {
+    maxWidth = typeof maxWidthParam === 'number' ? maxWidthParam : 1280;
+    maxHeight = typeof maxHeightParam === 'number' ? maxHeightParam : 1280;
+    quality = typeof qualityParam === 'number' ? qualityParam : 0.85;
+  }
+
   return new Promise((resolve, reject) => {
     if (!file) {
       reject(new Error('Nenhum arquivo fornecido.'));
