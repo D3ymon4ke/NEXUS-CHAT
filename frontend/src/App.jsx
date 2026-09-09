@@ -20,6 +20,7 @@ import { InstallAppModal } from './components/pwa/InstallAppModal';
 import { OnboardingTutorialModal } from './components/auth/OnboardingTutorialModal';
 import { CreatePollModal } from './components/polls/CreatePollModal';
 import { TitlePromotionModal } from './components/profile/TitlePromotionModal';
+import { ForceUpdateModal } from './components/common/ForceUpdateModal';
 import { apiRequest } from './lib/api';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 
@@ -47,6 +48,7 @@ function ChatDashboard() {
   const [showCreateStoryModal, setShowCreateStoryModal] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [showTutorialModal, setShowTutorialModal] = useState(false);
+  const [forceUpdateData, setForceUpdateData] = useState(null);
 
   // Perfil e Stories Viewer States
   const [targetUserProfile, setTargetUserProfile] = useState(null);
@@ -119,6 +121,23 @@ function ChatDashboard() {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('focus', checkVersion);
+    };
+  }, []);
+
+  // Escutar disparos remotos de Atualização Global do Admin via Supabase Broadcast
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+
+    const channel = supabase.channel('online_users');
+    channel.on('broadcast', { event: 'force_client_update' }, (payload) => {
+      if (payload && payload.payload) {
+        setForceUpdateData(payload.payload);
+      }
+    });
+
+    return () => {
+      // Não removemos o canal inteiro pois o SocketContext/Presence também usa online_users,
+      // mas removemos o handler se necessário.
     };
   }, []);
 
@@ -340,6 +359,11 @@ function ChatDashboard() {
       />
 
       <TitlePromotionModal />
+
+      <ForceUpdateModal
+        updateData={forceUpdateData}
+        onClose={() => setForceUpdateData(null)}
+      />
     </div>
   );
 }

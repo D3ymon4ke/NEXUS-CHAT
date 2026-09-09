@@ -858,6 +858,68 @@ export function AdminModal({ isOpen, onClose }) {
     }
   };
 
+  // ⚡ DISPARAR ATUALIZAÇÃO REMOTA GLOBAL & LIMPEZA DE CACHE NOS CLIENTES
+  const handleForceGlobalClientUpdate = async (customMsg = '') => {
+    if (!window.confirm('⚠️ Atenção Admin Damon: Deseja realmente disparar a notificação de ATUALIZAÇÃO FORÇADA em tempo real para TODOS os usuários conectados? Isso abrirá o popup de atualização imediata na tela de todos os celulares e computadores!')) {
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+
+      const updatePayload = {
+        version: `v3.1.${Date.now().toString().slice(-4)}`,
+        title: '🚀 Nova Versão do Nexus Chat Disponível!',
+        message: customMsg || 'Uma nova atualização do Nexus Chat foi publicada com correções de estabilidade e novos recursos. Clique no botão abaixo para renovar o cache e carregar as novidades!',
+        forcedAt: Date.now(),
+        author: user?.display_name || 'Admin Damon'
+      };
+
+      if (isSupabaseConfigured && supabase) {
+        // 1. Broadcast em tempo real para o canal online_users
+        await supabase.channel('online_users').send({
+          type: 'broadcast',
+          event: 'force_client_update',
+          payload: updatePayload
+        });
+
+        // 2. Disparar também Web Push de alta prioridade para quem estiver com o app fechado
+        try {
+          await fetch('/api/send-push', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              recipientIds: users.map((u) => u.id).filter(Boolean),
+              title: '⚡ Nova Versão do Nexus Chat Disponível!',
+              body: 'Toque para abrir o app e aplicar a atualização mais recente!',
+              icon: '/belmont-logo.jpg',
+              senderId: user?.id,
+              data: {
+                action: 'open_app',
+                url: '/'
+              }
+            })
+          });
+        } catch (pushErr) {
+          console.warn('Aviso Web Push:', pushErr);
+        }
+      }
+
+      sounds.playPop();
+      confetti({ particleCount: 100, spread: 80, origin: { y: 0.5 } });
+
+      setFeedback({
+        text: '⚡ Ordem de Atualização Forçada transmitida com sucesso para todos os usuários online!',
+        type: 'success'
+      });
+    } catch (err) {
+      console.error('Erro ao forçar atualização:', err);
+      setFeedback({ text: 'Erro ao disparar atualização remota: ' + (err.message || ''), type: 'error' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const PROMOTION_PRESETS = [
     {
       title: 'Coordenador',
@@ -2936,7 +2998,31 @@ export function AdminModal({ isOpen, onClose }) {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3.5">
+                {/* ⚡ CARD DE ATUALIZAÇÃO FORÇADA GLOBAL */}
+                <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-cyan-950/40 via-slate-900 to-slate-950 border border-cyan-500/40 flex flex-col justify-between shadow-xl min-w-0 box-border col-span-1 sm:col-span-2 lg:col-span-1">
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-extrabold uppercase mb-2 border border-cyan-500/30">
+                      <Zap className="w-3 h-3 text-cyan-400" /> Transmissão Imediata
+                    </div>
+                    <h4 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5">
+                      <span>⚡</span> Forçar Atualização em Todos os Dispositivos
+                    </h4>
+                    <p className="text-[11px] sm:text-xs text-slate-300 mt-1 leading-relaxed">
+                      Dispara instantaneamente um alerta em tempo real na tela de todos os usuários online com botão de <strong className="text-cyan-300 font-bold">Limpar Cache & Recarregar PWA</strong>.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleForceGlobalClientUpdate()}
+                    disabled={actionLoading}
+                    className="mt-4 w-full py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-black shadow-lg shadow-cyan-600/30 transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${actionLoading ? 'animate-spin' : ''}`} />
+                    <span>{actionLoading ? 'Disparando...' : '🚀 Disparar Atualização Global'}</span>
+                  </button>
+                </div>
+
                 <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between shadow-xl min-w-0 box-border">
                   <div>
                     <h4 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5">
@@ -3178,21 +3264,33 @@ export function AdminModal({ isOpen, onClose }) {
                   </div>
 
                   {/* Botão de Disparo */}
-                  <button
-                    type="submit"
-                    disabled={actionLoading}
-                    className="w-full py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 hover:from-rose-500 hover:to-red-500 text-white font-extrabold text-xs sm:text-sm shadow-xl shadow-rose-600/30 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
-                  >
-                    {actionLoading ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" /> Disparando Notificação Push...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4" /> Disparar Notificação Push Imediata 🚀
-                      </>
-                    )}
-                  </button>
+                  <div className="space-y-2 pt-1">
+                    <button
+                      type="submit"
+                      disabled={actionLoading}
+                      className="w-full py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 hover:from-rose-500 hover:to-red-500 text-white font-extrabold text-xs sm:text-sm shadow-xl shadow-rose-600/30 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                    >
+                      {actionLoading ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" /> Disparando Notificação Push...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4" /> Disparar Notificação Push Imediata 🚀
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleForceGlobalClientUpdate(pushNotificationBody)}
+                      disabled={actionLoading}
+                      className="w-full py-2.5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-cyan-600/20 via-blue-600/20 to-indigo-600/20 hover:from-cyan-600/40 hover:to-indigo-600/40 border border-cyan-500/40 text-cyan-300 font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                    >
+                      <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Forçar Atualização na Tela dos Usuários (Popup + Limpar Cache) ⚡</span>
+                    </button>
+                  </div>
                 </form>
 
                 {/* Coluna 2: Simulador Visual de Notificação no Dispositivo (5 Colunas) */}
