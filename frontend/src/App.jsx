@@ -72,27 +72,54 @@ function ChatDashboard() {
     }
   }, [user, setShowPollModal]);
 
-  // Verificação periódica de novas versões da Vercel (Auto-Update)
+  // Verificação periódica e no foco de novas versões da Vercel (Auto-Update Instantâneo)
   useEffect(() => {
+    let isUpdating = false;
+
     const checkVersion = async () => {
+      if (isUpdating) return;
       try {
         const res = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           if (data.version && typeof __APP_BUILD_TIME__ !== 'undefined') {
-            if (data.version > __APP_BUILD_TIME__) {
+            if (Number(data.version) > Number(__APP_BUILD_TIME__)) {
+              isUpdating = true;
               if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-                const reg = await navigator.serviceWorker.ready;
-                reg.update().catch(() => {});
+                const regs = await navigator.serviceWorker.getRegistrations();
+                for (const reg of regs) {
+                  await reg.update().catch(() => {});
+                }
               }
+              // Recarregar silenciosamente para carregar o novo bundle
+              setTimeout(() => {
+                window.location.reload();
+              }, 400);
             }
           }
         }
       } catch (e) {}
     };
 
-    const interval = setInterval(checkVersion, 5 * 60 * 1000);
-    return () => clearInterval(interval);
+    // Checar imediatamente no mount
+    checkVersion();
+
+    // Checar sempre que o usuário voltar ao app no celular
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkVersion();
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('focus', checkVersion);
+
+    const interval = setInterval(checkVersion, 2 * 60 * 1000);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('focus', checkVersion);
+    };
   }, []);
 
   const handleSelectConversation = (convId) => {

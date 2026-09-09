@@ -145,41 +145,49 @@ export function MessageBubble({
       y: e.touches[0].clientY
     };
     hasVibratedRef.current = false;
-    setIsDragging(true);
+    setIsDragging(false);
   };
 
   const handleTouchMove = (e) => {
-    if (!isDragging || isDeleted || !onReply) return;
+    if (isDeleted || !onReply) return;
     const currentX = e.touches[0].clientX;
     const currentY = e.touches[0].clientY;
     const dx = currentX - touchStartRef.current.x;
     const dy = currentY - touchStartRef.current.y;
 
-    // Permitir rolagem vertical sem travar a lista
-    if (Math.abs(dy) > Math.abs(dx) && Math.abs(dx) < 15) {
+    // Se o movimento for predominantemente vertical, não ativa o swipe
+    if (Math.abs(dy) > Math.abs(dx)) {
+      if (dragOffset !== 0) {
+        setDragOffset(0);
+        setIsDragging(false);
+      }
       return;
     }
 
-    let offset = 0;
-    if (!isOwn && dx > 0) {
-      offset = Math.min(75, dx * 0.55);
-    } else if (isOwn && dx < 0) {
-      offset = Math.min(75, Math.abs(dx) * 0.55);
-    }
+    // Apenas arrastar para a esquerda (dx < 0) ativa o swipe-to-reply estilo Telegram/WhatsApp
+    if (dx < 0) {
+      setIsDragging(true);
+      const absDx = Math.abs(dx);
+      // Limite máximo de 45px para não tirar a mensagem da tela
+      const offset = Math.min(45, absDx * 0.45);
 
-    if (offset >= 45 && !hasVibratedRef.current) {
-      hasVibratedRef.current = true;
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        try { navigator.vibrate(25); } catch (vErr) {}
+      if (offset >= 35 && !hasVibratedRef.current) {
+        hasVibratedRef.current = true;
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          try { navigator.vibrate(25); } catch (vErr) {}
+        }
+        sounds?.playPop?.();
       }
-      sounds?.playPop?.();
-    }
 
-    setDragOffset(offset);
+      setDragOffset(offset);
+    } else {
+      setDragOffset(0);
+      setIsDragging(false);
+    }
   };
 
   const handleTouchEnd = () => {
-    if (dragOffset >= 45 && onReply && !isDeleted) {
+    if (dragOffset >= 35 && onReply && !isDeleted) {
       onReply(message);
     }
     setIsDragging(false);
@@ -194,25 +202,23 @@ export function MessageBubble({
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
       style={{
-        transform: `translateX(${!isOwn ? dragOffset : -dragOffset}px)`,
-        transition: isDragging ? 'none' : 'transform 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+        transform: `translateX(-${dragOffset}px)`,
+        transition: isDragging ? 'none' : 'transform 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
       }}
-      className={`group relative flex my-2 w-full max-w-full min-w-0 items-end gap-1.5 sm:gap-2.5 touch-pan-y ${
+      className={`group relative flex my-2 w-full max-w-full min-w-0 items-end gap-1.5 sm:gap-2.5 overflow-hidden select-none ${
         isOwn ? 'justify-end' : 'justify-start'
       }`}
     >
       {/* Ícone Indicador de Resposta por Gesto (Swipe-to-Reply) */}
-      {dragOffset > 8 && (
+      {dragOffset > 6 && (
         <div
           style={{
-            transform: `scale(${Math.min(1.2, dragOffset / 40)})`,
-            opacity: Math.min(1, dragOffset / 35)
+            transform: `scale(${Math.min(1.15, dragOffset / 30)})`,
+            opacity: Math.min(1, dragOffset / 25)
           }}
-          className={`absolute top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-brand-600/95 border border-brand-400 text-white flex items-center justify-center shadow-lg pointer-events-none z-0 transition-transform ${
-            !isOwn ? '-left-10' : '-right-10'
-          }`}
+          className="absolute top-1/2 -translate-y-1/2 -right-1 w-7 h-7 rounded-full bg-brand-600 border border-brand-400 text-white flex items-center justify-center shadow-md pointer-events-none z-10 transition-transform"
         >
-          <Reply className="w-4 h-4 text-white" />
+          <Reply className="w-3.5 h-3.5 text-white" />
         </div>
       )}
 
