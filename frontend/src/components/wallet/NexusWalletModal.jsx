@@ -101,9 +101,9 @@ export function NexusWalletModal({ isOpen, onClose }) {
   if (!isOpen || !user) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-xl animate-fadeIn select-none overflow-hidden box-border">
-      <div className="glass-modal w-full max-w-xl rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 shadow-2xl border border-amber-500/30 flex flex-col h-full max-h-[96vh] sm:max-h-[90vh] overflow-hidden relative min-w-0 box-border">
-        {/* Glow de Fundo */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center safe-modal-overlay bg-black/85 backdrop-blur-xl animate-fadeIn select-none overflow-hidden box-border">
+      <div className="w-full max-w-2xl rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 md:p-6 shadow-2xl border border-amber-500/40 bg-gradient-to-b from-slate-900/95 via-background-darker/95 to-slate-950/95 flex flex-col h-full max-h-[100%] overflow-hidden relative backdrop-blur-2xl min-w-0 box-border">
+        {/* Glows Decorativos */}
         <div className="absolute -top-24 -right-24 w-60 h-60 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -left-24 w-60 h-60 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
 

@@ -327,8 +327,8 @@ export function UserProfileModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-xl animate-fadeIn select-none overflow-hidden box-border">
-        <div className="glass-modal w-full max-w-sm sm:max-w-md rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-700/80 flex flex-col relative overflow-hidden max-h-[96vh] sm:max-h-[92vh] overflow-y-auto box-border">
+      <div className="fixed inset-0 z-50 flex items-center justify-center safe-modal-overlay bg-black/85 backdrop-blur-xl animate-fadeIn select-none overflow-hidden box-border">
+        <div className="glass-modal w-full max-w-sm sm:max-w-md rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-700/80 flex flex-col relative overflow-hidden max-h-[100%] overflow-y-auto box-border">
           {/* Glow de Fundo */}
           <div className="absolute -top-20 -right-20 w-48 h-48 bg-brand-500/20 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute -bottom-20 -left-20 w-48 h-48 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />

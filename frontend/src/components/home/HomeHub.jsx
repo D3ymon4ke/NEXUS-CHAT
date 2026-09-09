@@ -214,12 +214,12 @@ export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet, onBack }) {
       <div className="absolute top-0 right-1/4 w-96 h-96 bg-brand-600/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute top-1/2 left-10 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="max-w-5xl w-full mx-auto p-3.5 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 box-border min-w-0">
+      <div className="max-w-5xl w-full mx-auto p-3.5 pt-[max(1rem,calc(env(safe-area-inset-top,0px)+0.75rem))] pb-[max(1.5rem,calc(env(safe-area-inset-bottom,0px)+1rem))] sm:p-6 lg:p-8 space-y-4 sm:space-y-6 box-border min-w-0">
         {/* Botão de Voltar para Barra Lateral em Dispositivos Móveis */}
         {onBack && (
           <button
             onClick={onBack}
-            className="md:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-700/80 text-slate-200 font-bold text-xs shadow-lg active:scale-95 transition-all"
+            className="md:hidden flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900/90 border border-slate-700/80 text-slate-200 font-bold text-xs shadow-lg active:scale-95 transition-all"
           >
             <ChevronLeft className="w-4 h-4 text-amber-400" />
             <span>Voltar para Lista de Conversas</span>

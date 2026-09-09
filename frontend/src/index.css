@@ -43,13 +43,21 @@ html, body, #root {
   background: #3e4859;
 }
 
-/* Mobile Safe Areas */
+/* Mobile Safe Areas (Notch, Dynamic Island e Home Bar do iOS / Android) */
 .safe-bottom {
-  padding-bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
 }
 
 .safe-top {
-  padding-top: max(0.75rem, env(safe-area-inset-top, 0.75rem));
+  padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+}
+
+/* Safe Modal Container (Garante que nenhum popup/modal fique atrás da barra de status ou Dynamic Island) */
+.safe-modal-overlay {
+  padding-top: max(1.25rem, calc(env(safe-area-inset-top, 0px) + 0.75rem));
+  padding-bottom: max(1.25rem, calc(env(safe-area-inset-bottom, 0px) + 0.75rem));
+  padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
 }
 
 /* Glassmorphism Classes */

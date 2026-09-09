@@ -389,8 +389,8 @@ export function NexusShopModal({ isOpen, onClose }) {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-xl animate-fadeIn select-none overflow-hidden box-border">
-      <div className="w-full max-w-5xl rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 md:p-6 shadow-2xl border border-amber-500/40 bg-gradient-to-b from-slate-900/95 via-background-darker/95 to-slate-950/95 flex flex-col h-full max-h-[96vh] sm:max-h-[92vh] overflow-hidden relative backdrop-blur-2xl min-w-0 box-border">
+    <div className="fixed inset-0 z-50 flex items-center justify-center safe-modal-overlay bg-black/85 backdrop-blur-xl animate-fadeIn select-none overflow-hidden box-border">
+      <div className="w-full max-w-5xl rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 md:p-6 shadow-2xl border border-amber-500/40 bg-gradient-to-b from-slate-900/95 via-background-darker/95 to-slate-950/95 flex flex-col h-full max-h-[100%] overflow-hidden relative backdrop-blur-2xl min-w-0 box-border">
         {/* Glows Decorativos */}
         <div className="absolute -top-32 -right-32 w-80 h-80 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
