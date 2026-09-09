@@ -184,7 +184,19 @@ export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet, onBack }) {
         .order('created_at', { ascending: false });
 
       if (data && data.length > 0) {
-        setPatchNotes(data);
+        // Mesclar notas do banco com notas padrão do sistema, evitando duplicatas por título/versão
+        const dbTitles = new Set(data.map(p => (p.title || '').trim().toLowerCase()));
+        const missingFallbacks = DEFAULT_FALLBACK_PATCHES.filter(
+          fb => !dbTitles.has((fb.title || '').trim().toLowerCase())
+        );
+        
+        // Colocar primeiro as notas com destaque (is_pinned) e mais recentes
+        const merged = [...data, ...missingFallbacks].sort((a, b) => {
+          if (a.is_pinned !== b.is_pinned) return b.is_pinned ? 1 : -1;
+          return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+        });
+
+        setPatchNotes(merged);
       }
     } catch (err) {
       console.warn('Usando patch notes locais:', err);
