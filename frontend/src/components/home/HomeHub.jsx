@@ -87,6 +87,16 @@ const BADGE_COLORS = {
 
 const DEFAULT_FALLBACK_PATCHES = [
   {
+    id: 'p-today-v312',
+    tag: 'PATCH',
+    title: '⚡ Atualização Forçada & Safe Area Mobile Imersiva',
+    version: 'v3.1.2',
+    content: '### 🚀 Melhorias de Altura, Entalhes e Atualização Remota!\n\n- 📱 **Correção de Altura & Notch Mobile**: Loja, Carteira, Hub e Modais agora respeitam perfeitamente a Dynamic Island e a barra de status do iOS e Android.\n- ⚡ **Atualização Remota Forçada**: O Admin agora pode emitir ordens de atualização em tempo real com limpeza de cache instantânea.\n- 🧹 **Renovação de Cache & PWA**: Atualização garantida sem deslogar o usuário ou perder configurações.',
+    author_name: 'Damon',
+    is_pinned: true,
+    created_at: new Date().toISOString()
+  },
+  {
     id: 'p-today',
     tag: 'PATCH',
     title: '👻 Modo Fantasma: Visualização Única & Mensagens Temporárias',
@@ -94,7 +104,7 @@ const DEFAULT_FALLBACK_PATCHES = [
     content: '### 🛡️ Privacidade e Mensagens Temporárias Restauradas!\n\n- 👁️ **Visualização Única (1x) Blindada**: Fotos e mensagens de abertura única agora ocultam previews de anexos até que sejam explicitamente abertas e destruídas ao fechar.\n- ⏱️ **Timers de Autodestruição (10s, 1m, 1h)**: Contagem regressiva precisa com sincronização em tempo real e barra de progresso.\n- 🧹 **Autodestruição Permanente**: Mensagens expiradas são eliminadas do banco e do chat com status visual de segurança.\n- 🖼️ **Otimização no Compressor de Mídias**: Suporte inteligente a múltiplos formatos de resolução para envio de capas e avatares.',
     author_name: 'Damon',
     is_pinned: true,
-    created_at: new Date().toISOString()
+    created_at: new Date(Date.now() - 3600000).toISOString()
   },
   {
     id: 'p0',
@@ -104,7 +114,7 @@ const DEFAULT_FALLBACK_PATCHES = [
     content: '### 🎉 Grandes Novidades no Nexus Chat!\n\n- 🔔 **Notificações Push em Segundo Plano (Web Push VAPID)**: Receba notificações instantâneas no seu celular ou PC mesmo com o app fechado!\n- 💬 **Swipe-to-Reply Mobile**: Deslize qualquer mensagem para a esquerda para responder rapidamente com vibração háptica!\n- ⚡ **Atualização Automática (PWA Auto-Update)**: O app agora detecta e aplica novas versões silenciosamente.\n- 📢 **Central de Notificações do Administrador**: Envio de comunicados globais e individuais com presets.',
     author_name: 'Damon',
     is_pinned: false,
-    created_at: new Date().toISOString()
+    created_at: new Date(Date.now() - 86400000).toISOString()
   },
   {
     id: 'p1',
@@ -114,7 +124,7 @@ const DEFAULT_FALLBACK_PATCHES = [
     content: 'Personalize sua capa de perfil widescreen, visualize avatares em tela cheia (lightbox) e envie presentes animados com raridades e vitrine de troféus.',
     author_name: 'Damon',
     is_pinned: false,
-    created_at: new Date().toISOString()
+    created_at: new Date(Date.now() - 172800000).toISOString()
   },
   {
     id: 'p2',
@@ -124,7 +134,7 @@ const DEFAULT_FALLBACK_PATCHES = [
     content: 'Sistema completo de moedas por mensagens, bônus de login diário, planos de fundo dinâmicos e inventário de efeitos.',
     author_name: 'Damon',
     is_pinned: false,
-    created_at: new Date().toISOString()
+    created_at: new Date(Date.now() - 259200000).toISOString()
   },
   {
     id: 'p3',
@@ -134,7 +144,7 @@ const DEFAULT_FALLBACK_PATCHES = [
     content: 'Agora você pode editar suas mensagens enviadas e excluir com placeholder estilizado em tempo real.',
     author_name: 'Damon',
     is_pinned: false,
-    created_at: new Date().toISOString()
+    created_at: new Date(Date.now() - 345600000).toISOString()
   }
 ];
 
