@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
@@ -301,9 +302,9 @@ export function GhostMessageCard({ message, isOwn }) {
         )}
       </div>
 
-      {/* Modal de Visualização Única Fullscreen (1x) com Safe Areas */}
-      {showFullViewModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center safe-modal-overlay bg-black/95 backdrop-blur-2xl animate-fadeIn select-none p-2 sm:p-4">
+      {/* Modal de Visualização Única Fullscreen (1x) com Safe Areas via React Portal */}
+      {showFullViewModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center safe-modal-overlay bg-black/95 backdrop-blur-2xl animate-fadeIn select-none p-3 sm:p-5">
           <div className="relative max-w-xl w-full flex flex-col items-center max-h-[100%] h-full justify-between py-2">
             {/* Header com Aviso de 1x */}
             <div className="w-full flex items-center justify-between p-3 rounded-2xl bg-purple-950/90 border border-purple-500/50 mb-2 shadow-2xl flex-shrink-0">
@@ -316,7 +317,7 @@ export function GhostMessageCard({ message, isOwn }) {
               </div>
               <button
                 onClick={handleCloseViewOnce}
-                className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 border border-rose-400/50 shadow-lg shadow-rose-600/30 flex-shrink-0 active:scale-95"
+                className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black transition-all flex items-center gap-1.5 border border-rose-400/50 shadow-lg shadow-rose-600/30 flex-shrink-0 active:scale-95 cursor-pointer"
               >
                 <X className="w-4 h-4" />
                 <span>Fechar & Destruir</span>
@@ -351,7 +352,8 @@ export function GhostMessageCard({ message, isOwn }) {
               <span>Esta mensagem será apagada permanentemente assim que você fechar.</span>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
