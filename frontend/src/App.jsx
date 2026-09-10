@@ -229,7 +229,7 @@ function ChatDashboard() {
 
         {/* Área Principal: HomeHub ou ChatArea */}
         <div
-          className={`flex-1 h-full min-h-0 min-w-0 max-w-full ${
+          className={`flex-1 h-full min-h-0 min-w-0 max-w-full overflow-hidden ${
             mobileView === 'sidebar' ? 'hidden md:flex' : 'flex w-full'
           }`}
         >

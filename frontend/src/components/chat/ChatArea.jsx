@@ -42,6 +42,9 @@ export function ChatArea({ onBack, onOpenProfile }) {
 
   // Auto-scroll para o final quando novas mensagens chegam
   const scrollToBottom = (smooth = true) => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft = 0;
+    }
     messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
   };
 
@@ -55,8 +58,25 @@ export function ChatArea({ onBack, onOpenProfile }) {
     }
   }, [messages.length]);
 
+  // Travar rigorosamente qualquer deslocamento horizontal indesejado
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const lockX = () => {
+      if (el.scrollLeft !== 0) {
+        el.scrollLeft = 0;
+      }
+    };
+    el.scrollLeft = 0;
+    el.addEventListener('scroll', lockX, { passive: true });
+    return () => el.removeEventListener('scroll', lockX);
+  }, [activeConversation?.id]);
+
   const handleScroll = () => {
     if (!scrollContainerRef.current) return;
+    if (scrollContainerRef.current.scrollLeft !== 0) {
+      scrollContainerRef.current.scrollLeft = 0;
+    }
     const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
     const isUp = scrollHeight - scrollTop - clientHeight > 150;
     setShowScrollBottom(isUp);
@@ -176,7 +196,8 @@ export function ChatArea({ onBack, onOpenProfile }) {
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 min-h-0 min-w-0 w-full max-w-full overflow-y-auto overscroll-contain px-2.5 sm:px-4 py-3 sm:py-4 space-y-1 relative"
+        style={{ overflowX: 'hidden', touchAction: 'pan-y' }}
+        className="flex-1 min-h-0 min-w-0 w-full max-w-full overflow-y-auto overflow-x-hidden touch-pan-y overscroll-x-none overscroll-contain px-2.5 sm:px-4 py-3 sm:py-4 space-y-1 relative"
       >
         {loadingMessages && displayMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-400 text-xs gap-3 select-none">
@@ -211,7 +232,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
                   </div>
                 )}
 
-                <div id={`msg-${msg.id}`}>
+                <div id={`msg-${msg.id}`} className="w-full max-w-full min-w-0">
                   <MessageBubble
                     message={msg}
                     isOwn={isOwn}

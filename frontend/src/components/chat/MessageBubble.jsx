@@ -197,10 +197,11 @@ export function MessageBubble({
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
       style={{
-        transform: `translateX(-${dragOffset}px)`,
-        transition: isDragging ? 'none' : 'transform 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+        transform: dragOffset > 0 ? `translateX(-${dragOffset}px)` : undefined,
+        transition: isDragging ? 'none' : 'transform 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+        touchAction: 'pan-y'
       }}
-      className={`group relative flex my-2 pt-2.5 sm:pt-2 w-full max-w-full min-w-0 items-end gap-1.5 sm:gap-2.5 overflow-visible select-none ${
+      className={`group relative flex my-2 pt-2.5 sm:pt-2 w-full max-w-full min-w-0 items-end gap-1.5 sm:gap-2.5 overflow-visible select-none touch-pan-y ${
         isOwn ? 'justify-end' : 'justify-start'
       }`}
     >
@@ -211,7 +212,7 @@ export function MessageBubble({
             transform: `scale(${Math.min(1.15, dragOffset / 30)})`,
             opacity: Math.min(1, dragOffset / 25)
           }}
-          className="absolute top-1/2 -translate-y-1/2 -right-1 w-7 h-7 rounded-full bg-brand-600 border border-brand-400 text-white flex items-center justify-center shadow-md pointer-events-none z-10 transition-transform"
+          className="absolute top-1/2 -translate-y-1/2 right-2 w-7 h-7 rounded-full bg-brand-600 border border-brand-400 text-white flex items-center justify-center shadow-md pointer-events-none z-10 transition-transform"
         >
           <Reply className="w-3.5 h-3.5 text-white" />
         </div>
