@@ -2,6 +2,10 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
+import { initTactileFeedback } from './lib/haptics';
+
+// Inicializa a resposta tátil e física de toque para celular e desktop
+initTactileFeedback();
 
 // Registro e auto-atualização contínua do Service Worker para PWA (Mobile e Desktop)
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {

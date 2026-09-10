@@ -114,9 +114,16 @@ export function ChatArea({ onBack, onOpenProfile }) {
 
       {/* Banner de Super DM Ativa (Modo Master Secreto) */}
       {activeMasterUser && (
-        <div className="px-3 sm:px-4 py-2 bg-gradient-to-r from-rose-950/90 via-slate-900 to-purple-950/80 border-b border-rose-500/40 flex items-center justify-between z-20 select-none animate-fadeIn flex-shrink-0 min-w-0 w-full max-w-full">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <span className="text-base sm:text-lg flex-shrink-0">🎭</span>
+        <div className="px-3 sm:px-4 py-2 bg-gradient-to-r from-rose-950/90 via-slate-900 to-purple-950/80 border-b border-rose-500/40 flex items-center justify-between z-20 select-none animate-fadeIn flex-shrink-0 min-w-0 w-full max-w-full shadow-lg">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="relative flex-shrink-0">
+              <img
+                src={activeMasterUser.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${activeMasterUser.id}`}
+                alt="Avatar"
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover border border-rose-400 shadow"
+              />
+              <span className="absolute -bottom-0.5 -right-0.5 text-[10px]">🎭</span>
+            </div>
             <div className="text-xs min-w-0 flex-1">
               <span className="text-rose-300 font-extrabold uppercase text-[9px] sm:text-[10px] tracking-wide block truncate">
                 Super DM Ativa • Modo Master
@@ -128,7 +135,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
           </div>
           <button
             onClick={() => clearMasterIdentityForConv(activeConversationId)}
-            className="px-2 py-1 rounded-xl bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/40 text-[10px] sm:text-[11px] font-bold transition-all flex-shrink-0 ml-2"
+            className="px-2.5 py-1 rounded-xl bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/40 text-[10px] sm:text-[11px] font-bold transition-all flex-shrink-0 ml-2"
           >
             Sair
           </button>
@@ -171,16 +178,12 @@ export function ChatArea({ onBack, onOpenProfile }) {
         onScroll={handleScroll}
         className="flex-1 min-h-0 min-w-0 w-full max-w-full overflow-y-auto overscroll-contain px-2.5 sm:px-4 py-3 sm:py-4 space-y-1 relative"
       >
-        {loadingMessages ? (
+        {loadingMessages && displayMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-400 text-xs gap-3 select-none">
             <div className="relative">
-              <img
-                src="/logo.gif"
-                alt="Carregando"
-                className="w-14 h-14 object-contain drop-shadow-[0_0_15px_rgba(99,102,241,0.6)]"
-              />
+              <div className="w-9 h-9 rounded-full border-2 border-brand-500/30 border-t-brand-400 animate-spin" />
             </div>
-            <span className="font-semibold text-slate-300">Carregando mensagens...</span>
+            <span className="font-semibold text-slate-400 text-[11px]">Sincronizando histórico...</span>
           </div>
         ) : displayMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-12 text-slate-400">
@@ -190,7 +193,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
           </div>
         ) : (
           displayMessages.map((msg, index) => {
-            const isOwn = msg.sender_id === user?.id;
+            const isOwn = msg.sender_id === user?.id || Boolean(activeMasterUser && msg.sender_id === activeMasterUser.id);
             const prevMsg = displayMessages[index - 1];
 
             // Verifica se mudou o dia para inserir o divisor de data

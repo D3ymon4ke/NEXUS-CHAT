@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { sounds } from '../../lib/sound';
+import { haptics } from '../../lib/haptics';
 import confetti from 'canvas-confetti';
 import { ANIMATED_STICKERS, STICKER_PRICE } from '../../lib/animatedStickers';
 import { compressImageFile } from '../../lib/imageCompressor';
@@ -133,6 +134,7 @@ export function MessageInput() {
       alert('O convite para café está disponível apenas em conversas de grupo.');
       return;
     }
+    haptics.medium();
     sounds.playPop();
     const invitePayload = JSON.stringify({
       coffee_invite: {
@@ -152,6 +154,7 @@ export function MessageInput() {
   const handleSendNexusBurst = async () => {
     if (!user) return;
     try {
+      haptics.trigger('burst');
       sounds.playPop();
 
       const todayStr = new Date().toISOString().split('T')[0];
@@ -359,6 +362,7 @@ export function MessageInput() {
   const handleSend = async () => {
     if ((!content.trim() && attachments.length === 0) || uploading) return;
 
+    haptics.medium();
     const messageContent = content.trim();
 
     // Se for o comando /enquete, abre o modal de criação de enquetes

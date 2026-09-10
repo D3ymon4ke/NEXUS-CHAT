@@ -33,8 +33,11 @@ import {
   Gift,
   Image as ImageIcon,
   Bell,
-  BellOff
+  BellOff,
+  Smartphone,
+  Zap
 } from 'lucide-react';
+import { haptics } from '../../lib/haptics';
 
 export function SettingsModal({ isOpen, onClose, onOpenProfile }) {
   const { user, updateProfile, logout, isConfigured } = useAuth();
@@ -62,6 +65,34 @@ export function SettingsModal({ isOpen, onClose, onOpenProfile }) {
   const [notifEnabled, setNotifEnabled] = useState(() => notificationService.isEnabled());
   const [testingNotif, setTestingNotif] = useState(false);
   const [notifFeedback, setNotifFeedback] = useState('');
+
+  // Resposta Tátil & Sons Mecânicos de Toque
+  const [hapticsEnabled, setHapticsEnabled] = useState(() => haptics.isEnabled());
+  const [touchSoundsEnabled, setTouchSoundsEnabled] = useState(() => haptics.isTouchSoundsEnabled());
+
+  const handleToggleHaptics = () => {
+    const next = haptics.toggleHaptics();
+    setHapticsEnabled(next);
+    if (next) {
+      haptics.heavy();
+    }
+  };
+
+  const handleToggleTouchSounds = () => {
+    const next = haptics.toggleTouchSounds();
+    setTouchSoundsEnabled(next);
+    if (next) {
+      haptics.playTouchClick();
+    }
+  };
+
+  const handleTestHaptics = () => {
+    haptics.burst();
+  };
+
+  const handleTestTouchSound = () => {
+    haptics.playTouchClick();
+  };
 
   // Sincronizar dados do usuário sempre que o modal for aberto ou o usuário mudar
   useEffect(() => {
@@ -724,6 +755,90 @@ export function SettingsModal({ isOpen, onClose, onOpenProfile }) {
               >
                 {soundEnabled ? 'Ativado' : 'Mudo'}
               </button>
+            </div>
+
+            {/* Resposta Tátil / Vibração */}
+            <div className="p-4 rounded-2xl bg-background-surface/60 border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-xl border ${
+                    hapticsEnabled
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'bg-slate-800 text-slate-400 border-slate-700'
+                  }`}>
+                    <Smartphone className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-white">Resposta Tátil (Vibração Táctil)</div>
+                    <div className="text-[11px] text-slate-400">Micro-vibrações ao tocar botões, abas, enviar msgs e reações</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleToggleHaptics}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors flex-shrink-0 ${
+                    hapticsEnabled
+                      ? 'bg-amber-500 text-black border-amber-400 font-extrabold shadow'
+                      : 'bg-slate-800 text-slate-400 border-slate-700'
+                  }`}
+                >
+                  {hapticsEnabled ? 'Ativada' : 'Desativada'}
+                </button>
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-2">
+                <span className="text-[11px] text-slate-400 truncate">
+                  {hapticsEnabled ? 'Vibrações ativas para dispositivos compatíveis' : 'Vibrações desativadas'}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleTestHaptics}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 text-[11px] font-bold transition-all flex-shrink-0 active:scale-95"
+                >
+                  ⚡ Testar Vibração
+                </button>
+              </div>
+            </div>
+
+            {/* Cliques Mecânicos Acústicos (Sons de Toque Táctil) */}
+            <div className="p-4 rounded-2xl bg-background-surface/60 border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-xl border ${
+                    touchSoundsEnabled
+                      ? 'bg-brand-500/20 text-brand-300 border-brand-500/40'
+                      : 'bg-slate-800 text-slate-400 border-slate-700'
+                  }`}>
+                    <Zap className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-white">Sons de Toque Mecânico (Micro-cliques)</div>
+                    <div className="text-[11px] text-slate-400">Emulação auditiva Taptic ao tocar nos elementos (ótimo para iPhone/Safari)</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleToggleTouchSounds}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors flex-shrink-0 ${
+                    touchSoundsEnabled
+                      ? 'bg-brand-600 text-white border-brand-500 shadow'
+                      : 'bg-slate-800 text-slate-400 border-slate-700'
+                  }`}
+                >
+                  {touchSoundsEnabled ? 'Ativado' : 'Desativado'}
+                </button>
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-2">
+                <span className="text-[11px] text-slate-400 truncate">
+                  {touchSoundsEnabled ? 'Micro-cliques sonoros ativos no toque' : 'Cliques acústicos desativados'}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleTestTouchSound}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-brand-300 border border-slate-700 text-[11px] font-bold transition-all flex-shrink-0 active:scale-95"
+                >
+                  🔊 Testar Clique
+                </button>
+              </div>
             </div>
 
             {/* Notificações Push / Segundo Plano */}

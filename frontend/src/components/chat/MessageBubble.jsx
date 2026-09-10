@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '../../context/AuthContext';
 import { sounds } from '../../lib/sound';
+import { haptics } from '../../lib/haptics';
 import {
   Check,
   CheckCheck,
@@ -74,31 +75,27 @@ export function MessageBubble({
   const { user: currentUser } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showActions, setShowActions] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
   const sender = message.sender || (isOwn ? currentUser : {}) || {};
   const isDeleted = Boolean(message.is_deleted);
-  const badgeInfo = BADGE_LABELS[sender.equipped_badge];
-  const nameStyle = NAME_STYLES[sender.equipped_name_color] || (isOwn ? 'text-indigo-300 font-bold' : 'text-brand-400 font-bold');
+  const badgeInfo = BADGE_LABELS[sender.equipped_badge || (isOwn ? currentUser?.equipped_badge : null)];
+  const nameStyle = NAME_STYLES[sender.equipped_name_color || (isOwn ? currentUser?.equipped_name_color : null)] || (isOwn ? 'text-indigo-300 font-bold' : 'text-brand-400 font-bold');
   
-  // Resolução de Moldura e Foto para Remetente e Próprio Usuário
-  const effectiveFrameKey = isOwn
-    ? (currentUser?.equipped_frame || sender.equipped_frame)
-    : sender.equipped_frame;
+  // Resolução de Moldura e Foto: SEMPRE prioriza os dados do remetente da mensagem (sender),
+  // garantindo que personificação e Super DM nunca mostrem a foto do admin no lugar da pessoa
+  const effectiveFrameKey = sender.equipped_frame || (isOwn ? currentUser?.equipped_frame : null);
   const animatedFrameUrl = getFrameAsset(effectiveFrameKey);
   const frameClass = getFrameStyle(effectiveFrameKey) || (!animatedFrameUrl ? (isOwn ? 'border border-indigo-500/40' : 'border border-slate-700/80') : '');
 
-  const avatarUrl = isOwn
-    ? (currentUser?.avatar_url || sender.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser?.id || sender.id || 'me'}`)
-    : (sender.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${sender.id || sender.username || 'nexus'}`);
+  const avatarUrl = sender.avatar_url || (isOwn ? currentUser?.avatar_url : null) || `https://api.dicebear.com/7.x/bottts/svg?seed=${sender.id || currentUser?.id || 'nexus'}`;
 
   const isAdmin = sender.role === 'admin' || sender.username?.toLowerCase() === 'damon';
   const isModerator = sender.role === 'moderator';
 
   // Resolução de Cores do Balão (Shop Bubbles & Defaults)
-  const equippedBubbleKey = isOwn
-    ? (currentUser?.equipped_bubble || sender.equipped_bubble)
-    : sender.equipped_bubble;
+  const equippedBubbleKey = sender.equipped_bubble || (isOwn ? currentUser?.equipped_bubble : null);
   const bubbleThemeClass = BUBBLE_STYLES[equippedBubbleKey];
 
   const customBubble = isDeleted
@@ -173,9 +170,7 @@ export function MessageBubble({
 
       if (offset >= 35 && !hasVibratedRef.current) {
         hasVibratedRef.current = true;
-        if (typeof navigator !== 'undefined' && navigator.vibrate) {
-          try { navigator.vibrate(25); } catch (vErr) {}
-        }
+        haptics.medium();
         sounds?.playPop?.();
       }
 
@@ -205,7 +200,7 @@ export function MessageBubble({
         transform: `translateX(-${dragOffset}px)`,
         transition: isDragging ? 'none' : 'transform 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
       }}
-      className={`group relative flex my-2 w-full max-w-full min-w-0 items-end gap-1.5 sm:gap-2.5 overflow-hidden select-none ${
+      className={`group relative flex my-2 pt-2.5 sm:pt-2 w-full max-w-full min-w-0 items-end gap-1.5 sm:gap-2.5 overflow-visible select-none ${
         isOwn ? 'justify-end' : 'justify-start'
       }`}
     >
@@ -291,14 +286,14 @@ export function MessageBubble({
           </div>
         )}
 
-        <div className="relative flex items-center w-full min-w-0 max-w-full">
-        {/* Menu Flutuante de Ações no Hover (Desabilitado se mensagem excluída) */}
+        <div className={`relative flex items-center min-w-0 max-w-full ${isOwn ? 'justify-end' : 'justify-start'}`}>
+        {/* Menu Flutuante de Ações no Hover/Toque (Desabilitado se mensagem excluída) */}
         {!isDeleted && (
           <div
-            className={`absolute top-0 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex items-center bg-background-surface/95 border border-slate-700/80 rounded-full px-1.5 py-0.5 shadow-lg backdrop-blur max-w-[calc(100vw-2rem)] ${
-              showMenu || showEmojiPicker ? '!opacity-100 !z-40' : ''
+            className={`absolute -top-3 sm:-top-3.5 opacity-0 group-hover:opacity-100 transition-all z-30 flex items-center bg-slate-900/95 border border-slate-700/80 rounded-full px-1.5 py-0.5 shadow-2xl backdrop-blur-md ${
+              showActions || showMenu || showEmojiPicker ? '!opacity-100 !z-40' : ''
             } ${
-              isOwn ? 'right-0 -translate-x-full mr-2' : 'left-0 translate-x-full ml-2'
+              isOwn ? 'right-2' : 'left-2'
             }`}
           >
             {/* Reação Rápida */}
@@ -324,16 +319,21 @@ export function MessageBubble({
                       setShowEmojiPicker(false);
                     }}
                   />
-                  <div className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-background-dark/95 border border-slate-700 px-2 py-1 rounded-full shadow-xl z-40 animate-fadeIn backdrop-blur">
+                  <div className={`absolute top-full mt-1.5 flex items-center gap-1 bg-slate-900/95 border border-slate-700 px-2 py-1 rounded-full shadow-2xl z-40 animate-fadeIn backdrop-blur ${
+                    isOwn ? 'right-0' : 'left-0'
+                  }`}>
                     {POPULAR_REACTIONS.map((emoji) => (
                       <button
                         key={emoji}
                         onClick={(e) => {
                           e.stopPropagation();
+                          haptics.selection();
+                          sounds?.playPop?.();
                           onReact(message.id, emoji);
                           setShowEmojiPicker(false);
+                          setShowActions(false);
                         }}
-                        className="hover:scale-125 transition-transform text-sm p-0.5"
+                        className="hover:scale-125 active:scale-95 transition-transform text-sm p-1"
                       >
                         {emoji}
                       </button>
@@ -344,11 +344,16 @@ export function MessageBubble({
             </div>
 
             <button
-              onClick={() => onReply(message)}
+              onClick={(e) => {
+                e.stopPropagation();
+                haptics.selection();
+                onReply(message);
+                setShowActions(false);
+              }}
               title="Responder"
-              className="p-1 text-slate-400 hover:text-slate-200 rounded-full hover:bg-slate-700/60 transition-colors"
+              className="p-1.5 text-slate-300 hover:text-white rounded-full hover:bg-slate-700/60 active:scale-95 transition-all"
             >
-              <Reply className="w-3.5 h-3.5" />
+              <Reply className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
 
             <div className="relative">
@@ -359,9 +364,9 @@ export function MessageBubble({
                   setShowEmojiPicker(false);
                 }}
                 title="Mais opções"
-                className="p-1 text-slate-400 hover:text-slate-200 rounded-full hover:bg-slate-700/60 transition-colors"
+                className="p-1.5 text-slate-300 hover:text-white rounded-full hover:bg-slate-700/60 active:scale-95 transition-all"
               >
-                <MoreVertical className="w-3.5 h-3.5" />
+                <MoreVertical className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
 
               {showMenu && (
@@ -374,20 +379,27 @@ export function MessageBubble({
                     }}
                   />
                   <div
-                    className={`absolute top-full mt-1.5 w-36 bg-background-surface/95 border border-slate-700/80 rounded-xl shadow-2xl py-1 text-xs z-40 backdrop-blur-md animate-fadeIn ${
+                    className={`absolute top-full mt-1.5 w-36 bg-slate-900/95 border border-slate-700/80 rounded-xl shadow-2xl py-1 text-xs z-40 backdrop-blur-md animate-fadeIn ${
                       isOwn ? 'right-0' : 'left-0'
                     }`}
                   >
                     <button
-                      onClick={handleCopy}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopy();
+                        setShowMenu(false);
+                        setShowActions(false);
+                      }}
                       className="w-full px-3 py-1.5 text-left text-slate-200 hover:bg-background-hover flex items-center gap-2"
                     >
                       <Copy className="w-3.5 h-3.5 text-slate-400" /> Copiar Texto
                     </button>
                     <button
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         onPin(message.id, !message.is_pinned);
                         setShowMenu(false);
+                        setShowActions(false);
                       }}
                       className="w-full px-3 py-1.5 text-left text-slate-200 hover:bg-background-hover flex items-center gap-2"
                     >
@@ -397,18 +409,22 @@ export function MessageBubble({
                     {isOwn && (
                       <>
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             onEdit(message);
                             setShowMenu(false);
+                            setShowActions(false);
                           }}
                           className="w-full px-3 py-1.5 text-left text-slate-200 hover:bg-background-hover flex items-center gap-2"
                         >
                           <Edit2 className="w-3.5 h-3.5 text-slate-400" /> Editar
                         </button>
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             onDelete(message.id);
                             setShowMenu(false);
+                            setShowActions(false);
                           }}
                           className="w-full px-3 py-1.5 text-left text-red-400 hover:bg-red-500/10 flex items-center gap-2"
                         >
@@ -424,11 +440,13 @@ export function MessageBubble({
         )}
 
         {/* Corpo do Balão da Mensagem */}
-        <div className={`relative transition-all ${
-          !isDeleted && (message.type === 'ghost' || (message.content && message.content.includes('"ghost_message"')))
-            ? 'p-0 bg-transparent border-0 shadow-none'
-            : `px-3.5 py-2 rounded-2xl shadow-sm ${customBubble}`
-        }`}>
+        <div
+          onClick={() => setShowActions((prev) => !prev)}
+          className={`relative transition-all cursor-pointer ${
+            !isDeleted && (message.type === 'ghost' || (message.content && message.content.includes('"ghost_message"')))
+              ? 'p-0 bg-transparent border-0 shadow-none'
+              : `px-3.5 py-2 rounded-2xl shadow-sm ${customBubble}`
+          }`}>
           {/* Citação da Resposta (Reply Quote) */}
           {!isDeleted && message.reply_to && (
             <div
@@ -621,13 +639,13 @@ export function MessageBubble({
       {/* 3. Foto do Usuário (Mensagem Enviada - à Direita) */}
       {isOwn && (
         <div
-          onClick={() => onOpenProfile && onOpenProfile(currentUser || sender)}
+          onClick={() => onOpenProfile && onOpenProfile(sender?.id ? sender : currentUser)}
           className="relative inline-flex items-center justify-center cursor-pointer flex-shrink-0 group-hover:scale-105 transition-transform mb-1 w-8 h-8 sm:w-9 sm:h-9"
-          title={`Meu perfil (${currentUser?.display_name || currentUser?.username || 'Eu'})`}
+          title={`${sender?.display_name || sender?.username || currentUser?.display_name || 'Eu'}`}
         >
           <img
             src={avatarUrl}
-            alt={currentUser?.display_name || 'meu avatar'}
+            alt={sender?.display_name || currentUser?.display_name || 'avatar'}
             className={`w-full h-full rounded-full object-cover shadow-md bg-slate-900 ${frameClass}`}
           />
           {animatedFrameUrl && (

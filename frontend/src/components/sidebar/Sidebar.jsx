@@ -5,6 +5,7 @@ import { useSocket } from '../../context/SocketContext';
 import { StoriesBar } from '../stories/StoriesBar';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { sounds } from '../../lib/sound';
+import { haptics } from '../../lib/haptics';
 import confetti from 'canvas-confetti';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -108,7 +109,15 @@ export function Sidebar({
   storiesRefreshKey,
   onSelectConversation
 }) {
-  const { user, updateProfile } = useAuth();
+  const {
+    user,
+    realAdminUser,
+    impersonateUser,
+    stopImpersonating,
+    isImpersonating,
+    allProfiles,
+    updateProfile
+  } = useAuth();
   const {
     conversations,
     activeConversationId,
@@ -141,7 +150,12 @@ export function Sidebar({
   const longPressTimerRef = useRef(null);
   const isLongPressTriggeredRef = useRef(false);
 
-  const isAdmin = user?.role === 'admin' || user?.username?.toLowerCase() === 'damon';
+  const isAdmin = Boolean(
+    realAdminUser?.role === 'admin' ||
+    realAdminUser?.username?.toLowerCase() === 'damon' ||
+    user?.role === 'admin' ||
+    user?.username?.toLowerCase() === 'damon'
+  );
   const userAnimatedFrame = getFrameAsset(user?.equipped_frame);
   const userFrame = getFrameStyle(user?.equipped_frame) || (!userAnimatedFrame ? 'border border-slate-700' : '');
   const userNameStyle = NAME_STYLES[user?.equipped_name_color] || 'text-white font-bold';
@@ -197,6 +211,7 @@ export function Sidebar({
   }, [isAdmin, loadConversations]);
 
   const handleSelect = (convId) => {
+    haptics.selection();
     setActiveConversationId(convId);
     if (onSelectConversation) onSelectConversation(convId);
   };
@@ -213,9 +228,7 @@ export function Sidebar({
     longPressTimerRef.current = setTimeout(() => {
       isLongPressTriggeredRef.current = true;
       sounds.playPop();
-      if (navigator.vibrate) {
-        try { navigator.vibrate(50); } catch (e) {}
-      }
+      haptics.heavy();
       setContextMenu({
         conv,
         x: Math.min(clientX, window.innerWidth - 220),
@@ -277,7 +290,7 @@ export function Sidebar({
 
   const handleStartSuperDm = async () => {
     if (!superDmTargetConv || !superDmIdentityUser || startingSuperDm) return;
-    const selectedProfile = allUsersList.find((u) => u.id === superDmIdentityUser);
+    const selectedProfile = allUsersList.find((u) => u.id === superDmIdentityUser) || allProfiles?.find((u) => u.id === superDmIdentityUser);
     if (!selectedProfile) return;
 
     setStartingSuperDm(true);
@@ -287,28 +300,21 @@ export function Sidebar({
       if (superDmTargetConv.startsWith('user:')) {
         const targetUserId = superDmTargetConv.replace('user:', '');
 
-        // 1. Procurar nas conversas já carregadas
-        const existingConv = conversations.find(
-          (c) => c.type === 'direct' && c.direct_user?.id === targetUserId
-        );
-
-        if (existingConv) {
-          targetConvId = existingConv.id;
-        } else if (isSupabaseConfigured && supabase && user) {
-          // 2. Verificar no Supabase se já existe conversa direta entre os dois
-          const { data: myParts } = await supabase
+        // 1. Procurar no Supabase se já existe conversa direta entre a identidade (User A) e o alvo (User B)
+        if (isSupabaseConfigured && supabase) {
+          const { data: identityParts } = await supabase
             .from('conversation_participants')
             .select('conversation_id')
-            .eq('user_id', user.id);
+            .eq('user_id', superDmIdentityUser);
 
-          const myConvIds = (myParts || []).map((p) => p.conversation_id);
+          const identityConvIds = (identityParts || []).map((p) => p.conversation_id);
 
-          if (myConvIds.length > 0) {
+          if (identityConvIds.length > 0) {
             const { data: commonParts } = await supabase
               .from('conversation_participants')
               .select('conversation_id, conversations(type)')
               .eq('user_id', targetUserId)
-              .in('conversation_id', myConvIds);
+              .in('conversation_id', identityConvIds);
 
             const directMatch = (commonParts || []).find(
               (c) => c.conversations && c.conversations.type === 'direct'
@@ -320,7 +326,7 @@ export function Sidebar({
           }
 
           if (!targetConvId) {
-            // 3. Criar nova conversa direta
+            // 2. Criar nova conversa direta entre User A e User B (NÃO coloca o admin como participante!)
             const { data: newConv, error: createConvErr } = await supabase
               .from('conversations')
               .insert({ type: 'direct' })
@@ -329,23 +335,25 @@ export function Sidebar({
 
             if (newConv && !createConvErr) {
               await supabase.from('conversation_participants').insert([
-                { conversation_id: newConv.id, user_id: user.id, role: 'member' },
+                { conversation_id: newConv.id, user_id: superDmIdentityUser, role: 'member' },
                 { conversation_id: newConv.id, user_id: targetUserId, role: 'member' }
               ]);
               targetConvId = newConv.id;
             }
           }
-
-          if (loadConversations) await loadConversations();
         }
       } else if (superDmTargetConv.startsWith('conv:')) {
         targetConvId = superDmTargetConv.replace('conv:', '');
       }
 
       if (targetConvId) {
+        // Personificar e abrir a conversa
+        await impersonateUser(selectedProfile);
         setMasterIdentityForConv(targetConvId, selectedProfile);
         sounds.playReceive();
-        handleSelect(targetConvId);
+        setTimeout(() => {
+          handleSelect(targetConvId);
+        }, 150);
       }
     } catch (err) {
       console.error('Erro ao iniciar Super DM:', err);
@@ -705,7 +713,10 @@ export function Sidebar({
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setFilterTab(tab.id)}
+              onClick={() => {
+                haptics.selection();
+                setFilterTab(tab.id);
+              }}
               className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap ${
                 filterTab === tab.id
                   ? tab.isMaster
@@ -722,87 +733,196 @@ export function Sidebar({
         </div>
       </div>
 
-      {/* Lista de Conversas & Super DM Card */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-        {/* CARD SUPER DM (VISÍVEL QUANDO NA ABA MASTER) */}
+        {/* CARD SUPER DM & ALTERNADOR DE CONTAS (VISÍVEL QUANDO NA ABA MASTER) */}
         {filterTab === 'master' && (
-          <div className="p-3.5 mb-2 rounded-2xl bg-gradient-to-br from-rose-950/50 via-slate-900 to-red-950/40 border border-rose-500/40 shadow-xl space-y-3 animate-fadeIn">
-            <div className="flex items-center gap-2">
-              <span className="text-base">🎭</span>
+          <div className="space-y-2.5 mb-3">
+            {/* Banner de Status se já estiver personificando */}
+            {isImpersonating && (
+              <div className="p-3 rounded-2xl bg-purple-950/70 border border-purple-500/50 shadow-md flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <img
+                    src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
+                    alt="Avatar"
+                    className="w-7 h-7 rounded-full object-cover border border-purple-400"
+                  />
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-purple-300 font-bold block">Conectado como:</span>
+                    <strong className="text-xs text-white truncate block">{user?.display_name || user?.username}</strong>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={stopImpersonating}
+                  className="px-2.5 py-1 rounded-xl bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/40 text-[10px] font-extrabold transition"
+                >
+                  Voltar ao Damon
+                </button>
+              </div>
+            )}
+
+            {/* CARD SUPER DM MASTER */}
+            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-rose-950/50 via-slate-900 to-red-950/40 border border-rose-500/40 shadow-xl space-y-3 animate-fadeIn">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🎭</span>
+                <div>
+                  <h4 className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                    <span>Super DM Secreta</span>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 uppercase font-extrabold">
+                      Master
+                    </span>
+                  </h4>
+                  <p className="text-[10px] text-slate-400">
+                    Escolha a identidade e o destinatário para responder diretamente sem desconectar.
+                  </p>
+                </div>
+              </div>
+
               <div>
-                <h4 className="text-xs font-extrabold text-white flex items-center gap-1.5">
-                  <span>Super DM</span>
-                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 uppercase font-extrabold">
-                    Master
-                  </span>
-                </h4>
-                <p className="text-[10px] text-slate-400">
-                  Escolha com quem falar e qual identidade assumir nessa conversa privada.
-                </p>
+                <label className="text-[10px] text-slate-400 font-bold block mb-1">1. Responder como (Identidade)</label>
+                <select
+                  value={superDmIdentityUser}
+                  onChange={(e) => setSuperDmIdentityUser(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-rose-500"
+                >
+                  <option value="">Selecione a identidade...</option>
+                  {(allUsersList.length > 0 ? allUsersList : allProfiles || []).map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.display_name || u.username} (@{u.username}) {u.username === 'damon' ? '👑' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] text-slate-400 font-bold block mb-1">2. Enviar para (Destinatário)</label>
+                <select
+                  value={superDmTargetConv}
+                  onChange={(e) => setSuperDmTargetConv(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-rose-500 font-medium"
+                >
+                  <option value="">Selecione o destinatário...</option>
+
+                  <optgroup label="👥 Qualquer Usuário (Chat Direto / Privado)">
+                    {(allUsersList.length > 0 ? allUsersList : allProfiles || [])
+                      .filter((u) => u.id !== superDmIdentityUser)
+                      .map((u) => (
+                        <option key={`user:${u.id}`} value={`user:${u.id}`}>
+                          👤 {u.display_name || u.username} (@{u.username})
+                        </option>
+                      ))}
+                  </optgroup>
+
+                  <optgroup label="💬 Salas e Grupos Oficiais">
+                    <option value={`conv:${BELMONT_ID}`}>👑 BELMONT CONFERENCE</option>
+                    {conversations
+                      .filter((c) => c.type === 'group' && c.id !== BELMONT_ID)
+                      .map((c) => (
+                        <option key={`conv:${c.id}`} value={`conv:${c.id}`}>
+                          👥 {c.name || 'Grupo'}
+                        </option>
+                      ))}
+                  </optgroup>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleStartSuperDm}
+                  disabled={!superDmTargetConv || !superDmIdentityUser || startingSuperDm}
+                  className={`py-2 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-lg transition-all ${
+                    superDmTargetConv && superDmIdentityUser
+                      ? 'bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 hover:from-rose-500 text-white shadow-rose-600/30 active:scale-95'
+                      : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                  }`}
+                >
+                  <span>💬</span>
+                  <span>{startingSuperDm ? 'Abrindo...' : 'Abrir Super DM'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={!superDmIdentityUser}
+                  onClick={() => {
+                    const found = (allUsersList.length > 0 ? allUsersList : allProfiles || []).find((u) => u.id === superDmIdentityUser);
+                    if (found) impersonateUser(found);
+                  }}
+                  className={`py-2 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-lg transition-all ${
+                    superDmIdentityUser
+                      ? 'bg-purple-600/40 hover:bg-purple-600/60 text-purple-200 border border-purple-500/50 active:scale-95'
+                      : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                  }`}
+                >
+                  <span>🎭</span>
+                  <span>Entrar na Conta</span>
+                </button>
               </div>
             </div>
 
-            <div>
-              <label className="text-[10px] text-slate-400 font-bold block mb-1">Receber mensagens de</label>
-              <select
-                value={superDmTargetConv}
-                onChange={(e) => setSuperDmTargetConv(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-rose-500 font-medium"
-              >
-                <option value="">Selecione quem você quer contatar...</option>
+            {/* SEÇÃO: ALTERNADOR RÁPIDO DE CONTAS (MODO FANTASMA) */}
+            <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-300 flex items-center gap-1">
+                  <span>🎭 Todas as Contas do Sistema</span>
+                </span>
+                <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 font-bold">
+                  {(allUsersList.length > 0 ? allUsersList : allProfiles || []).length} Usuários
+                </span>
+              </div>
 
-                <optgroup label="👥 Qualquer Usuário (Chat Direto / Privado)">
-                  {allUsersList
-                    .filter((u) => u.id !== user?.id)
-                    .map((u) => (
-                      <option key={`user:${u.id}`} value={`user:${u.id}`}>
-                        👤 {u.display_name || u.username} (@{u.username})
-                      </option>
-                    ))}
-                </optgroup>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {(allUsersList.length > 0 ? allUsersList : allProfiles || []).map((u) => {
+                  const isCurrent = u.id === user?.id;
+                  const isRealAdmin = u.id === realAdminUser?.id || u.username === 'damon';
 
-                <optgroup label="💬 Salas e Grupos Oficiais">
-                  <option value={`conv:${BELMONT_ID}`}>👑 BELMONT CONFERENCE</option>
-                  {conversations
-                    .filter((c) => c.type === 'group' && c.id !== BELMONT_ID)
-                    .map((c) => (
-                      <option key={`conv:${c.id}`} value={`conv:${c.id}`}>
-                        👥 {c.name || 'Grupo'}
-                      </option>
-                    ))}
-                </optgroup>
-              </select>
+                  return (
+                    <div
+                      key={u.id}
+                      className={`p-2 rounded-xl border flex items-center justify-between gap-2 transition ${
+                        isCurrent
+                          ? 'bg-purple-600/25 border-purple-500 text-white'
+                          : 'bg-background-dark/70 border-slate-800 hover:border-slate-700 text-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <img
+                          src={u.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${u.id}`}
+                          alt="Avatar"
+                          className="w-6 h-6 rounded-full object-cover border border-slate-700 flex-shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold truncate flex items-center gap-1">
+                            <span>{u.display_name || u.username}</span>
+                            {isRealAdmin && <span className="text-[9px] text-rose-400">👑</span>}
+                          </div>
+                          <div className="text-[9px] text-slate-400 truncate">@{u.username}</div>
+                        </div>
+                      </div>
+
+                      {isCurrent ? (
+                        <span className="text-[9px] px-2 py-0.5 rounded-lg bg-purple-500/30 text-purple-300 font-black flex-shrink-0 border border-purple-500/40">
+                          Ativo ✨
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isRealAdmin) {
+                              stopImpersonating();
+                            } else {
+                              impersonateUser(u);
+                            }
+                          }}
+                          className="text-[9px] px-2 py-1 rounded-lg bg-slate-800 hover:bg-purple-600 hover:text-white text-purple-300 border border-slate-700 font-bold transition flex-shrink-0 active:scale-95"
+                        >
+                          Entrar ⚡
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-
-            <div>
-              <label className="text-[10px] text-slate-400 font-bold block mb-1">Responder como</label>
-              <select
-                value={superDmIdentityUser}
-                onChange={(e) => setSuperDmIdentityUser(e.target.value)}
-                className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-rose-500"
-              >
-                <option value="">Selecione a identidade...</option>
-                {allUsersList.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.display_name || u.username} (@{u.username})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleStartSuperDm}
-              disabled={!superDmTargetConv || !superDmIdentityUser}
-              className={`w-full py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-lg transition-all ${
-                superDmTargetConv && superDmIdentityUser
-                  ? 'bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 hover:from-rose-500 text-white shadow-rose-600/30 hover:scale-[1.01]'
-                  : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
-              }`}
-            >
-              <span>✨</span>
-              <span>Abrir Super DM</span>
-            </button>
           </div>
         )}
 
@@ -831,14 +951,12 @@ export function Sidebar({
           </button>
         )}
 
-        {loadingConversations ? (
+        {loadingConversations && conversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-xs gap-3 select-none">
-            <img
-              src="/logo.gif"
-              alt="Carregando"
-              className="w-12 h-12 object-contain drop-shadow-[0_0_12px_rgba(99,102,241,0.6)]"
-            />
-            <span className="font-semibold text-slate-300">Carregando conversas...</span>
+            <div className="relative">
+              <div className="w-8 h-8 rounded-full border-2 border-brand-500/30 border-t-brand-400 animate-spin" />
+            </div>
+            <span className="font-semibold text-slate-400 text-[11px]">Sincronizando conversas...</span>
           </div>
         ) : filteredConversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-xs text-center px-4">

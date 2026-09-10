@@ -50,9 +50,42 @@ const DEMO_USERS = [
 ];
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const cached = localStorage.getItem('nexus_cached_user');
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
+    return null;
+  });
+  const [realAdminUser, setRealAdminUser] = useState(() => {
+    try {
+      const cached = localStorage.getItem('nexus_cached_admin_user');
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
+    return null;
+  });
+  const [impersonatedUser, setImpersonatedUser] = useState(() => {
+    try {
+      const cached = localStorage.getItem('nexus_cached_imp_user');
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
+    return null;
+  });
+  const [allProfiles, setAllProfiles] = useState(() => {
+    try {
+      const cached = localStorage.getItem('nexus_cached_all_profiles');
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
+    return [];
+  });
   const [session, setSession] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem('nexus_cached_user');
+      if (cached) return false;
+    } catch (e) {}
+    return true;
+  });
 
   // Inicializa sessão
   useEffect(() => {
@@ -72,6 +105,8 @@ export function AuthProvider({ children }) {
               await loadUserProfile(newSession.user.id);
             } else {
               setUser(null);
+              setRealAdminUser(null);
+              setImpersonatedUser(null);
             }
           }
         );
@@ -94,6 +129,7 @@ export function AuthProvider({ children }) {
 
   async function loadUserProfile(userId) {
     try {
+      let mainProfile = null;
       if (isSupabaseConfigured && supabase) {
         const { data: profile, error } = await supabase
           .from('profiles')
@@ -102,19 +138,114 @@ export function AuthProvider({ children }) {
           .single();
 
         if (profile && !error) {
-          setUser(profile);
-          return;
+          mainProfile = profile;
         }
       }
 
-      const res = await apiRequest('/auth/me');
-      if (res.success && res.user) {
-        setUser(res.user);
+      if (!mainProfile) {
+        const res = await apiRequest('/auth/me');
+        if (res.success && res.user) {
+          mainProfile = res.user;
+        }
+      }
+
+      if (mainProfile) {
+        const isUserAdmin = mainProfile.role === 'admin' || mainProfile.username?.toLowerCase() === 'damon';
+        if (isUserAdmin) {
+          setRealAdminUser(mainProfile);
+          try {
+            localStorage.setItem('nexus_cached_admin_user', JSON.stringify(mainProfile));
+          } catch (e) {}
+
+          if (isSupabaseConfigured && supabase) {
+            supabase
+              .from('profiles')
+              .select('*')
+              .order('username')
+              .then(({ data: all }) => {
+                if (all) {
+                  setAllProfiles(all);
+                  try {
+                    localStorage.setItem('nexus_cached_all_profiles', JSON.stringify(all));
+                  } catch (e) {}
+                }
+              });
+          }
+
+          // Verificar se havia uma personificação secreta salva
+          const savedImpId = localStorage.getItem('nexus_impersonated_user_id');
+          if (savedImpId && isSupabaseConfigured && supabase) {
+            const { data: impProfile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', savedImpId)
+              .maybeSingle();
+
+            if (impProfile) {
+              setImpersonatedUser(impProfile);
+              setUser(impProfile);
+              try {
+                localStorage.setItem('nexus_cached_imp_user', JSON.stringify(impProfile));
+                localStorage.setItem('nexus_cached_user', JSON.stringify(impProfile));
+              } catch (e) {}
+              return;
+            }
+          }
+        }
+
+        setUser(mainProfile);
+        try {
+          localStorage.setItem('nexus_cached_user', JSON.stringify(mainProfile));
+        } catch (e) {}
       }
     } catch (err) {
       console.error('Erro ao carregar perfil:', err);
     }
   }
+
+  // Alternar secretamente para a conta de qualquer usuário (Modo Fantasma para Admin)
+  const impersonateUser = async (targetUserOrId) => {
+    let target = null;
+    if (typeof targetUserOrId === 'object' && targetUserOrId !== null) {
+      target = targetUserOrId;
+    } else if (typeof targetUserOrId === 'string') {
+      target = allProfiles.find((p) => p.id === targetUserOrId);
+      if (!target && isSupabaseConfigured && supabase) {
+        const { data } = await supabase.from('profiles').select('*').eq('id', targetUserOrId).maybeSingle();
+        target = data;
+      }
+    }
+
+    if (!target) return;
+
+    // Se ainda não temos o admin real guardado, guarda antes de mudar
+    if (!realAdminUser && user && (user.role === 'admin' || user.username?.toLowerCase() === 'damon')) {
+      setRealAdminUser(user);
+    }
+
+    setImpersonatedUser(target);
+    setUser(target);
+    try {
+      localStorage.setItem('nexus_impersonated_user_id', target.id);
+      localStorage.setItem('nexus_user', JSON.stringify(target));
+      window.dispatchEvent(new CustomEvent('nexus_account_switched', { detail: target }));
+    } catch (e) {}
+  };
+
+  // Sair do Modo Fantasma e voltar ao Admin
+  const stopImpersonating = () => {
+    setImpersonatedUser(null);
+    if (realAdminUser) {
+      setUser(realAdminUser);
+      try {
+        localStorage.setItem('nexus_user', JSON.stringify(realAdminUser));
+      } catch (e) {}
+    }
+    try {
+      localStorage.removeItem('nexus_impersonated_user_id');
+      window.dispatchEvent(new CustomEvent('nexus_account_switched', { detail: realAdminUser }));
+    } catch (e) {}
+  };
 
   // Login com Supabase Auth
   async function login(email, password) {
@@ -205,13 +336,21 @@ export function AuthProvider({ children }) {
 
   // Logout
   async function logout() {
+    stopImpersonating();
     if (isSupabaseConfigured && supabase) {
       await supabase.auth.signOut();
     }
     setUser(null);
+    setRealAdminUser(null);
     setSession(null);
     localStorage.removeItem('demo_user_id');
     localStorage.removeItem('demo_auth_token');
+    localStorage.removeItem('nexus_impersonated_user_id');
+    localStorage.removeItem('nexus_user');
+    localStorage.removeItem('nexus_cached_user');
+    localStorage.removeItem('nexus_cached_admin_user');
+    localStorage.removeItem('nexus_cached_imp_user');
+    localStorage.removeItem('nexus_cached_all_profiles');
   }
 
   // Alternar conta de demonstração (útil para testar envio entre dois usuários em abas)
@@ -257,10 +396,24 @@ export function AuthProvider({ children }) {
     }
   }
 
+  const isAdmin = Boolean(
+    realAdminUser?.role === 'admin' ||
+    realAdminUser?.username?.toLowerCase() === 'damon' ||
+    user?.role === 'admin' ||
+    user?.username?.toLowerCase() === 'damon'
+  );
+
   return (
     <AuthContext.Provider
       value={{
         user,
+        realAdminUser,
+        impersonatedUser,
+        isImpersonating: Boolean(impersonatedUser),
+        isAdmin,
+        impersonateUser,
+        stopImpersonating,
+        allProfiles,
         session,
         loading,
         login,

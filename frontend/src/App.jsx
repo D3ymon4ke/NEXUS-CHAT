@@ -21,6 +21,7 @@ import { OnboardingTutorialModal } from './components/auth/OnboardingTutorialMod
 import { CreatePollModal } from './components/polls/CreatePollModal';
 import { TitlePromotionModal } from './components/profile/TitlePromotionModal';
 import { ForceUpdateModal } from './components/common/ForceUpdateModal';
+import { GhostAdminBar } from './components/admin/GhostAdminBar';
 import { apiRequest } from './lib/api';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 
@@ -188,6 +189,9 @@ function ChatDashboard() {
 
   return (
     <div className="fixed inset-0 h-full h-[100dvh] w-full max-w-full flex flex-col bg-background-darker overflow-hidden select-none">
+      {/* Barra Flutuante de Modo Fantasma (Ativa quando Administrador personifica qualquer usuário) */}
+      <GhostAdminBar />
+
       {/* Toast Discreto de Ganho de Nexus Coins */}
       {coinsAlert && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/90 border border-amber-500/50 text-amber-300 font-bold text-xs shadow-xl backdrop-blur animate-fadeIn select-none pointer-events-none">

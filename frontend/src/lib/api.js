@@ -41,6 +41,14 @@ export async function apiRequest(endpoint, options = {}) {
     } catch (e) {}
   }
 
+  // Se houver personificação ativa pelo Modo Fantasma, usar o ID do usuário personificado
+  try {
+    const impersonatedId = typeof localStorage !== 'undefined' ? localStorage.getItem('nexus_impersonated_user_id') : null;
+    if (impersonatedId) {
+      currentUser = { ...(currentUser || {}), id: impersonatedId };
+    }
+  } catch (e) {}
+
   if (!token) {
     token = localStorage.getItem('demo_auth_token') || 'demo-jwt-token';
   }

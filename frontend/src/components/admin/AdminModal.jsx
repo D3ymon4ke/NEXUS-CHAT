@@ -113,8 +113,15 @@ const PUSH_NOTIFICATION_PRESETS = [
 ];
 
 export function AdminModal({ isOpen, onClose }) {
-  const { user } = useAuth();
+  const { user, realAdminUser, impersonateUser, stopImpersonating, isImpersonating } = useAuth();
   const { loadConversations, clearMessages } = useChat();
+
+  const isAdmin = Boolean(
+    realAdminUser?.role === 'admin' ||
+    realAdminUser?.username?.toLowerCase() === 'damon' ||
+    user?.role === 'admin' ||
+    user?.username?.toLowerCase() === 'damon'
+  );
 
   const [activeTab, setActiveTab] = useState('shop'); // 'stats' | 'shop' | 'promotions' | 'chat_master' | 'users' | 'patches' | 'cleanup' | 'broadcast'
   const [stats, setStats] = useState(null);
@@ -280,20 +287,48 @@ export function AdminModal({ isOpen, onClose }) {
   };
 
   const handleSelectUserForChatMaster = async (targetUser) => {
-    if (!targetUser || !user) return;
+    if (!targetUser) return;
     try {
-      const existingConv = allMasterConversations.find(
+      const effectiveSenderId = impersonatedUserId || user?.id;
+
+      // 1. Procurar nas conversas master se já existe chat direto entre os dois
+      let existingConv = (allMasterConversations || []).find(
         (c) =>
           c.type === 'direct' &&
-          c.participants?.some((p) => p.user?.id === targetUser.id)
+          c.participants?.some((p) => p.user?.id === targetUser.id) &&
+          c.participants?.some((p) => p.user?.id === effectiveSenderId)
       );
 
       if (existingConv) {
         setSelectedMasterConvId(existingConv.id);
+        loadMasterConversationMessages(existingConv.id);
         return;
       }
 
       if (isSupabaseConfigured && supabase) {
+        // 2. Verificar no Supabase
+        const { data: senderParts } = await supabase
+          .from('conversation_participants')
+          .select('conversation_id')
+          .eq('user_id', effectiveSenderId);
+
+        const convIds = (senderParts || []).map((p) => p.conversation_id);
+        if (convIds.length > 0) {
+          const { data: commonParts } = await supabase
+            .from('conversation_participants')
+            .select('conversation_id, conversations(type)')
+            .eq('user_id', targetUser.id)
+            .in('conversation_id', convIds);
+
+          const directMatch = (commonParts || []).find((c) => c.conversations && c.conversations.type === 'direct');
+          if (directMatch) {
+            setSelectedMasterConvId(directMatch.conversation_id);
+            loadMasterConversationMessages(directMatch.conversation_id);
+            return;
+          }
+        }
+
+        // 3. Criar conversa direta entre effectiveSenderId e targetUser.id
         const { data: newConv } = await supabase
           .from('conversations')
           .insert({ type: 'direct' })
@@ -302,15 +337,16 @@ export function AdminModal({ isOpen, onClose }) {
 
         if (newConv) {
           await supabase.from('conversation_participants').insert([
-            { conversation_id: newConv.id, user_id: user.id, role: 'member' },
+            { conversation_id: newConv.id, user_id: effectiveSenderId, role: 'member' },
             { conversation_id: newConv.id, user_id: targetUser.id, role: 'member' }
           ]);
           await loadChatMasterData();
           setSelectedMasterConvId(newConv.id);
+          loadMasterConversationMessages(newConv.id);
         }
       }
     } catch (err) {
-      console.error('Erro ao abrir conversa com usuário:', err);
+      console.error('Erro ao abrir conversa master:', err);
     }
   };
 
@@ -366,20 +402,23 @@ export function AdminModal({ isOpen, onClose }) {
     try {
       setActionLoading(true);
       if (isSupabaseConfigured && supabase) {
-        await supabase.from('messages').insert({
+        const { error: insertErr } = await supabase.from('messages').insert({
           conversation_id: selectedMasterConvId,
           sender_id: impersonatedUserId,
           content: masterInputText.trim(),
           type: 'text'
         });
+
+        if (insertErr) throw insertErr;
       }
 
       sounds.playPop();
       setMasterInputText('');
-      loadMasterConversationMessages(selectedMasterConvId);
-      setFeedback({ text: 'Mensagem enviada com sucesso personificando o usuário selecionado!', type: 'success' });
+      await loadMasterConversationMessages(selectedMasterConvId);
+      setFeedback({ text: 'Mensagem enviada e salva com sucesso!', type: 'success' });
     } catch (err) {
-      setFeedback({ text: 'Erro ao enviar mensagem como personificador.', type: 'error' });
+      console.error('Erro ao enviar mensagem master:', err);
+      setFeedback({ text: 'Erro ao enviar mensagem: ' + (err.message || ''), type: 'error' });
     } finally {
       setActionLoading(false);
     }
@@ -1850,9 +1889,26 @@ export function AdminModal({ isOpen, onClose }) {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 bg-black/60 px-3 py-1 rounded-xl border border-purple-500/40 text-[11px] flex-shrink-0">
-                  <span className="text-[10px] text-slate-400">Identidade:</span>
-                  <strong className="text-amber-300 font-bold truncate max-w-[120px]">{impersonatedUserObj?.display_name || impersonatedUserObj?.username}</strong>
+                <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
+                  <div className="flex items-center gap-1.5 bg-black/60 px-3 py-1 rounded-xl border border-purple-500/40 text-[11px]">
+                    <span className="text-[10px] text-slate-400">Identidade:</span>
+                    <strong className="text-amber-300 font-bold truncate max-w-[120px]">{impersonatedUserObj?.display_name || impersonatedUserObj?.username}</strong>
+                  </div>
+
+                  {impersonatedUserObj && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        impersonateUser(impersonatedUserObj);
+                        onClose();
+                      }}
+                      className="px-2.5 py-1 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-extrabold flex items-center gap-1 shadow-md transition active:scale-95"
+                      title="Entrar na conta no Nexus Chat para responder normalmente sem desconectar"
+                    >
+                      <span>🚀</span>
+                      <span>Entrar no Chat como {impersonatedUserObj?.display_name || 'Usuário'}</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -2041,6 +2097,11 @@ export function AdminModal({ isOpen, onClose }) {
                             </span>
                           )}
                         </div>
+                        {u.email && (
+                          <div className="text-[10px] text-cyan-300/80 font-mono truncate">
+                            ✉️ {u.email}
+                          </div>
+                        )}
                         <div className="flex items-center gap-1 text-[10px] sm:text-[11px] text-amber-300 font-semibold mt-0.5">
                           <img src="/nexus-coin.jpg" alt="Moeda" className="w-3.5 h-3.5 rounded-full flex-shrink-0" />
                           <span>{u.nexus_coins || 0} Coins</span>
@@ -2048,7 +2109,19 @@ export function AdminModal({ isOpen, onClose }) {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 w-full xs:w-auto justify-end">
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 w-full xs:w-auto justify-end flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          impersonateUser(u);
+                          onClose();
+                        }}
+                        className="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl bg-purple-600/30 text-purple-200 hover:bg-purple-600 hover:text-white border border-purple-500/50 text-[11px] sm:text-xs font-extrabold flex items-center gap-1 transition-all shadow-sm active:scale-95 flex-1 xs:flex-initial justify-center"
+                        title={`Entrar secretamente na conta de @${u.username} sem desconectar`}
+                      >
+                        <span>🎭</span> <span className="truncate">Entrar</span>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => {

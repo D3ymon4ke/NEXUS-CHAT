@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { useSocket } from './SocketContext';
 import { apiRequest } from '../lib/api';
@@ -56,17 +56,61 @@ export function ChatProvider({ children }) {
   const { user } = useAuth();
   const { socket, connected } = useSocket();
 
-  const [conversations, setConversations] = useState([]);
+  const messagesCacheRef = useRef(new Map());
+
+  const [conversations, setConversations] = useState(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const saved = user?.id ? localStorage.getItem(`nexus_cached_conversations_${user.id}`) : null;
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('nexus_cached_conversations')) {
+            const val = localStorage.getItem(key);
+            if (val) {
+              const p = JSON.parse(val);
+              if (Array.isArray(p) && p.length > 0) return p;
+            }
+          }
+        }
+      }
+    } catch (e) {}
+    return [];
+  });
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [loadingConversations, setLoadingConversations] = useState(true);
+  const [loadingConversations, setLoadingConversations] = useState(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('nexus_cached_conversations')) {
+            const val = localStorage.getItem(key);
+            if (val && JSON.parse(val).length > 0) return false;
+          }
+        }
+      }
+    } catch (e) {}
+    return true;
+  });
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [pinnedConversationIds, setPinnedConversationIds] = useState(() => getStoredPins(user?.id));
   const [typingUsersMap, setTypingUsersMap] = useState(new Map()); // `${convId}_${userId}` -> userObj
   const [replyingTo, setReplyingTo] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [masterIdentities, setMasterIdentities] = useState(new Map()); // convId -> profileObject
+  const [masterIdentities, setMasterIdentities] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('nexus_master_identities');
+      if (saved) {
+        return new Map(JSON.parse(saved));
+      }
+    } catch (e) {}
+    return new Map();
+  }); // convId -> profileObject
 
   // Sincronizar pinos locais e inscrever no Web Push quando o usuário mudar
   useEffect(() => {
@@ -116,13 +160,22 @@ export function ChatProvider({ children }) {
   }, []);
 
   const setMasterIdentityForConv = (convId, profileObj) => {
-    setMasterIdentities(prev => new Map(prev).set(convId, profileObj));
+    setMasterIdentities(prev => {
+      const nextMap = new Map(prev).set(convId, profileObj);
+      try {
+        sessionStorage.setItem('nexus_master_identities', JSON.stringify(Array.from(nextMap.entries())));
+      } catch (e) {}
+      return nextMap;
+    });
   };
 
   const clearMasterIdentityForConv = (convId) => {
     setMasterIdentities(prev => {
       const nextMap = new Map(prev);
       nextMap.delete(convId);
+      try {
+        sessionStorage.setItem('nexus_master_identities', JSON.stringify(Array.from(nextMap.entries())));
+      } catch (e) {}
       return nextMap;
     });
   };
@@ -194,26 +247,43 @@ export function ChatProvider({ children }) {
   }, [pinnedConversationIds]);
 
   // Carregar conversas do usuário
-  const loadConversations = useCallback(async () => {
+  const loadConversations = useCallback(async (isSilent = true) => {
     if (!user) return;
     try {
-      setLoadingConversations(true);
+      // SWR: Apenas exibe spinner se o usuário não tiver NENHUMA conversa na memória
+      if (conversations.length === 0 && !isSilent) {
+        setLoadingConversations(true);
+      }
       const res = await apiRequest('/conversations');
       if (res.success && res.conversations) {
         const currentPins = getStoredPins(user?.id);
         const sorted = sortConversationsList(res.conversations, currentPins);
         setConversations(sorted);
+        try {
+          localStorage.setItem(`nexus_cached_conversations_${user.id}`, JSON.stringify(sorted));
+        } catch (e) {}
       }
     } catch (err) {
       console.error('Erro ao carregar conversas:', err);
     } finally {
       setLoadingConversations(false);
     }
-  }, [user]);
+  }, [user, conversations.length]);
 
   useEffect(() => {
     loadConversations();
-  }, [user?.id]);
+  }, [user?.id, loadConversations]);
+
+  // Listener para alternância de conta (Modo Fantasma)
+  useEffect(() => {
+    const handleAccountSwitched = () => {
+      setActiveConversationId(null);
+      setMessages([]);
+      if (loadConversations) loadConversations();
+    };
+    window.addEventListener('nexus_account_switched', handleAccountSwitched);
+    return () => window.removeEventListener('nexus_account_switched', handleAccountSwitched);
+  }, [loadConversations]);
 
   // Carregar mensagens quando a conversa ativa mudar
   useEffect(() => {
@@ -222,22 +292,40 @@ export function ChatProvider({ children }) {
       return;
     }
 
-    // 1. Carregamento instantâneo do cache local para resposta imediata
-    try {
-      const cached = localStorage.getItem(`nexus_msgs_${activeConversationId}`);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setMessages(parsed);
-        }
+    let hasLocalCache = false;
+
+    // 1. Verificação instantânea no cache em memória RAM (0ms de latência)
+    if (messagesCacheRef.current.has(activeConversationId)) {
+      const memCached = messagesCacheRef.current.get(activeConversationId);
+      if (Array.isArray(memCached) && memCached.length > 0) {
+        setMessages(memCached);
+        hasLocalCache = true;
       }
-    } catch (e) {
-      console.warn('Erro ao ler cache de mensagens:', e);
+    }
+
+    // 2. Verificação no cache persistente (localStorage)
+    if (!hasLocalCache) {
+      try {
+        const cached = localStorage.getItem(`nexus_msgs_${activeConversationId}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            messagesCacheRef.current.set(activeConversationId, parsed);
+            setMessages(parsed);
+            hasLocalCache = true;
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao ler cache de mensagens:', e);
+      }
     }
 
     async function loadMessages() {
       try {
-        setLoadingMessages(true);
+        // SWR: SÓ exibe o loader se NÃO houver nenhuma mensagem em cache
+        if (!hasLocalCache) {
+          setLoadingMessages(true);
+        }
         if (isSupabaseConfigured && supabase) {
           try {
             const { data: dbMsgs, error: dbErr } = await supabase
@@ -321,6 +409,7 @@ export function ChatProvider({ children }) {
               }
 
               setMessages(resolvedMsgs);
+              messagesCacheRef.current.set(activeConversationId, resolvedMsgs);
               try {
                 localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(resolvedMsgs));
               } catch (cacheErr) {}
@@ -336,6 +425,7 @@ export function ChatProvider({ children }) {
         const res = await apiRequest(`/conversations/${activeConversationId}/messages`);
         if (res.success && res.messages) {
           setMessages(res.messages);
+          messagesCacheRef.current.set(activeConversationId, res.messages);
           try {
             localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(res.messages));
           } catch (cacheErr) {}
@@ -773,8 +863,8 @@ export function ChatProvider({ children }) {
           );
 
           // +5 moedas por envio
-          const newBalance = (user.nexus_coins || 100) + 5;
-          await supabase.from('profiles').update({ nexus_coins: newBalance }).eq('id', user.id);
+          const newBalance = (effectiveSender.nexus_coins || 100) + 5;
+          await supabase.from('profiles').update({ nexus_coins: newBalance }).eq('id', effectiveSenderId);
 
           // 3. Disparar Web Push pelo Servidor Vercel (/api/send-push) para os destinatários da conversa
           try {
@@ -823,7 +913,7 @@ export function ChatProvider({ children }) {
     if (socket && connected) {
       socket.emit('send_message', {
         conversationId: activeConversationId,
-        senderId: user.id,
+        senderId: effectiveSenderId,
         content,
         type,
         replyToId: optimisticMessage.reply_to_id,
@@ -1244,8 +1334,6 @@ export function ChatProvider({ children }) {
   const startDirectChat = async (targetUser) => {
     if (!user || !targetUser) return;
     try {
-      setLoadingConversations(true);
-
       // 1. Verificar se já existe conversa direta carregada localmente
       const existingConv = conversations.find(
         (c) =>
@@ -1332,8 +1420,6 @@ export function ChatProvider({ children }) {
       return localConv;
     } catch (err) {
       console.error('Erro ao iniciar chat direto:', err);
-    } finally {
-      setLoadingConversations(false);
     }
   };
 

@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { GIFT_CATALOG, GIFT_RARITIES } from '../../lib/giftCatalog';
 import { sounds } from '../../lib/sound';
+import { haptics } from '../../lib/haptics';
 import confetti from 'canvas-confetti';
 import {
   Gift,
@@ -46,6 +47,7 @@ export function SendGiftModal({
 
     if (!canAfford) {
       sounds.playError?.();
+      haptics.error();
       setFeedbackMsg({
         text: `Saldo insuficiente! Você precisa de mais ${totalPrice - userCoins} Nexus Coins.`,
         type: 'error'
@@ -148,6 +150,7 @@ export function SendGiftModal({
       }
 
       sounds.playPop();
+      haptics.burst();
       confetti({
         particleCount: 90,
         spread: 70,
@@ -252,7 +255,10 @@ export function SendGiftModal({
             return (
               <button
                 key={r.id}
-                onClick={() => setSelectedRarity(r.id)}
+                onClick={() => {
+                  haptics.selection();
+                  setSelectedRarity(r.id);
+                }}
                 className={`py-1 px-2.5 sm:px-3 text-xs font-bold rounded-lg transition-all whitespace-nowrap flex-shrink-0 ${isActive
                   ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-black shadow font-extrabold'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -274,7 +280,10 @@ export function SendGiftModal({
               return (
                 <div
                   key={gift.id}
-                  onClick={() => setSelectedGift(gift)}
+                  onClick={() => {
+                    haptics.selection();
+                    setSelectedGift(gift);
+                  }}
                   className={`p-2.5 sm:p-3 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden group select-none min-w-0 ${isSelected
                     ? `bg-slate-900 ${rarityConfig.borderClass} ${rarityConfig.glowClass} ring-2 ring-amber-400/50 scale-[1.02]`
                     : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
@@ -315,7 +324,10 @@ export function SendGiftModal({
                 <button
                   key={qty}
                   type="button"
-                  onClick={() => setQuantity(qty)}
+                  onClick={() => {
+                    haptics.light();
+                    setQuantity(qty);
+                  }}
                   className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors ${quantity === qty
                     ? 'bg-amber-500 text-black border-amber-400 font-extrabold shadow'
                     : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750'
