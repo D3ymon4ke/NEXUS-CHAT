@@ -125,6 +125,22 @@ class HapticsManager {
     this.trigger('selection');
   }
 
+  burst() {
+    this.trigger('burst');
+  }
+
+  isEnabled() {
+    return Boolean(this.enabled);
+  }
+
+  isTouchSoundsEnabled() {
+    return Boolean(this.touchSoundsEnabled);
+  }
+
+  playTouchClick() {
+    this.playTactileClick();
+  }
+
   toggleHaptics(forceState) {
     this.enabled = typeof forceState === 'boolean' ? forceState : !this.enabled;
     try {

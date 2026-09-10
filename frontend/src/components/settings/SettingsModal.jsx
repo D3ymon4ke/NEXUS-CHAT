@@ -67,8 +67,8 @@ export function SettingsModal({ isOpen, onClose, onOpenProfile }) {
   const [notifFeedback, setNotifFeedback] = useState('');
 
   // Resposta Tátil & Sons Mecânicos de Toque
-  const [hapticsEnabled, setHapticsEnabled] = useState(() => haptics.isEnabled());
-  const [touchSoundsEnabled, setTouchSoundsEnabled] = useState(() => haptics.isTouchSoundsEnabled());
+  const [hapticsEnabled, setHapticsEnabled] = useState(() => (haptics?.isEnabled ? haptics.isEnabled() : true));
+  const [touchSoundsEnabled, setTouchSoundsEnabled] = useState(() => (haptics?.isTouchSoundsEnabled ? haptics.isTouchSoundsEnabled() : false));
 
   const handleToggleHaptics = () => {
     const next = haptics.toggleHaptics();
