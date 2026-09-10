@@ -158,6 +158,8 @@ export const nexusStorage = {
       try {
         const tx = db.transaction('conversations', 'readwrite');
         const store = tx.objectStore('conversations');
+        // Limpar conversas obsoletas antes de gravar para evitar conversas zumbis/duplicadas
+        store.clear();
         for (const conv of conversations) {
           if (conv && conv.id) {
             store.put(conv);
@@ -183,7 +185,14 @@ export const nexusStorage = {
         const request = store.getAll();
 
         request.onsuccess = () => {
-          resolve(request.result || []);
+          const list = request.result || [];
+          const map = new Map();
+          for (const c of list) {
+            if (c && c.id && !map.has(c.id)) {
+              map.set(c.id, c);
+            }
+          }
+          resolve(Array.from(map.values()));
         };
 
         request.onerror = () => resolve([]);

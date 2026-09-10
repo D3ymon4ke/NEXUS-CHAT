@@ -34,7 +34,7 @@ export async function apiRequest(endpoint, options = {}) {
 
   if (!currentUser) {
     try {
-      const savedUser = localStorage.getItem('nexus_user');
+      const savedUser = localStorage.getItem('nexus_cached_user') || localStorage.getItem('nexus_user');
       if (savedUser) {
         currentUser = JSON.parse(savedUser);
       }
@@ -155,8 +155,22 @@ export async function apiRequest(endpoint, options = {}) {
 
             let directUser = null;
             if (conv.type === 'direct') {
-              const otherPart = conv.conversation_participants?.find(p => p.user_id !== currentUser.id);
-              directUser = otherPart?.profiles || null;
+              const otherPart = conv.conversation_participants?.find(p => p.user_id !== currentUser?.id);
+              let prof = otherPart?.profiles || null;
+              if (Array.isArray(prof)) prof = prof[0] || null;
+              directUser = prof;
+
+              // Fallback se profiles não foi populado pelo join
+              if (!directUser && otherPart?.user_id) {
+                try {
+                  const { data: fetchedProf } = await supabase
+                    .from('profiles')
+                    .select('id, username, display_name, avatar_url, is_online, last_seen, status_message')
+                    .eq('id', otherPart.user_id)
+                    .maybeSingle();
+                  if (fetchedProf) directUser = fetchedProf;
+                } catch (fetchErr) {}
+              }
             }
 
             // Buscar última mensagem
@@ -185,17 +199,43 @@ export async function apiRequest(endpoint, options = {}) {
           })
         );
 
-        // Ordenar com Belmont sempre no topo e depois pela mensagem mais recente
+        // Ordenar com Belmont sempre no topo e depois pela mensagem mais recente com desempate determinístico
         enriched.sort((a, b) => {
           if (a.id === BELMONT_ID) return -1;
           if (b.id === BELMONT_ID) return 1;
           const timeA = a.last_message ? new Date(a.last_message.created_at).getTime() : 0;
           const timeB = b.last_message ? new Date(b.last_message.created_at).getTime() : 0;
-          return timeB - timeA;
+          const safeA = isNaN(timeA) ? 0 : timeA;
+          const safeB = isNaN(timeB) ? 0 : timeB;
+          if (safeB !== safeA) return safeB - safeA;
+          return (a.id || '').localeCompare(b.id || '');
         });
 
-        const hasBelmont = enriched.some(c => c.id === BELMONT_ID);
-        const finalList = hasBelmont ? enriched : [belmontRoom, ...enriched];
+        // Deduplicar e garantir integridade total:
+        // 1. Belmont apenas uma vez
+        // 2. Não permitir conversas diretas duplicadas com o mesmo contato (manter a mais recente)
+        // 3. Garantir IDs únicos
+        const seenIds = new Set();
+        const seenDirectUserIds = new Set();
+        const deduplicated = [];
+
+        for (const c of enriched) {
+          if (!c || !c.id) continue;
+          if (seenIds.has(c.id)) continue;
+          seenIds.add(c.id);
+
+          if (c.type === 'direct' && c.direct_user?.id) {
+            if (seenDirectUserIds.has(c.direct_user.id)) {
+              // Já mantivemos a conversa mais recente com este contato
+              continue;
+            }
+            seenDirectUserIds.add(c.direct_user.id);
+          }
+          deduplicated.push(c);
+        }
+
+        const hasBelmont = deduplicated.some(c => c.id === BELMONT_ID);
+        const finalList = hasBelmont ? deduplicated : [belmontRoom, ...deduplicated];
 
         return {
           success: true,

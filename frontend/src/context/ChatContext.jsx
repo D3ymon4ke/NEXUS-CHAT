@@ -21,7 +21,7 @@ const getStoredPins = (userId) => {
   return [BELMONT_ID];
 };
 
-const sortConversationsList = (convList = [], pinnedIds = []) => {
+export const sortConversationsList = (convList = [], pinnedIds = []) => {
   if (!Array.isArray(convList)) return [];
   const safePinnedIds = Array.isArray(pinnedIds) ? pinnedIds : [];
   return [...convList].sort((a, b) => {
@@ -49,7 +49,12 @@ const sortConversationsList = (convList = [], pinnedIds = []) => {
     const timeB = b.last_message?.created_at ? new Date(b.last_message.created_at).getTime() : 0;
     const safeTimeA = isNaN(timeA) ? 0 : timeA;
     const safeTimeB = isNaN(timeB) ? 0 : timeB;
-    return safeTimeB - safeTimeA;
+    if (safeTimeB !== safeTimeA) {
+      return safeTimeB - safeTimeA;
+    }
+
+    // Desempate determinístico estável por ID para evitar trocas acidentais de posição durante renders
+    return (a.id || '').localeCompare(b.id || '');
   });
 };
 
@@ -222,9 +227,24 @@ export function ChatProvider({ children }) {
     });
   };
 
-  const activeConversation = activeConversationId
-    ? conversations.find(c => c.id === activeConversationId) || null
-    : null;
+  const activeConversation = useMemo(() => {
+    if (!activeConversationId) return null;
+    const found = conversations.find(c => c && c.id === activeConversationId);
+    if (found) return found;
+
+    if (activeConversationId === BELMONT_ID) {
+      return {
+        id: BELMONT_ID,
+        type: 'group',
+        name: 'BELMONT CONFERENCE',
+        description: 'Sala principal oficial, permanente e aberta para todos os membros.',
+        avatar_url: '/belmont-logo.jpg',
+        is_permanent: true,
+        unread_count: 0
+      };
+    }
+    return null;
+  }, [activeConversationId, conversations]);
 
   // Lista de usuários digitando na conversa ativa
   const activeTypingUsers = Array.from(typingUsersMap.values()).filter(
@@ -1815,14 +1835,19 @@ export function ChatProvider({ children }) {
   // Iniciar ou abrir conversa direta com um usuário
   const startDirectChat = async (targetUser) => {
     if (!user || !targetUser) return;
+    const targetUserId = targetUser.id || targetUser.user_id || targetUser.profile?.id;
+    if (!targetUserId) return;
+    if (targetUserId === user.id) return; // Não conversa com si mesmo
+
     try {
       // 1. Verificar se já existe conversa direta carregada localmente
       const existingConv = conversations.find(
         (c) =>
+          c &&
           c.type === 'direct' &&
-          (c.direct_user?.id === targetUser.id ||
-            c.id === targetUser.conversation_id ||
-            (c.participants && c.participants.some((p) => p.user_id === targetUser.id)))
+          (c.direct_user?.id === targetUserId ||
+            c.conversation_participants?.some((p) => p.user_id === targetUserId) ||
+            (Array.isArray(c.participants) && c.participants.some((p) => (p.user_id || p.id) === targetUserId)))
       );
 
       if (existingConv) {
@@ -1840,19 +1865,42 @@ export function ChatProvider({ children }) {
         const myConvIds = (myConvs || []).map((p) => p.conversation_id);
 
         if (myConvIds.length > 0) {
-          const { data: sharedConvs } = await supabase
+          const { data: sharedParts } = await supabase
             .from('conversation_participants')
-            .select('conversation_id, conversations!inner(type)')
-            .eq('user_id', targetUser.id)
-            .in('conversation_id', myConvIds)
-            .eq('conversations.type', 'direct')
-            .limit(1);
+            .select('conversation_id')
+            .eq('user_id', targetUserId)
+            .in('conversation_id', myConvIds);
 
-          if (sharedConvs && sharedConvs.length > 0) {
-            const matchedId = sharedConvs[0].conversation_id;
-            setActiveConversationId(matchedId);
-            if (loadConversations) await loadConversations();
-            return { id: matchedId };
+          const candidateIds = (sharedParts || []).map((p) => p.conversation_id);
+
+          if (candidateIds.length > 0) {
+            const { data: directConvs } = await supabase
+              .from('conversations')
+              .select('id, type')
+              .in('id', candidateIds)
+              .eq('type', 'direct')
+              .limit(1);
+
+            if (directConvs && directConvs.length > 0) {
+              const matchedId = directConvs[0].id;
+              const matchedConv = {
+                id: matchedId,
+                type: 'direct',
+                name: targetUser.display_name || targetUser.username,
+                avatar_url: targetUser.avatar_url,
+                direct_user: targetUser,
+                unread_count: 0,
+                last_message: null
+              };
+
+              setConversations((prev) => {
+                if (prev.some((c) => c.id === matchedId)) return prev;
+                return [matchedConv, ...prev];
+              });
+              setActiveConversationId(matchedId);
+              if (loadConversations) loadConversations();
+              return matchedConv;
+            }
           }
         }
 
@@ -1866,7 +1914,7 @@ export function ChatProvider({ children }) {
         if (newConv && !convErr) {
           await supabase.from('conversation_participants').insert([
             { conversation_id: newConv.id, user_id: user.id, role: 'member' },
-            { conversation_id: newConv.id, user_id: targetUser.id, role: 'member' }
+            { conversation_id: newConv.id, user_id: targetUserId, role: 'member' }
           ]);
 
           const formattedNewConv = {
@@ -1879,8 +1927,9 @@ export function ChatProvider({ children }) {
             last_message: null
           };
 
-          setConversations((prev) => [formattedNewConv, ...prev]);
+          setConversations((prev) => [formattedNewConv, ...prev.filter((c) => c.id !== newConv.id)]);
           setActiveConversationId(newConv.id);
+          if (loadConversations) loadConversations();
           return formattedNewConv;
         }
       }

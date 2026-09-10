@@ -149,6 +149,8 @@ export function Sidebar({
 
   const longPressTimerRef = useRef(null);
   const isLongPressTriggeredRef = useRef(false);
+  const touchStartPosRef = useRef({ x: 0, y: 0 });
+  const isScrollingRef = useRef(false);
 
   const isAdmin = Boolean(
     realAdminUser?.role === 'admin' ||
@@ -219,11 +221,13 @@ export function Sidebar({
   // --- Manipuladores de Toque Longo (Mobile) e Clique Direito (Desktop) ---
   const handleTouchStart = (conv, e) => {
     isLongPressTriggeredRef.current = false;
+    isScrollingRef.current = false;
     if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
 
     const touch = e.touches[0];
     const clientX = touch.clientX;
     const clientY = touch.clientY;
+    touchStartPosRef.current = { x: clientX, y: clientY };
 
     longPressTimerRef.current = setTimeout(() => {
       isLongPressTriggeredRef.current = true;
@@ -243,9 +247,17 @@ export function Sidebar({
     }
   };
 
-  const handleTouchMove = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
+  const handleTouchMove = (e) => {
+    if (e.touches && e.touches[0]) {
+      const touch = e.touches[0];
+      const deltaX = Math.abs(touch.clientX - touchStartPosRef.current.x);
+      const deltaY = Math.abs(touch.clientY - touchStartPosRef.current.y);
+      if (deltaX > 8 || deltaY > 8) {
+        isScrollingRef.current = true;
+        if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+        }
+      }
     }
   };
 
@@ -433,7 +445,7 @@ export function Sidebar({
   // Filtragem e Ordenação de Conversas com Prioridade para Fixadas
   const filteredConversations = (Array.isArray(conversations) ? conversations : [])
     .filter((conv) => {
-      if (!conv) return false;
+      if (!conv || !conv.id) return false;
       const isBelmont = conv.id === BELMONT_ID || conv.is_permanent;
 
       if (filterTab === 'master') return true; // Mostra todas no Master
@@ -450,8 +462,8 @@ export function Sidebar({
     })
     .sort((a, b) => {
       if (!a || !b) return 0;
-      const aPinned = typeof isConversationPinned === 'function' ? isConversationPinned(a.id) : false;
-      const bPinned = typeof isConversationPinned === 'function' ? isConversationPinned(b.id) : false;
+      const aPinned = (typeof isConversationPinned === 'function' ? isConversationPinned(a.id) : false) || a.is_pinned || a.id === BELMONT_ID;
+      const bPinned = (typeof isConversationPinned === 'function' ? isConversationPinned(b.id) : false) || b.is_pinned || b.id === BELMONT_ID;
 
       if (aPinned && !bPinned) return -1;
       if (!aPinned && bPinned) return 1;
@@ -471,8 +483,24 @@ export function Sidebar({
       const timeB = b.last_message?.created_at ? new Date(b.last_message.created_at).getTime() : 0;
       const safeTimeA = isNaN(timeA) ? 0 : timeA;
       const safeTimeB = isNaN(timeB) ? 0 : timeB;
-      return safeTimeB - safeTimeA;
+      if (safeTimeB !== safeTimeA) {
+        return safeTimeB - safeTimeA;
+      }
+      return (a.id || '').localeCompare(b.id || '');
     });
+
+  // Garantir estrita unicidade de conversas na renderização (sem chaves duplicadas)
+  const uniqueConversations = useMemo(() => {
+    const seen = new Set();
+    const list = [];
+    for (const c of filteredConversations) {
+      if (c && c.id && !seen.has(c.id)) {
+        seen.add(c.id);
+        list.push(c);
+      }
+    }
+    return list;
+  }, [filteredConversations]);
 
   const formatLastMessageTime = (dateString) => {
     if (!dateString) return '';
@@ -960,12 +988,12 @@ export function Sidebar({
             </div>
             <span className="font-semibold text-slate-400 text-[11px]">Sincronizando conversas...</span>
           </div>
-        ) : filteredConversations.length === 0 ? (
+        ) : uniqueConversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-xs text-center px-4">
             <p>Nenhuma conversa encontrada.</p>
           </div>
         ) : (
-          filteredConversations.map((conv) => {
+          uniqueConversations.map((conv) => {
             const isBelmont = conv.id === BELMONT_ID || conv.is_permanent;
             const isActive = activeConversationId === conv.id;
             const isPinned = isConversationPinned(conv.id);
@@ -994,6 +1022,10 @@ export function Sidebar({
                 onClick={() => {
                   if (isLongPressTriggeredRef.current) {
                     isLongPressTriggeredRef.current = false;
+                    return;
+                  }
+                  if (isScrollingRef.current) {
+                    isScrollingRef.current = false;
                     return;
                   }
                   handleSelect(conv.id);
