@@ -442,6 +442,7 @@ export function ChatProvider({ children }) {
 
       // Busca instantânea em segundo plano no IndexedDB de alta performance
       nexusStorage.getMessages(activeConversationId).then((idbMsgs) => {
+        if (activeConversationIdRef.current !== activeConversationId) return;
         if (Array.isArray(idbMsgs) && idbMsgs.length > 0) {
           messagesCacheRef.current.set(activeConversationId, idbMsgs);
           setMessages((current) => (current.length === 0 ? idbMsgs : current));
@@ -450,10 +451,10 @@ export function ChatProvider({ children }) {
       });
     }
 
-    // CORREÇÃO DO BUG: Se NÃO houver dados em cache para esta conversa,
-    // limpar imediatamente as mensagens anteriores para evitar qualquer lampejo (flash)
-    // de mensagens do chat anterior (ex: Super ADM)!
-    if (!hasLocalCache) {
+    // Se já tiver dados em cache local (RAM ou persistente), não mostrar spinner e manter UI fluida
+    if (hasLocalCache) {
+      setLoadingMessages(false);
+    } else {
       setMessages([]);
       setLoadingMessages(true);
     }
@@ -487,6 +488,7 @@ export function ChatProvider({ children }) {
               .limit(200);
 
             if (dbMsgs && !dbErr) {
+              if (activeConversationIdRef.current !== activeConversationId) return;
               // Reconstruir citações de respostas (reply_to) e anexos de imagem
               const msgMap = new Map();
               dbMsgs.forEach((m) => {
@@ -608,14 +610,15 @@ export function ChatProvider({ children }) {
               }
 
               setMessages((prev) => {
+                const isSame = prev.length === deduplicatedMsgs.length &&
+                  prev[prev.length - 1]?.id === deduplicatedMsgs[deduplicatedMsgs.length - 1]?.id &&
+                  !prev.some((m) => m.tempId);
+                if (isSame) return prev;
                 const tempMsgs = prev.filter((m) => m.tempId && !deduplicatedMsgs.some((r) => r.id === m.tempId || r.tempId === m.tempId));
                 return [...deduplicatedMsgs, ...tempMsgs];
               });
               messagesCacheRef.current.set(activeConversationId, deduplicatedMsgs);
               nexusStorage.saveMessages(activeConversationId, deduplicatedMsgs);
-              try {
-                localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(deduplicatedMsgs));
-              } catch (cacheErr) {}
 
               // Sincroniza e aquece o cache de RAM na VPS
               if (socket && connected && resolvedMsgs.length > 0) {
@@ -634,6 +637,7 @@ export function ChatProvider({ children }) {
         }
 
         const res = await apiRequest(`/conversations/${activeConversationId}/messages`);
+        if (activeConversationIdRef.current !== activeConversationId) return;
         if (res.success && res.messages) {
           setMessages((prev) => {
             const tempMsgs = prev.filter((m) => m.tempId && !res.messages.some((r) => r.id === m.tempId || r.tempId === m.tempId));
@@ -655,7 +659,9 @@ export function ChatProvider({ children }) {
       } catch (err) {
         console.error('Erro ao carregar mensagens:', err);
       } finally {
-        setLoadingMessages(false);
+        if (activeConversationIdRef.current === activeConversationId) {
+          setLoadingMessages(false);
+        }
       }
     }
 
@@ -664,9 +670,13 @@ export function ChatProvider({ children }) {
     setEditingMessage(null);
     setTypingUsersMap(new Map());
 
-    // Limpar badge de não lidas e emitir sinal de leitura em tempo real
+    // Limpar badge de não lidas de forma otimizada (sem re-renderizar se já estiver 0)
     if (activeConversationId) {
-      setConversations(prev => prev.map(c => c.id === activeConversationId ? { ...c, unread_count: 0 } : c));
+      setConversations((prev) => {
+        const target = prev.find((c) => c.id === activeConversationId);
+        if (!target || target.unread_count === 0) return prev;
+        return prev.map((c) => (c.id === activeConversationId ? { ...c, unread_count: 0 } : c));
+      });
       if (isSupabaseConfigured && supabase && user) {
         supabase
           .from('conversation_participants')
@@ -693,15 +703,6 @@ export function ChatProvider({ children }) {
     if (socket && connected) {
       socket.emit('join_conversation', activeConversationId);
       socket.emit('mark_as_read', { conversationId: activeConversationId });
-      // Sincronização em menos de 2ms com o cache de RAM da VPS ao conectar/reconectar
-      socket.emit('get_conversation_messages_cache', { conversationId: activeConversationId }, (res) => {
-        if (res && res.success && Array.isArray(res.messages) && res.messages.length > 0) {
-          if (activeConversationIdRef.current === activeConversationId) {
-            setMessages(res.messages);
-            setLoadingMessages(false);
-          }
-        }
-      });
     }
 
     return () => {

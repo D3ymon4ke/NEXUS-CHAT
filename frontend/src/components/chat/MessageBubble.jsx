@@ -1,5 +1,4 @@
 import React, { useState, useRef } from 'react';
-import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -65,7 +64,7 @@ const BADGE_LABELS = {
   badge_chat_master: { icon: '🔥', label: 'Chat Master', color: 'text-rose-300 bg-rose-500/20 border-rose-500/40' }
 };
 
-export function MessageBubble({
+function MessageBubbleComponent({
   message,
   isOwn,
   showSenderInfo = true,
@@ -197,20 +196,17 @@ export function MessageBubble({
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ type: 'spring', stiffness: 450, damping: 28, mass: 0.8 }}
+    <div
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
       style={{
-        transform: dragOffset > 0 ? `translateX(-${dragOffset}px)` : undefined,
+        transform: dragOffset > 0 ? `translate3d(-${dragOffset}px, 0, 0)` : undefined,
         transition: isDragging ? 'none' : 'transform 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
         touchAction: 'pan-y'
       }}
-      className={`group relative flex my-2 pt-2.5 sm:pt-2 w-full max-w-full min-w-0 items-end gap-1.5 sm:gap-2.5 overflow-visible select-none touch-pan-y ${
+      className={`group relative flex my-1.5 pt-1.5 sm:pt-1 w-full max-w-full min-w-0 items-end gap-1.5 sm:gap-2.5 overflow-visible select-none touch-pan-y animate-fadeIn ${
         isOwn ? 'justify-end' : 'justify-start'
       }`}
     >
@@ -676,7 +672,22 @@ export function MessageBubble({
           )}
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }
+
+export const MessageBubble = React.memo(MessageBubbleComponent, (prev, next) => {
+  return (
+    prev.message.id === next.message.id &&
+    prev.message.tempId === next.message.tempId &&
+    prev.message.content === next.message.content &&
+    prev.message.status === next.message.status &&
+    prev.message.is_edited === next.message.is_edited &&
+    prev.message.is_pinned === next.message.is_pinned &&
+    prev.message.is_deleted === next.message.is_deleted &&
+    prev.isOwn === next.isOwn &&
+    prev.showSenderInfo === next.showSenderInfo &&
+    (prev.message.reactions?.length || 0) === (next.message.reactions?.length || 0)
+  );
+});
 

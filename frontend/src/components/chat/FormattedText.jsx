@@ -73,30 +73,33 @@ function CodeBlock({ language, code }) {
 /**
  * Renderizador de Texto com suporte completo a Markdown & Estilos (WhatsApp/Telegram/Discord)
  */
-export function FormattedText({ text = '', isOwn = false }) {
+function FormattedTextComponent({ text = '', isOwn = false }) {
   if (!text) return null;
 
-  // 1. Separar blocos de código ```lang ... ```
-  const codeBlockRegex = /```([a-zA-Z0-9_-]*)\n?([\s\S]*?)```/g;
-  const parts = [];
-  let lastIndex = 0;
-  let match;
+  // 1. Separar blocos de código ```lang ... ``` com memoização
+  const parts = React.useMemo(() => {
+    const codeBlockRegex = /```([a-zA-Z0-9_-]*)\n?([\s\S]*?)```/g;
+    const res = [];
+    let lastIndex = 0;
+    let match;
 
-  while ((match = codeBlockRegex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push({ type: 'text', content: text.substring(lastIndex, match.index) });
+    while ((match = codeBlockRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        res.push({ type: 'text', content: text.substring(lastIndex, match.index) });
+      }
+      res.push({
+        type: 'codeblock',
+        language: match[1] || '',
+        content: match[2].trim()
+      });
+      lastIndex = match.index + match[0].length;
     }
-    parts.push({
-      type: 'codeblock',
-      language: match[1] || '',
-      content: match[2].trim()
-    });
-    lastIndex = match.index + match[0].length;
-  }
 
-  if (lastIndex < text.length) {
-    parts.push({ type: 'text', content: text.substring(lastIndex) });
-  }
+    if (lastIndex < text.length) {
+      res.push({ type: 'text', content: text.substring(lastIndex) });
+    }
+    return res;
+  }, [text]);
 
   // Extrair primeiros links para LinkPreviewCard estilo Telegram
   const detectedLinks = React.useMemo(() => {
@@ -317,3 +320,7 @@ function SpoilerText({ text }) {
     </span>
   );
 }
+
+export const FormattedText = React.memo(FormattedTextComponent, (prev, next) => {
+  return prev.text === next.text && prev.isOwn === next.isOwn;
+});

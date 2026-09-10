@@ -234,7 +234,7 @@ function ChatDashboard() {
             mobileView === 'sidebar' ? 'hidden md:flex' : 'flex w-full'
           }`}
         >
-          {activeConversation && activeConversationId ? (
+          {activeConversationId ? (
             <ChatArea
               onBack={handleMobileBack}
               onOpenProfile={(u) => setTargetUserProfile(u)}

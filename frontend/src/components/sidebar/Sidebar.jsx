@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { useSocket } from '../../context/SocketContext';
@@ -91,6 +91,273 @@ const NAME_STYLES = {
   name_golden_glow: 'text-amber-300 font-extrabold drop-shadow-[0_0_6px_rgba(251,191,36,0.5)]',
   name_electric_cyan: 'text-cyan-400 font-extrabold drop-shadow-[0_0_6px_rgba(34,211,238,0.5)]'
 };
+
+const formatLastMessageTime = (dateString) => {
+  if (!dateString) return '';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
+    if (isToday(date)) return format(date, 'HH:mm', { locale: ptBR });
+    if (isYesterday(date)) return 'Ontem';
+    return format(date, 'dd/MM', { locale: ptBR });
+  } catch (e) {
+    return '';
+  }
+};
+
+const formatLastMessagePreview = (lastMsg) => {
+  if (!lastMsg) return 'Nenhuma mensagem ainda';
+  if (lastMsg.is_deleted) return '🚫 Mensagem apagada';
+
+  if (lastMsg.type === 'nexus_burst') return '⚡ Nexus Burst (+20 Coins)';
+  if (lastMsg.type === 'ghost') return '👻 Mensagem Fantasma';
+  if (lastMsg.type === 'coffee_invite') return '☕ Convite para Café';
+  if (lastMsg.type === 'poll') return '📊 Enquete';
+  if (lastMsg.type === 'image') return '📷 Foto';
+  if (lastMsg.type === 'audio') return '🎵 Áudio';
+  if (lastMsg.type === 'file') return '📎 Arquivo';
+
+  const rawContent = (lastMsg.content || '').trim();
+
+  if (rawContent.startsWith('{') && rawContent.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(rawContent);
+      if (parsed.nexus_burst) return '⚡ Nexus Burst (+20 Coins)';
+      if (parsed.ghost_message) return '👻 Mensagem Fantasma';
+      if (parsed.coffee_invite) return '☕ Convite para Café';
+      if (parsed.poll) return `📊 Enquete: ${parsed.poll.question || 'Votação'}`;
+      if (parsed.text || parsed.content) return parsed.text || parsed.content;
+    } catch (e) {}
+  }
+
+  if (lastMsg.attachments && lastMsg.attachments.length > 0) {
+    const first = lastMsg.attachments[0];
+    if (first.file_type === 'image' || first.file_url?.match(/\.(jpeg|jpg|gif|png|webp)/i)) return '📷 Foto';
+    if (first.file_type === 'audio' || first.file_url?.match(/\.(mp3|wav|ogg)/i)) return '🎵 Áudio';
+    return `📎 ${first.file_name || 'Arquivo'}`;
+  }
+
+  if (rawContent.startsWith('data:image/')) return '📷 Imagem';
+  if (rawContent.startsWith('data:audio/')) return '🎵 Áudio';
+
+  const cleanText = rawContent
+    .replace(/```[\s\S]*?```/g, '💻 Código')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/_([^_]+)_/g, '$1')
+    .replace(/~~([^~]+)~~/g, '$1')
+    .replace(/\|\|([^|]+)\|\|/g, 'Spoiler');
+
+  return cleanText || 'Mensagem';
+};
+
+const ConversationRow = React.memo(function ConversationRow({
+  conv,
+  isActive,
+  isPinned,
+  isOnline,
+  activeMasterIdentity,
+  activeAction,
+  timeString,
+  previewContent,
+  onSelect,
+  onContextMenu,
+  onTouchStart,
+  onTouchEnd,
+  onTouchMove,
+  onOpenMenuClick
+}) {
+  const isBelmont = conv.id === BELMONT_ID || conv.is_permanent;
+  const directUser = conv.direct_user;
+  const isDirect = conv.type === 'direct';
+
+  const convName = isBelmont
+    ? 'BELMONT CONFERENCE'
+    : isDirect
+    ? directUser?.display_name || directUser?.username || 'Usuário'
+    : conv.name;
+
+  const convAvatar = isBelmont
+    ? '/belmont-logo.jpg'
+    : isDirect
+    ? directUser?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${directUser?.id}`
+    : conv.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${conv.id}`;
+
+  const hasUnread = conv.unread_count > 0 && !isActive;
+
+  return (
+    <div
+      onClick={onSelect}
+      onContextMenu={onContextMenu}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      onTouchMove={onTouchMove}
+      className={`group p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-all border relative overflow-hidden select-none ${
+        activeMasterIdentity
+          ? 'bg-gradient-to-r from-rose-950/40 via-slate-900 to-slate-900 border-rose-500/50 shadow-md'
+          : isBelmont
+          ? isActive
+            ? 'bg-gradient-to-r from-amber-950/70 via-slate-900 to-indigo-950/60 border-amber-500/80 shadow-lg shadow-amber-500/10'
+            : 'bg-gradient-to-r from-amber-950/30 via-slate-900/50 to-slate-900/30 border-amber-500/40 hover:border-amber-500/70 shadow-sm'
+          : isActive
+          ? 'bg-brand-600/20 border-brand-500/60 shadow-sm'
+          : hasUnread
+          ? 'bg-gradient-to-r from-rose-950/60 via-purple-950/40 to-slate-900 border-rose-500/70 shadow-lg shadow-rose-900/25 ring-1 ring-rose-500/40'
+          : isPinned
+          ? 'bg-amber-950/15 border-amber-500/30 hover:border-amber-500/60 hover:bg-slate-800/60 shadow-sm'
+          : 'bg-background-surface/50 border-slate-800/80 hover:border-slate-700/80 hover:bg-background-surface'
+      }`}
+    >
+      {hasUnread && (
+        <span className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-rose-500 via-pink-500 to-red-600 shadow-[0_0_10px_rgba(244,63,94,0.9)] animate-pulse" />
+      )}
+
+      <div className="relative flex-shrink-0">
+        <img
+          src={convAvatar}
+          alt={convName}
+          className={`w-11 h-11 rounded-2xl object-cover shadow ${
+            activeMasterIdentity
+              ? 'border-2 border-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.6)]'
+              : isBelmont
+              ? 'border-2 border-amber-400'
+              : hasUnread
+              ? 'border-2 border-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]'
+              : isPinned
+              ? 'border-2 border-amber-400/60 shadow-[0_0_8px_rgba(251,191,36,0.3)]'
+              : 'border border-slate-700'
+          }`}
+        />
+        {hasUnread && (
+          <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.2 rounded-full bg-gradient-to-r from-rose-600 to-red-600 text-white text-[10px] font-black border-2 border-slate-950 shadow-lg shadow-rose-600/80 animate-bounce z-10">
+            {conv.unread_count > 99 ? '99+' : conv.unread_count}
+          </span>
+        )}
+        {isDirect && !activeMasterIdentity && (
+          <span
+            className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-background-card ${
+              isOnline ? 'bg-chat-online' : 'bg-slate-500'
+            }`}
+          />
+        )}
+        {isBelmont && (
+          <span className="absolute -top-1 -right-1 p-0.5 bg-amber-500 rounded-full text-black shadow">
+            <Crown className="w-3 h-3" />
+          </span>
+        )}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between mb-0.5">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span
+              className={`text-xs truncate ${
+                isBelmont
+                  ? 'text-amber-300 font-extrabold tracking-wide'
+                  : hasUnread
+                  ? 'text-white font-extrabold drop-shadow-[0_0_6px_rgba(244,63,94,0.4)]'
+                  : isPinned
+                  ? 'text-amber-100 font-bold'
+                  : 'text-slate-100 font-bold'
+              }`}
+            >
+              {convName}
+            </span>
+            {isPinned && !isBelmont && (
+              <span title="Conversa Fixada no Topo">
+                <Pin className="w-3 h-3 text-amber-400 fill-amber-400/40 rotate-45 flex-shrink-0" />
+              </span>
+            )}
+            {isBelmont && (
+              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-extrabold uppercase">
+                Principal
+              </span>
+            )}
+          </div>
+          {timeString && (
+            <span className={`text-[10px] font-medium ${hasUnread ? 'text-rose-300 font-bold' : isPinned ? 'text-amber-300/80' : 'text-slate-500'}`}>
+              {timeString}
+            </span>
+          )}
+        </div>
+
+        {activeMasterIdentity && (
+          <div className="text-[10px] font-bold text-rose-400 flex items-center gap-1 mb-0.5">
+            <span>Como {activeMasterIdentity.display_name || activeMasterIdentity.username}</span>
+            <span className="text-[9px] px-1 py-0.1 rounded bg-rose-500/20 text-rose-300 font-extrabold uppercase">
+              ✨ Master
+            </span>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-1.5">
+          <p
+            className={`text-[11px] truncate max-w-[155px] sm:max-w-[170px] ${
+              hasUnread ? 'text-rose-200 font-semibold' : 'text-slate-400'
+            }`}
+          >
+            {activeAction ? (
+              <span className="text-emerald-400 dark:text-emerald-300 font-medium flex items-center gap-1 animate-pulse">
+                {activeAction.action === 'uploading_photo' ? (
+                  <>
+                    <span className="text-xs">📸</span>
+                    <span>Enviando foto...</span>
+                  </>
+                ) : activeAction.action === 'uploading_file' ? (
+                  <>
+                    <span className="text-xs">📎</span>
+                    <span>Enviando arquivo...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-xs">💬</span>
+                    <span>Digitando...</span>
+                  </>
+                )}
+              </span>
+            ) : previewContent ? (
+              <span>{previewContent}</span>
+            ) : isBelmont ? (
+              <span className="text-amber-400/80">Sala permanente para todos os membros</span>
+            ) : (
+              <span className="italic">Nenhuma mensagem ainda</span>
+            )}
+          </p>
+
+          <div className="flex items-center gap-1">
+            {hasUnread && (
+              <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-500 via-red-500 to-pink-500 text-white text-[10px] font-black min-w-[22px] text-center shadow-lg shadow-rose-600/50 animate-pulse border border-rose-300/80 flex-shrink-0">
+                {conv.unread_count > 99 ? '99+' : conv.unread_count}
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={onOpenMenuClick}
+              className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-slate-700/80 text-slate-400 hover:text-white transition-opacity flex-shrink-0"
+              title="Opções da conversa"
+            >
+              <MoreVertical className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}, (prev, next) => {
+  return (
+    prev.conv.id === next.conv.id &&
+    prev.isActive === next.isActive &&
+    prev.isPinned === next.isPinned &&
+    prev.isOnline === next.isOnline &&
+    prev.conv.unread_count === next.conv.unread_count &&
+    prev.timeString === next.timeString &&
+    prev.previewContent === next.previewContent &&
+    prev.activeAction === next.activeAction &&
+    prev.activeMasterIdentity === next.activeMasterIdentity
+  );
+});
 
 export function Sidebar({
   onOpenNewChat,
@@ -417,146 +684,64 @@ export function Sidebar({
     }
   };
 
-  // Função auxiliar para formatar a prévia da última mensagem sem exibir JSON puro
-  const formatLastMessagePreview = (lastMsg) => {
-    if (!lastMsg) return 'Nenhuma mensagem ainda';
-    if (lastMsg.is_deleted) return '🚫 Mensagem apagada';
-
-    // 1. Checagem por tipo explícito
-    if (lastMsg.type === 'nexus_burst') return '⚡ Nexus Burst (+20 Coins)';
-    if (lastMsg.type === 'ghost') return '👻 Mensagem Fantasma';
-    if (lastMsg.type === 'coffee_invite') return '☕ Convite para Café';
-    if (lastMsg.type === 'poll') return '📊 Enquete';
-    if (lastMsg.type === 'image') return '📷 Foto';
-    if (lastMsg.type === 'audio') return '🎵 Áudio';
-    if (lastMsg.type === 'file') return '📎 Arquivo';
-
-    const rawContent = (lastMsg.content || '').trim();
-
-    // 2. Checagem por JSON embutido no conteúdo
-    if (rawContent.startsWith('{') && rawContent.endsWith('}')) {
-      try {
-        const parsed = JSON.parse(rawContent);
-        if (parsed.nexus_burst) {
-          return '⚡ Nexus Burst (+20 Coins)';
-        }
-        if (parsed.ghost_message) {
-          return '👻 Mensagem Fantasma';
-        }
-        if (parsed.coffee_invite) {
-          return '☕ Convite para Café';
-        }
-        if (parsed.poll) {
-          return `📊 Enquete: ${parsed.poll.question || 'Votação'}`;
-        }
-        if (parsed.text || parsed.content) {
-          return parsed.text || parsed.content;
-        }
-      } catch (e) {
-        // Ignora erro e continua para limpeza de markdown
-      }
-    }
-
-    // 3. Checagem por anexos de mídia
-    if (lastMsg.attachments && lastMsg.attachments.length > 0) {
-      const first = lastMsg.attachments[0];
-      if (first.file_type === 'image' || first.file_url?.match(/\.(jpeg|jpg|gif|png|webp)/i)) {
-        return '📷 Foto';
-      }
-      if (first.file_type === 'audio' || first.file_url?.match(/\.(mp3|wav|ogg)/i)) {
-        return '🎵 Áudio';
-      }
-      return `📎 ${first.file_name || 'Arquivo'}`;
-    }
-
-    if (rawContent.startsWith('data:image/')) return '📷 Imagem';
-    if (rawContent.startsWith('data:audio/')) return '🎵 Áudio';
-
-    // 4. Limpeza de formatações Markdown para texto puro na prévia
-    const cleanText = rawContent
-      .replace(/```[\s\S]*?```/g, '💻 Código')
-      .replace(/`([^`]+)`/g, '$1')
-      .replace(/\*\*([^*]+)\*\*/g, '$1')
-      .replace(/\*([^*]+)\*/g, '$1')
-      .replace(/_([^_]+)_/g, '$1')
-      .replace(/~~([^~]+)~~/g, '$1')
-      .replace(/\|\|([^|]+)\|\|/g, 'Spoiler');
-
-    return cleanText || 'Mensagem';
-  };
-
-  // Filtragem e Ordenação de Conversas com Prioridade para Fixadas
-  const filteredConversations = (Array.isArray(conversations) ? conversations : [])
-    .filter((conv) => {
-      if (!conv || !conv.id) return false;
-      const isBelmont = conv.id === BELMONT_ID || conv.is_permanent;
-
-      if (filterTab === 'master') return true; // Mostra todas no Master
-      if (filterTab === 'direct' && isBelmont) return false;
-      if (filterTab === 'unread' && (!conv.unread_count || conv.unread_count === 0)) return false;
-      if (filterTab === 'direct' && conv.type !== 'direct') return false;
-      if (filterTab === 'group' && conv.type !== 'group' && !isBelmont) return false;
-
-      if (!searchTerm.trim()) return true;
-      const term = searchTerm.toLowerCase();
-      const name = (conv.type === 'group' ? conv.name : conv.direct_user?.display_name || conv.direct_user?.username || '').toLowerCase();
-      const lastPreview = formatLastMessagePreview(conv.last_message).toLowerCase();
-      return name.includes(term) || lastPreview.includes(term);
-    })
-    .sort((a, b) => {
-      if (!a || !b) return 0;
-      const aPinned = (typeof isConversationPinned === 'function' ? isConversationPinned(a.id) : false) || a.is_pinned || a.id === BELMONT_ID;
-      const bPinned = (typeof isConversationPinned === 'function' ? isConversationPinned(b.id) : false) || b.is_pinned || b.id === BELMONT_ID;
-
-      if (aPinned && !bPinned) return -1;
-      if (!aPinned && bPinned) return 1;
-
-      if (aPinned && bPinned) {
-        if (a.id === BELMONT_ID) return -1;
-        if (b.id === BELMONT_ID) return 1;
-        const safePins = Array.isArray(pinnedConversationIds) ? pinnedConversationIds : [];
-        const indexA = safePins.indexOf(a.id);
-        const indexB = safePins.indexOf(b.id);
-        if (indexA !== -1 && indexB !== -1 && indexA !== indexB) {
-          return indexA - indexB;
-        }
-      }
-
-      const timeA = a.last_message?.created_at ? new Date(a.last_message.created_at).getTime() : 0;
-      const timeB = b.last_message?.created_at ? new Date(b.last_message.created_at).getTime() : 0;
-      const safeTimeA = isNaN(timeA) ? 0 : timeA;
-      const safeTimeB = isNaN(timeB) ? 0 : timeB;
-      if (safeTimeB !== safeTimeA) {
-        return safeTimeB - safeTimeA;
-      }
-      return (a.id || '').localeCompare(b.id || '');
-    });
-
-  // Garantir estrita unicidade de conversas na renderização (sem chaves duplicadas)
+  // Filtragem e Ordenação de Conversas com Prioridade para Fixadas (Memoizado para 60fps)
   const uniqueConversations = useMemo(() => {
+    const list = (Array.isArray(conversations) ? conversations : [])
+      .filter((conv) => {
+        if (!conv || !conv.id) return false;
+        const isBelmont = conv.id === BELMONT_ID || conv.is_permanent;
+
+        if (filterTab === 'master') return true; // Mostra todas no Master
+        if (filterTab === 'direct' && isBelmont) return false;
+        if (filterTab === 'unread' && (!conv.unread_count || conv.unread_count === 0)) return false;
+        if (filterTab === 'direct' && conv.type !== 'direct') return false;
+        if (filterTab === 'group' && conv.type !== 'group' && !isBelmont) return false;
+
+        if (!searchTerm.trim()) return true;
+        const term = searchTerm.toLowerCase();
+        const name = (conv.type === 'group' ? conv.name : conv.direct_user?.display_name || conv.direct_user?.username || '').toLowerCase();
+        const lastPreview = formatLastMessagePreview(conv.last_message).toLowerCase();
+        return name.includes(term) || lastPreview.includes(term);
+      })
+      .sort((a, b) => {
+        if (!a || !b) return 0;
+        const aPinned = (typeof isConversationPinned === 'function' ? isConversationPinned(a.id) : false) || a.is_pinned || a.id === BELMONT_ID;
+        const bPinned = (typeof isConversationPinned === 'function' ? isConversationPinned(b.id) : false) || b.is_pinned || b.id === BELMONT_ID;
+
+        if (aPinned && !bPinned) return -1;
+        if (!aPinned && bPinned) return 1;
+
+        if (aPinned && bPinned) {
+          if (a.id === BELMONT_ID) return -1;
+          if (b.id === BELMONT_ID) return 1;
+          const safePins = Array.isArray(pinnedConversationIds) ? pinnedConversationIds : [];
+          const indexA = safePins.indexOf(a.id);
+          const indexB = safePins.indexOf(b.id);
+          if (indexA !== -1 && indexB !== -1 && indexA !== indexB) {
+            return indexA - indexB;
+          }
+        }
+
+        const timeA = a.last_message?.created_at ? new Date(a.last_message.created_at).getTime() : 0;
+        const timeB = b.last_message?.created_at ? new Date(b.last_message.created_at).getTime() : 0;
+        const safeTimeA = isNaN(timeA) ? 0 : timeA;
+        const safeTimeB = isNaN(timeB) ? 0 : timeB;
+        if (safeTimeB !== safeTimeA) {
+          return safeTimeB - safeTimeA;
+        }
+        return (a.id || '').localeCompare(b.id || '');
+      });
+
     const seen = new Set();
-    const list = [];
-    for (const c of filteredConversations) {
+    const unique = [];
+    for (const c of list) {
       if (c && c.id && !seen.has(c.id)) {
         seen.add(c.id);
-        list.push(c);
+        unique.push(c);
       }
     }
-    return list;
-  }, [filteredConversations]);
-
-  const formatLastMessageTime = (dateString) => {
-    if (!dateString) return '';
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return '';
-      if (isToday(date)) return format(date, 'HH:mm', { locale: ptBR });
-      if (isYesterday(date)) return 'Ontem';
-      return format(date, 'dd/MM', { locale: ptBR });
-    } catch (e) {
-      return '';
-    }
-  };
+    return unique;
+  }, [conversations, filterTab, searchTerm, isConversationPinned, pinnedConversationIds]);
 
   const tabs = [
     { id: 'all', label: 'Todas' },
@@ -1207,32 +1392,26 @@ export function Sidebar({
               </div>
             ) : (
           uniqueConversations.map((conv) => {
-            const isBelmont = conv.id === BELMONT_ID || conv.is_permanent;
-            const isActive = activeConversationId === conv.id;
             const isPinned = isConversationPinned(conv.id);
             const directUser = conv.direct_user;
-            const isDirect = conv.type === 'direct';
-            const isOnline = isDirect && directUser && isUserOnline(directUser.id);
+            const isOnline = conv.type === 'direct' && directUser && isUserOnline(directUser.id);
             const activeMasterIdentity = isAdmin ? masterIdentities?.get(conv.id) : null;
-
-            const convName = isBelmont
-              ? 'BELMONT CONFERENCE'
-              : isDirect
-              ? directUser?.display_name || directUser?.username || 'Usuário'
-              : conv.name;
-
-            const convAvatar = isBelmont
-              ? '/belmont-logo.jpg'
-              : isDirect
-              ? directUser?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${directUser?.id}`
-              : conv.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${conv.id}`;
-
-            const hasUnread = conv.unread_count > 0 && !isActive;
+            const activeAction = getConversationAction ? getConversationAction(conv.id) : null;
+            const timeString = conv.last_message ? formatLastMessageTime(conv.last_message.created_at) : '';
+            const previewContent = conv.last_message ? formatLastMessagePreview(conv.last_message) : '';
 
             return (
-              <div
+              <ConversationRow
                 key={conv.id}
-                onClick={() => {
+                conv={conv}
+                isActive={activeConversationId === conv.id}
+                isPinned={isPinned}
+                isOnline={isOnline}
+                activeMasterIdentity={activeMasterIdentity}
+                activeAction={activeAction}
+                timeString={timeString}
+                previewContent={previewContent}
+                onSelect={() => {
                   if (isLongPressTriggeredRef.current) {
                     isLongPressTriggeredRef.current = false;
                     return;
@@ -1247,169 +1426,8 @@ export function Sidebar({
                 onTouchStart={(e) => handleTouchStart(conv, e)}
                 onTouchEnd={handleTouchEnd}
                 onTouchMove={handleTouchMove}
-                className={`group p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-all border relative overflow-hidden select-none ${
-                  activeMasterIdentity
-                    ? 'bg-gradient-to-r from-rose-950/40 via-slate-900 to-slate-900 border-rose-500/50 shadow-md'
-                    : isBelmont
-                    ? isActive
-                      ? 'bg-gradient-to-r from-amber-950/70 via-slate-900 to-indigo-950/60 border-amber-500/80 shadow-lg shadow-amber-500/10'
-                      : 'bg-gradient-to-r from-amber-950/30 via-slate-900/50 to-slate-900/30 border-amber-500/40 hover:border-amber-500/70 shadow-sm'
-                    : isActive
-                    ? 'bg-brand-600/20 border-brand-500/60 shadow-sm'
-                    : hasUnread
-                    ? 'bg-gradient-to-r from-rose-950/60 via-purple-950/40 to-slate-900 border-rose-500/70 shadow-lg shadow-rose-900/25 ring-1 ring-rose-500/40'
-                    : isPinned
-                    ? 'bg-amber-950/15 border-amber-500/30 hover:border-amber-500/60 hover:bg-slate-800/60 shadow-sm'
-                    : 'bg-background-surface/50 border-slate-800/80 hover:border-slate-700/80 hover:bg-background-surface'
-                }`}
-              >
-                {/* Barra Indicadora de Mensagem Nova Não Lida */}
-                {hasUnread && (
-                  <span className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-rose-500 via-pink-500 to-red-600 shadow-[0_0_10px_rgba(244,63,94,0.9)] animate-pulse" />
-                )}
-
-                <div className="relative flex-shrink-0">
-                  <img
-                    src={convAvatar}
-                    alt={convName}
-                    className={`w-11 h-11 rounded-2xl object-cover shadow ${
-                      activeMasterIdentity
-                        ? 'border-2 border-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.6)]'
-                        : isBelmont
-                        ? 'border-2 border-amber-400'
-                        : hasUnread
-                        ? 'border-2 border-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]'
-                        : isPinned
-                        ? 'border-2 border-amber-400/60 shadow-[0_0_8px_rgba(251,191,36,0.3)]'
-                        : 'border border-slate-700'
-                    }`}
-                  />
-                  {/* Ponto ou Badge no Avatar */}
-                  {hasUnread && (
-                    <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.2 rounded-full bg-gradient-to-r from-rose-600 to-red-600 text-white text-[10px] font-black border-2 border-slate-950 shadow-lg shadow-rose-600/80 animate-bounce z-10">
-                      {conv.unread_count > 99 ? '99+' : conv.unread_count}
-                    </span>
-                  )}
-                  {isDirect && !activeMasterIdentity && (
-                    <span
-                      className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-background-card ${
-                        isOnline ? 'bg-chat-online' : 'bg-slate-500'
-                      }`}
-                    />
-                  )}
-                  {isBelmont && (
-                    <span className="absolute -top-1 -right-1 p-0.5 bg-amber-500 rounded-full text-black shadow">
-                      <Crown className="w-3 h-3" />
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-0.5">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span
-                        className={`text-xs truncate ${
-                          isBelmont
-                            ? 'text-amber-300 font-extrabold tracking-wide'
-                            : hasUnread
-                            ? 'text-white font-extrabold drop-shadow-[0_0_6px_rgba(244,63,94,0.4)]'
-                            : isPinned
-                            ? 'text-amber-100 font-bold'
-                            : 'text-slate-100 font-bold'
-                        }`}
-                      >
-                        {convName}
-                      </span>
-                      {isPinned && !isBelmont && (
-                        <span title="Conversa Fixada no Topo">
-                          <Pin className="w-3 h-3 text-amber-400 fill-amber-400/40 rotate-45 flex-shrink-0" />
-                        </span>
-                      )}
-                      {isBelmont && (
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-extrabold uppercase">
-                          Principal
-                        </span>
-                      )}
-                    </div>
-                    {conv.last_message && (
-                      <span className={`text-[10px] font-medium ${hasUnread ? 'text-rose-300 font-bold' : isPinned ? 'text-amber-300/80' : 'text-slate-500'}`}>
-                        {formatLastMessageTime(conv.last_message.created_at)}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Subtítulo: Indicador de Identidade Ativa (ex: "Como Pricila") */}
-                  {activeMasterIdentity && (
-                    <div className="text-[10px] font-bold text-rose-400 flex items-center gap-1 mb-0.5">
-                      <span>Como {activeMasterIdentity.display_name || activeMasterIdentity.username}</span>
-                      <span className="text-[9px] px-1 py-0.1 rounded bg-rose-500/20 text-rose-300 font-extrabold uppercase">
-                        ✨ Master
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between gap-1.5">
-                    <p
-                      className={`text-[11px] truncate max-w-[155px] sm:max-w-[170px] ${
-                        hasUnread ? 'text-rose-200 font-semibold' : 'text-slate-400'
-                      }`}
-                    >
-                      {(() => {
-                        const activeAction = getConversationAction ? getConversationAction(conv.id) : null;
-                        if (activeAction) {
-                          return (
-                            <span className="text-emerald-400 dark:text-emerald-300 font-medium flex items-center gap-1 animate-pulse">
-                              {activeAction.action === 'uploading_photo' ? (
-                                <>
-                                  <span className="text-xs">📸</span>
-                                  <span>Enviando foto...</span>
-                                </>
-                              ) : activeAction.action === 'uploading_file' ? (
-                                <>
-                                  <span className="text-xs">📎</span>
-                                  <span>Enviando arquivo...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <span className="text-xs">💬</span>
-                                  <span>Digitando...</span>
-                                </>
-                              )}
-                            </span>
-                          );
-                        }
-
-                        if (conv.last_message) {
-                          return <span>{formatLastMessagePreview(conv.last_message)}</span>;
-                        } else if (isBelmont) {
-                          return <span className="text-amber-400/80">Sala permanente para todos os membros</span>;
-                        } else {
-                          return <span className="italic">Nenhuma mensagem ainda</span>;
-                        }
-                      })()}
-                    </p>
-
-                    <div className="flex items-center gap-1">
-                      {/* Badge Vermelho Luminoso de Não Lidas */}
-                      {hasUnread && (
-                        <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-500 via-red-500 to-pink-500 text-white text-[10px] font-black min-w-[22px] text-center shadow-lg shadow-rose-600/50 animate-pulse border border-rose-300/80 flex-shrink-0">
-                          {conv.unread_count > 99 ? '99+' : conv.unread_count}
-                        </span>
-                      )}
-
-                      {/* Botão de 3 pontinhos para menu de opções no hover/touch */}
-                      <button
-                        type="button"
-                        onClick={(e) => handleOpenMenuClick(conv, e)}
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-slate-700/80 text-slate-400 hover:text-white transition-opacity flex-shrink-0"
-                        title="Opções da conversa"
-                      >
-                        <MoreVertical className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                onOpenMenuClick={(e) => handleOpenMenuClick(conv, e)}
+              />
             );
           })
         )}

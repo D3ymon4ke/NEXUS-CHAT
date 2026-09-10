@@ -45,20 +45,32 @@ export function ChatArea({ onBack, onOpenProfile }) {
 
   const messagesEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
+  const isInitialLoadForConvRef = useRef(true);
 
-  // Auto-scroll para o final quando novas mensagens chegam
+  // Auto-scroll otimizado para o final (instantâneo ao trocar de chat, suave para novas mensagens)
   const scrollToBottom = (smooth = true) => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollLeft = 0;
+    const el = scrollContainerRef.current;
+    if (el) {
+      el.scrollLeft = 0;
+      if (!smooth) {
+        el.scrollTop = el.scrollHeight;
+        return;
+      }
     }
     messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
   };
 
   useEffect(() => {
+    isInitialLoadForConvRef.current = true;
     scrollToBottom(false);
   }, [activeConversation?.id]);
 
   useEffect(() => {
+    if (isInitialLoadForConvRef.current) {
+      isInitialLoadForConvRef.current = false;
+      scrollToBottom(false);
+      return;
+    }
     if (!showScrollBottom) {
       scrollToBottom(true);
     }
@@ -89,8 +101,16 @@ export function ChatArea({ onBack, onOpenProfile }) {
   };
 
   if (!activeConversation) {
+    if (activeConversationId) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-background-darker/60 select-none">
+          <div className="w-8 h-8 rounded-full border-2 border-brand-500/30 border-t-brand-400 animate-spin mb-3" />
+          <span className="text-xs text-slate-400 font-medium">Carregando conversa...</span>
+        </div>
+      );
+    }
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-background-darker/60 backdrop-blur">
+      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-background-darker/60 backdrop-blur select-none">
         <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-brand-600/30 to-purple-600/30 border border-brand-500/20 flex items-center justify-center mb-4 shadow-xl">
           <MessageSquare className="w-10 h-10 text-brand-400" />
         </div>
@@ -179,7 +199,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
   const wallpaperClass = WALLPAPER_STYLES[user?.equipped_wallpaper] || 'bg-background-darker';
 
   return (
-    <div className={`flex-1 flex flex-col h-full min-h-0 min-w-0 w-full max-w-full overflow-hidden relative transition-colors duration-500 ${wallpaperClass}`}>
+    <div className={`flex-1 flex flex-col h-full min-h-0 min-w-0 w-full max-w-full overflow-hidden relative ${wallpaperClass}`}>
       {/* Header */}
       <ChatHeader
         onBack={onBack}
@@ -362,9 +382,9 @@ export function ChatArea({ onBack, onOpenProfile }) {
 
                 <div
                   id={`msg-${msg.id || msg.tempId}`}
-                  className={`w-full max-w-full min-w-0 transition-all duration-300 rounded-2xl ${
+                  className={`w-full max-w-full min-w-0 rounded-2xl ${
                     highlightMessageId === (msg.id || msg.tempId)
-                      ? 'ring-2 ring-brand-400 bg-brand-500/20 py-1.5 px-2 shadow-[0_0_20px_rgba(59,130,246,0.35)]'
+                      ? 'ring-2 ring-brand-400 bg-brand-500/20 py-1.5 px-2 shadow-[0_0_20px_rgba(59,130,246,0.35)] transition-all duration-300'
                       : ''
                   }`}
                 >
