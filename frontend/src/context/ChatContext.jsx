@@ -57,6 +57,23 @@ export function ChatProvider({ children }) {
   const { socket, connected } = useSocket();
 
   const messagesCacheRef = useRef(new Map());
+  const profileCacheRef = useRef(new Map());
+
+  // Manter perfil do usuário logado sempre disponível no cache local
+  useEffect(() => {
+    if (user?.id) {
+      profileCacheRef.current.set(user.id, {
+        id: user.id,
+        display_name: user.display_name || user.username,
+        username: user.username,
+        avatar_url: user.avatar_url,
+        equipped_frame: user.equipped_frame,
+        equipped_bubble: user.equipped_bubble,
+        equipped_badge: user.equipped_badge,
+        equipped_name_color: user.equipped_name_color
+      });
+    }
+  }, [user]);
 
   const [conversations, setConversations] = useState(() => {
     try {
@@ -256,6 +273,19 @@ export function ChatProvider({ children }) {
       }
       const res = await apiRequest('/conversations');
       if (res.success && res.conversations) {
+        // Pré-carregar perfis no cache em memória para renderização instantânea em 0ms
+        res.conversations.forEach((c) => {
+          if (c.direct_user?.id) {
+            profileCacheRef.current.set(c.direct_user.id, c.direct_user);
+          }
+          if (Array.isArray(c.participants)) {
+            c.participants.forEach((p) => {
+              const u = p.profile || p.user || p;
+              if (u?.id) profileCacheRef.current.set(u.id, u);
+            });
+          }
+        });
+
         const currentPins = getStoredPins(user?.id);
         const sorted = sortConversationsList(res.conversations, currentPins);
         setConversations(sorted);
@@ -343,7 +373,12 @@ export function ChatProvider({ children }) {
             if (dbMsgs && !dbErr) {
               // Reconstruir citações de respostas (reply_to) e anexos de imagem
               const msgMap = new Map();
-              dbMsgs.forEach((m) => msgMap.set(m.id, m));
+              dbMsgs.forEach((m) => {
+                msgMap.set(m.id, m);
+                if (m.sender?.id) {
+                  profileCacheRef.current.set(m.sender.id, m.sender);
+                }
+              });
 
               const resolvedMsgs = dbMsgs.map((m) => {
                 let resolvedReply = m.reply_to;
@@ -515,42 +550,103 @@ export function ChatProvider({ children }) {
 
             // Se for na conversa ativa e de outro usuário, adicionar à lista de mensagens visíveis
             if (newMsg.conversation_id === activeConversationId && newMsg.sender_id !== user.id) {
-              const [{ data: sender }, { data: dbAtts }] = await Promise.all([
-                supabase.from('profiles').select('*').eq('id', newMsg.sender_id).maybeSingle(),
-                supabase.from('message_attachments').select('*').eq('message_id', newMsg.id)
-              ]);
-
-              let finalAttachments = dbAtts || [];
-              if (
-                finalAttachments.length === 0 &&
-                (newMsg.type === 'image' || newMsg.content?.startsWith('http') || newMsg.content?.startsWith('data:image'))
-              ) {
-                if (newMsg.content && (newMsg.content.startsWith('http') || newMsg.content.startsWith('data:image'))) {
-                  finalAttachments = [{
-                    file_url: newMsg.content,
-                    file_name: 'imagem.jpg',
-                    file_type: 'image',
-                    file_size: 0
-                  }];
-                }
-              }
-
-              const formatted = {
-                ...newMsg,
-                sender: sender || { id: newMsg.sender_id, display_name: 'Usuário' },
-                attachments: finalAttachments,
-                reactions: []
-              };
-
+              // 1. Verificar se a mensagem já foi renderizada via broadcast instantâneo
+              let alreadyRendered = false;
               setMessages((prev) => {
-                if (prev.some((m) => m.id === formatted.id || (m.tempId && m.tempId === formatted.id))) return prev;
-                const updated = [...prev, formatted];
+                const existingIdx = prev.findIndex(
+                  (m) =>
+                    m.id === newMsg.id ||
+                    (m.tempId && (m.tempId === newMsg.id || m.id === newMsg.id)) ||
+                    (m.sender_id === newMsg.sender_id &&
+                      m.content === newMsg.content &&
+                      Math.abs(new Date(m.created_at).getTime() - new Date(newMsg.created_at).getTime()) < 15000)
+                );
+
+                if (existingIdx !== -1) {
+                  alreadyRendered = true;
+                  // Reconciliação suave: atualiza o id para o definitivo do banco
+                  const next = [...prev];
+                  next[existingIdx] = {
+                    ...next[existingIdx],
+                    id: newMsg.id,
+                    status: 'sent'
+                  };
+                  return next;
+                }
+
+                // 2. Renderização Otimista Imediata em 0ms usando o cache de perfil em memória
+                const cachedProfile = profileCacheRef.current.get(newMsg.sender_id) || {
+                  id: newMsg.sender_id,
+                  display_name: 'Membro'
+                };
+
+                const initialFormatted = {
+                  ...newMsg,
+                  sender: cachedProfile,
+                  attachments:
+                    newMsg.type === 'image' || newMsg.content?.startsWith('http') || newMsg.content?.startsWith('data:image')
+                      ? [{ file_url: newMsg.content, file_name: 'imagem.jpg', file_type: 'image', file_size: 0 }]
+                      : [],
+                  reactions: []
+                };
+
+                const updated = [...prev, initialFormatted];
                 try {
                   localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
                 } catch (e) {}
                 return updated;
               });
-              sounds.playReceive();
+
+              if (!alreadyRendered) {
+                sounds.playReceive();
+              }
+
+              // 3. Enriquecer assincronamente em segundo plano (SEM travar a tela)
+              (async () => {
+                try {
+                  const [{ data: sender }, { data: dbAtts }] = await Promise.all([
+                    profileCacheRef.current.has(newMsg.sender_id)
+                      ? Promise.resolve({ data: profileCacheRef.current.get(newMsg.sender_id) })
+                      : supabase.from('profiles').select('*').eq('id', newMsg.sender_id).maybeSingle(),
+                    supabase.from('message_attachments').select('*').eq('message_id', newMsg.id)
+                  ]);
+
+                  if (sender?.id) {
+                    profileCacheRef.current.set(sender.id, sender);
+                  }
+
+                  let finalAttachments = dbAtts || [];
+                  if (
+                    finalAttachments.length === 0 &&
+                    (newMsg.type === 'image' || newMsg.content?.startsWith('http') || newMsg.content?.startsWith('data:image'))
+                  ) {
+                    if (newMsg.content && (newMsg.content.startsWith('http') || newMsg.content.startsWith('data:image'))) {
+                      finalAttachments = [
+                        {
+                          file_url: newMsg.content,
+                          file_name: 'imagem.jpg',
+                          file_type: 'image',
+                          file_size: 0
+                        }
+                      ];
+                    }
+                  }
+
+                  setMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === newMsg.id
+                        ? {
+                            ...m,
+                            sender: sender || m.sender,
+                            attachments: finalAttachments.length > 0 ? finalAttachments : m.attachments
+                          }
+                        : m
+                    )
+                  );
+                } catch (bgErr) {
+                  console.warn('Aviso enriquecimento em segundo plano:', bgErr);
+                }
+              })();
             } else if (newMsg.conversation_id !== activeConversationId && newMsg.sender_id !== user.id) {
               sounds.playReceive();
             }
@@ -675,6 +771,101 @@ export function ChatProvider({ children }) {
           if (loadConversations) loadConversations();
         }
       )
+      .on('broadcast', { event: 'instant_message' }, (eventPayload) => {
+        const incoming = eventPayload?.payload?.message;
+        if (!incoming || incoming.sender_id === user?.id) return;
+
+        // Salvar perfil do remetente no cache em memória
+        if (incoming.sender?.id) {
+          profileCacheRef.current.set(incoming.sender.id, incoming.sender);
+        }
+
+        // Atualizar lista de conversas com novo snippet em 0ms
+        setConversations((prev) => {
+          const isCurrentActive = incoming.conversation_id === activeConversationId;
+          let found = false;
+          const next = prev.map((c) => {
+            if (c.id === incoming.conversation_id) {
+              found = true;
+              return {
+                ...c,
+                last_message: incoming,
+                unread_count: isCurrentActive ? 0 : (c.unread_count || 0) + 1
+              };
+            }
+            return c;
+          });
+          if (!found && loadConversations) loadConversations();
+          return sortConversationsList(next, pinnedConversationIds);
+        });
+
+        // Se a mensagem for na conversa ativa, renderizar na hora (Sub-50ms)
+        if (incoming.conversation_id === activeConversationId) {
+          setMessages((prev) => {
+            if (
+              prev.some(
+                (m) =>
+                  m.id === incoming.id ||
+                  (incoming.tempId && (m.tempId === incoming.tempId || m.id === incoming.tempId))
+              )
+            ) {
+              return prev;
+            }
+            const updated = [...prev, incoming];
+            try {
+              localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
+            } catch (e) {}
+            return updated;
+          });
+          sounds.playReceive();
+        } else {
+          sounds.playReceive();
+        }
+      })
+      .on('broadcast', { event: 'instant_message_edit' }, (eventPayload) => {
+        const { messageId, conversationId, content, updated_at } = eventPayload?.payload || {};
+        if (!messageId) return;
+        if (conversationId === activeConversationId) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === messageId
+                ? { ...m, content, is_edited: true, updated_at: updated_at || new Date().toISOString() }
+                : m
+            )
+          );
+        }
+        setConversations((prev) =>
+          prev.map((c) => {
+            if (c.id === conversationId && c.last_message?.id === messageId) {
+              return {
+                ...c,
+                last_message: { ...c.last_message, content, is_edited: true }
+              };
+            }
+            return c;
+          })
+        );
+      })
+      .on('broadcast', { event: 'instant_message_delete' }, (eventPayload) => {
+        const { messageId, conversationId } = eventPayload?.payload || {};
+        if (!messageId) return;
+        if (conversationId === activeConversationId) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === messageId ? { ...m, is_deleted: true, content: '🚫 Esta mensagem foi excluída' } : m
+            )
+          );
+        }
+      })
+      .on('broadcast', { event: 'instant_clear_conversation' }, (eventPayload) => {
+        const { conversationId } = eventPayload?.payload || {};
+        if (conversationId === activeConversationId) {
+          setMessages([]);
+          try {
+            localStorage.removeItem(`nexus_msgs_${activeConversationId}`);
+          } catch (e) {}
+        }
+      })
       .on('broadcast', { event: 'typing' }, (eventPayload) => {
         const payload = eventPayload?.payload;
         if (!payload || payload.userId === user?.id) return;
@@ -788,6 +979,17 @@ export function ChatProvider({ children }) {
     setMessages(prev => [...prev, optimisticMessage]);
     setReplyingTo(null);
     sounds.playSend();
+
+    // 0. Disparo Instantâneo via Supabase Realtime Broadcast P2P (chega aos destinatários em ~20-50ms via WebSocket sem esperar gravação no Postgres)
+    if (isSupabaseConfigured && supabase && activeConversationId) {
+      supabase.channel('chat_global_messages_listener').send({
+        type: 'broadcast',
+        event: 'instant_message',
+        payload: {
+          message: optimisticMessage
+        }
+      }).catch((bErr) => console.warn('Aviso broadcast instant_message:', bErr));
+    }
 
     // 1. Inserir no Supabase
     if (isSupabaseConfigured && supabase) {
@@ -933,6 +1135,20 @@ export function ChatProvider({ children }) {
     setEditingMessage(null);
     sounds.playPop();
 
+    // 0. Broadcast instantâneo de edição via Supabase Realtime (reflete em ~30ms para todos no chat)
+    if (isSupabaseConfigured && supabase && activeConversationId) {
+      supabase.channel('chat_global_messages_listener').send({
+        type: 'broadcast',
+        event: 'instant_message_edit',
+        payload: {
+          conversationId: activeConversationId,
+          messageId,
+          content: newContent,
+          updated_at: new Date().toISOString()
+        }
+      }).catch(() => {});
+    }
+
     if (isSupabaseConfigured && supabase) {
       try {
         await supabase
@@ -966,6 +1182,18 @@ export function ChatProvider({ children }) {
     // Atualização otimista local
     setMessages(prev => prev.map(m => m.id === messageId ? { ...m, is_deleted: true, content: placeholder } : m));
     sounds.playPop();
+
+    // 0. Broadcast instantâneo de exclusão via Supabase Realtime
+    if (isSupabaseConfigured && supabase && activeConversationId) {
+      supabase.channel('chat_global_messages_listener').send({
+        type: 'broadcast',
+        event: 'instant_message_delete',
+        payload: {
+          conversationId: activeConversationId,
+          messageId
+        }
+      }).catch(() => {});
+    }
 
     if (isSupabaseConfigured && supabase) {
       try {
@@ -1005,6 +1233,17 @@ export function ChatProvider({ children }) {
       setConversations(prev =>
         prev.map(c => c.id === targetConvId ? { ...c, last_message: null, unread_count: 0 } : c)
       );
+
+      // 0. Broadcast instantâneo de limpeza via Supabase Realtime
+      if (isSupabaseConfigured && supabase && targetConvId) {
+        supabase.channel('chat_global_messages_listener').send({
+          type: 'broadcast',
+          event: 'instant_clear_conversation',
+          payload: {
+            conversationId: targetConvId
+          }
+        }).catch(() => {});
+      }
 
       // 1. Supabase
       if (isSupabaseConfigured && supabase) {
