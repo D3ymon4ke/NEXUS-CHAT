@@ -1,49 +1,112 @@
 /**
- * Sistema Avançado de Resposta Tátil (Haptic Feedback) & Cliques Físicos
- * Proporciona sensação tátil ultra-responsiva de toque nativo (como iOS e Android).
+ * Sistema Avançado e Universal de Resposta Tátil (Haptic Feedback) & Cliques Físicos
+ * Suporte multi-plataforma:
+ * - Motores de Vibração Nativos (Android, Chrome Mobile, Samsung Internet, Firefox, Edge, PWA)
+ * - Taptic Engine Apple iOS (iPhone/iPad via Safari Switch Haptic Engine)
+ * - WebHaptics Engine (Coordenação de micro-pulsos em tempo real)
+ * - Micro-clique Acústico Tátil (Sintetizador Web Audio API de 15ms com latência zero)
  */
+
+import { WebHaptics } from 'web-haptics';
+
+const isBrowser = typeof window !== 'undefined';
+const isIOS = isBrowser && (
+  /iPad|iPhone|iPod/.test(navigator.userAgent || '') ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+);
+
+// Padrões de vibração calibrados para superar a inércia dos motores móveis (25ms+)
+const HAPTIC_PATTERNS = {
+  selection: 28,
+  tap: 32,
+  light: 35,
+  medium: 55,
+  pop: 55,
+  heavy: 85,
+  impact: 95,
+  success: [40, 60, 50],
+  warning: [45, 60, 45],
+  error: [60, 60, 60, 60, 75],
+  burst: [35, 45, 35, 45, 65]
+};
 
 class HapticsManager {
   constructor() {
-    this.hasVibrate = typeof navigator !== 'undefined' && Boolean(navigator.vibrate);
-    this.enabled = typeof localStorage !== 'undefined'
+    this.hasVibrate = isBrowser && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+    this.isIOS = isIOS;
+    this.enabled = isBrowser && typeof localStorage !== 'undefined'
       ? localStorage.getItem('nexus_haptics_enabled') !== 'false'
       : true;
-    this.touchSoundsEnabled = typeof localStorage !== 'undefined'
-      ? localStorage.getItem('nexus_touch_sounds_enabled') === 'true'
+
+    // No iOS ou dispositivos sem motor físico nativo, cliques auditivos vêm ativados por padrão
+    this.touchSoundsEnabled = isBrowser && typeof localStorage !== 'undefined'
+      ? (localStorage.getItem('nexus_touch_sounds_enabled') !== null
+          ? localStorage.getItem('nexus_touch_sounds_enabled') === 'true'
+          : this.isIOS)
       : false;
+
     this.audioCtx = null;
     this.lastHapticTime = 0;
+    this.iosSwitchLabel = null;
+    this.iosSwitchInput = null;
+    this.webHaptics = null;
+
+    if (isBrowser) {
+      try {
+        this.webHaptics = new WebHaptics();
+      } catch (e) {}
+    }
   }
 
   initAudio() {
-    if (!this.audioCtx && typeof window !== 'undefined') {
+    if (!this.audioCtx && isBrowser) {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
         this.audioCtx = new AudioCtx();
       }
     }
+    if (this.audioCtx && this.audioCtx.state === 'suspended') {
+      this.audioCtx.resume().catch(() => {});
+    }
+  }
+
+  // Inicializa o elemento oculto do switch iOS para disparar o Taptic Engine no Safari/PWA
+  ensureIOSTapticEngine() {
+    if (!isBrowser || !document.body || this.iosSwitchLabel) return;
+    try {
+      const label = document.createElement('label');
+      label.id = 'nexus-ios-taptic-anchor';
+      label.setAttribute('aria-hidden', 'true');
+      label.style.cssText = 'position:fixed;top:-100px;left:-100px;width:1px;height:1px;opacity:0.001;pointer-events:none;z-index:-9999;overflow:hidden;';
+
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.setAttribute('switch', '');
+      input.tabIndex = -1;
+      input.style.cssText = 'appearance:auto;opacity:0.001;pointer-events:none;';
+
+      label.appendChild(input);
+      document.body.appendChild(label);
+      this.iosSwitchLabel = label;
+      this.iosSwitchInput = input;
+    } catch (e) {}
   }
 
   // Som sutil de clique mecânico/vidro no toque (micro-acústico de confirmação tátil)
-  playTactileClick() {
-    if (!this.touchSoundsEnabled) return;
+  playTactileClick(volume = 0.05) {
+    if (!isBrowser) return;
     try {
       this.initAudio();
       if (!this.audioCtx) return;
-      if (this.audioCtx.state === 'suspended') {
-        this.audioCtx.resume();
-      }
 
       const osc = this.audioCtx.createOscillator();
       const gain = this.audioCtx.createGain();
 
       osc.type = 'sine';
-      // Frequência rápida de estalo suave
-      osc.frequency.setValueAtTime(1400, this.audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(300, this.audioCtx.currentTime + 0.015);
+      osc.frequency.setValueAtTime(1600, this.audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(250, this.audioCtx.currentTime + 0.015);
 
-      gain.gain.setValueAtTime(0.04, this.audioCtx.currentTime);
+      gain.gain.setValueAtTime(volume, this.audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, this.audioCtx.currentTime + 0.015);
 
       osc.connect(gain);
@@ -54,80 +117,62 @@ class HapticsManager {
     } catch (e) {}
   }
 
-  // Disparo de vibração tátil com padrões otimizados para motores de vibração de smartphones
+  // Aciona o Taptic Engine do iOS via alternância do switch nativo
+  triggerIOSTaptic() {
+    if (!isBrowser) return;
+    this.ensureIOSTapticEngine();
+    if (this.iosSwitchLabel && this.iosSwitchInput) {
+      try {
+        this.iosSwitchInput.checked = !this.iosSwitchInput.checked;
+        this.iosSwitchLabel.click();
+      } catch (e) {}
+    }
+  }
+
+  // Disparo centralizado de resposta tátil
   trigger(type = 'light') {
     if (!this.enabled) return;
 
     const now = Date.now();
-    if (now - this.lastHapticTime < 40) return; // Debounce de segurança
+    if (now - this.lastHapticTime < 35) return; // Debounce de segurança
     this.lastHapticTime = now;
 
+    // 1. Feedback Sonoro Tátil (se ativado ou padrão em dispositivos sem motor físico)
     if (this.touchSoundsEnabled) {
-      this.playTactileClick();
+      const volume = type === 'heavy' || type === 'burst' ? 0.08 : 0.04;
+      this.playTactileClick(volume);
     }
 
-    if (!this.hasVibrate) return;
+    // 2. Disparo no iOS Taptic Engine
+    if (this.isIOS) {
+      this.triggerIOSTaptic();
+    }
 
-    try {
-      switch (type) {
-        case 'selection':
-        case 'tap':
-        case 'light':
-          navigator.vibrate(10); // Pulso sutil e seco
-          break;
-        case 'medium':
-        case 'pop':
-          navigator.vibrate(20); // Clique mais nítido
-          break;
-        case 'heavy':
-        case 'impact':
-          navigator.vibrate(40); // Impacto pesado (ex: excluir, banir)
-          break;
-        case 'success':
-          navigator.vibrate([12, 35, 18]); // Batida dupla positiva (enviado, comprado)
-          break;
-        case 'warning':
-          navigator.vibrate([20, 30, 20]);
-          break;
-        case 'error':
-          navigator.vibrate([35, 40, 35]); // Três batidas curtas de recusa
-          break;
-        case 'burst':
-          navigator.vibrate([8, 15, 8, 15, 25]); // Tremor festivo de moedas/burst
-          break;
-        default:
-          navigator.vibrate(12);
-      }
-    } catch (e) {}
+    // 3. Disparo via WebHaptics
+    if (this.webHaptics) {
+      try {
+        const preset = type === 'burst' ? 'nudge' : (HAPTIC_PATTERNS[type] ? type : 'light');
+        this.webHaptics.trigger(preset).catch(() => {});
+      } catch (e) {}
+    }
+
+    // 4. Disparo Direto no Motor Físico (Android, Chrome, PWAs com Vibration API)
+    if (this.hasVibrate) {
+      try {
+        const pattern = HAPTIC_PATTERNS[type] || HAPTIC_PATTERNS.light;
+        navigator.vibrate(pattern);
+      } catch (e) {}
+    }
   }
 
-  light() {
-    this.trigger('light');
-  }
-
-  medium() {
-    this.trigger('medium');
-  }
-
-  heavy() {
-    this.trigger('heavy');
-  }
-
-  success() {
-    this.trigger('success');
-  }
-
-  error() {
-    this.trigger('error');
-  }
-
-  selection() {
-    this.trigger('selection');
-  }
-
-  burst() {
-    this.trigger('burst');
-  }
+  light() { this.trigger('light'); }
+  medium() { this.trigger('medium'); }
+  heavy() { this.trigger('heavy'); }
+  success() { this.trigger('success'); }
+  warning() { this.trigger('warning'); }
+  error() { this.trigger('error'); }
+  selection() { this.trigger('selection'); }
+  burst() { this.trigger('burst'); }
 
   isEnabled() {
     return Boolean(this.enabled);
@@ -138,7 +183,16 @@ class HapticsManager {
   }
 
   playTouchClick() {
-    this.playTactileClick();
+    this.playTactileClick(0.06);
+  }
+
+  getDeviceSupport() {
+    return {
+      hasVibrate: this.hasVibrate,
+      isIOS: this.isIOS,
+      isSupported: this.hasVibrate || this.isIOS,
+      mode: this.hasVibrate ? 'android_motor' : (this.isIOS ? 'ios_taptic' : 'audio_emulation')
+    };
   }
 
   toggleHaptics(forceState) {
@@ -158,7 +212,7 @@ class HapticsManager {
       localStorage.setItem('nexus_touch_sounds_enabled', String(this.touchSoundsEnabled));
     } catch (e) {}
     if (this.touchSoundsEnabled) {
-      this.playTactileClick();
+      this.playTactileClick(0.06);
     }
     return this.touchSoundsEnabled;
   }
@@ -168,33 +222,38 @@ export const haptics = new HapticsManager();
 
 /**
  * Inicializador global de Resposta Tátil ao Toque:
- * Intercepta 'pointerdown' (zero latência física sob a ponta do dedo) em todos os elementos interativos.
+ * Intercepta 'pointerdown' em todos os elementos interativos
+ * com ativação instantânea do motor e desbloqueio do áudio.
  */
 export function initTactileFeedback() {
-  if (typeof window === 'undefined') return;
+  if (!isBrowser) return;
 
   let lastTouch = 0;
 
-  const handlePointerDown = (e) => {
-    // Ignora cliques do botão direito do mouse
+  const handleInteraction = (e) => {
+    // Ignora botões secundários (ex: clique direito)
     if (e.button && e.button !== 0) return;
 
     const now = Date.now();
-    if (now - lastTouch < 50) return;
+    if (now - lastTouch < 45) return;
 
     const target = e.target;
     if (!target || !(target instanceof Element)) return;
 
     const interactive = target.closest(
-      'button, [role="button"], a, input[type="checkbox"], input[type="radio"], select, [data-haptic], .cursor-pointer, .tactile-btn, .tactile-press'
+      'button, [role="button"], a, input[type="checkbox"], input[type="radio"], select, [data-haptic], .cursor-pointer, .tactile-btn, .tactile-press, [data-reaction-btn]'
     );
 
     if (interactive && !interactive.hasAttribute('disabled')) {
       lastTouch = now;
+      // Desbloqueia contexto de áudio na primeira interação se suspenso
+      if (haptics.audioCtx && haptics.audioCtx.state === 'suspended') {
+        haptics.audioCtx.resume().catch(() => {});
+      }
       const type = interactive.getAttribute('data-haptic') || 'light';
       haptics.trigger(type);
     }
   };
 
-  window.addEventListener('pointerdown', handlePointerDown, { passive: true });
+  window.addEventListener('pointerdown', handleInteraction, { passive: true });
 }

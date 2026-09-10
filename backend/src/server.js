@@ -1,4 +1,6 @@
 const http = require('http');
+const https = require('https');
+const fs = require('fs');
 const express = require('express');
 const { Server } = require('socket.io');
 const cors = require('cors');
@@ -12,7 +14,27 @@ const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
 const { apiLimiter } = require('./middlewares/rateLimiter');
 
 const app = express();
-const server = http.createServer(app);
+
+// Configuração SSL para HTTPS e WSS quando disponível
+let server;
+let isHttps = false;
+const sslKeyPath = process.env.SSL_KEY_PATH || '/etc/letsencrypt/live/187-127-40-228.sslip.io/privkey.pem';
+const sslCertPath = process.env.SSL_CERT_PATH || '/etc/letsencrypt/live/187-127-40-228.sslip.io/fullchain.pem';
+
+if (fs.existsSync(sslKeyPath) && fs.existsSync(sslCertPath)) {
+  try {
+    const privateKey = fs.readFileSync(sslKeyPath, 'utf8');
+    const certificate = fs.readFileSync(sslCertPath, 'utf8');
+    server = https.createServer({ key: privateKey, cert: certificate }, app);
+    isHttps = true;
+    console.log('🔒 Certificados SSL carregados. Servidor rodando em modo seguro (HTTPS/WSS).');
+  } catch (e) {
+    console.warn('⚠️ Falha ao ler certificados SSL, iniciando em modo HTTP padrão:', e.message);
+    server = http.createServer(app);
+  }
+} else {
+  server = http.createServer(app);
+}
 
 const PORT = process.env.PORT || 5000;
 const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:3000,http://localhost:5173')
@@ -36,6 +58,11 @@ app.use(cors({
 app.use(morgan(process.env.NODE_ENV === 'development' ? 'dev' : 'combined'));
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+
+// Health Check público direto
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', server: 'nexus-chat-backend', uptime: process.uptime(), timestamp: new Date().toISOString() });
+});
 
 // Rate Limiter Geral para API
 app.use('/api', apiLimiter);

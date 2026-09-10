@@ -64,5 +64,54 @@ router.get('/conversations/:conversationId/messages/pinned', authenticateUser, m
 // --- Upload Route ---
 router.post('/upload', authenticateUser, upload.single('file'), uploadController.uploadFile);
 
+// --- Link Preview Scraper (Sem Erro de CORS) ---
+router.get('/link-preview', async (req, res) => {
+  const { url } = req.query;
+  if (!url || typeof url !== 'string') {
+    return res.status(400).json({ success: false, error: 'URL inválida.' });
+  }
+
+  try {
+    const targetUrl = url.startsWith('http') ? url : `https://${url}`;
+    const response = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; NexusChatBot/1.0; +https://nexus.chat)'
+      },
+      signal: AbortSignal.timeout(5000)
+    });
+
+    if (!response.ok) {
+      return res.json({ success: false, error: `Status ${response.status}` });
+    }
+
+    const html = await response.text();
+    const titleMatch = html.match(/<meta\s+property=["']og:title["']\s+content=["'](.*?)["']/i) ||
+      html.match(/<meta\s+name=["']twitter:title["']\s+content=["'](.*?)["']/i) ||
+      html.match(/<title[^>]*>([^<]+)<\/title>/i);
+
+    const descMatch = html.match(/<meta\s+property=["']og:description["']\s+content=["'](.*?)["']/i) ||
+      html.match(/<meta\s+name=["']description["']\s+content=["'](.*?)["']/i) ||
+      html.match(/<meta\s+name=["']twitter:description["']\s+content=["'](.*?)["']/i);
+
+    const imgMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["'](.*?)["']/i) ||
+      html.match(/<meta\s+name=["']twitter:image["']\s+content=["'](.*?)["']/i);
+
+    const siteMatch = html.match(/<meta\s+property=["']og:site_name["']\s+content=["'](.*?)["']/i);
+
+    return res.json({
+      success: true,
+      data: {
+        url: targetUrl,
+        title: titleMatch ? titleMatch[1].trim() : '',
+        description: descMatch ? descMatch[1].trim() : '',
+        image: imgMatch ? imgMatch[1].trim() : '',
+        siteName: siteMatch ? siteMatch[1].trim() : new URL(targetUrl).hostname
+      }
+    });
+  } catch (err) {
+    return res.json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;
 

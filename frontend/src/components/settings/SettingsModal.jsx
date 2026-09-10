@@ -69,6 +69,8 @@ export function SettingsModal({ isOpen, onClose, onOpenProfile }) {
   // Resposta Tátil & Sons Mecânicos de Toque
   const [hapticsEnabled, setHapticsEnabled] = useState(() => (haptics?.isEnabled ? haptics.isEnabled() : true));
   const [touchSoundsEnabled, setTouchSoundsEnabled] = useState(() => (haptics?.isTouchSoundsEnabled ? haptics.isTouchSoundsEnabled() : false));
+  const [deviceInfo] = useState(() => (haptics?.getDeviceSupport ? haptics.getDeviceSupport() : {}));
+  const [hapticFeedbackTriggered, setHapticFeedbackTriggered] = useState(false);
 
   const handleToggleHaptics = () => {
     const next = haptics.toggleHaptics();
@@ -88,6 +90,11 @@ export function SettingsModal({ isOpen, onClose, onOpenProfile }) {
 
   const handleTestHaptics = () => {
     haptics.burst();
+    if (!deviceInfo.hasVibrate || touchSoundsEnabled) {
+      haptics.playTouchClick();
+    }
+    setHapticFeedbackTriggered(true);
+    setTimeout(() => setHapticFeedbackTriggered(false), 1200);
   };
 
   const handleTestTouchSound = () => {
@@ -786,15 +793,24 @@ export function SettingsModal({ isOpen, onClose, onOpenProfile }) {
                 </button>
               </div>
               <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-2">
-                <span className="text-[11px] text-slate-400 truncate">
-                  {hapticsEnabled ? 'Vibrações ativas para dispositivos compatíveis' : 'Vibrações desativadas'}
+                <span className="text-[11px] text-slate-400 truncate flex items-center gap-1.5">
+                  <span className={`w-1.5 h-1.5 rounded-full ${hapticsEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
+                  {deviceInfo?.hasVibrate
+                    ? 'Motor tátil nativo ativo (Android / Chrome)'
+                    : deviceInfo?.isIOS
+                    ? 'Taptic Engine nativo ativo (Apple iOS / Safari)'
+                    : 'Emulação tátil micro-acústica ativa'}
                 </span>
                 <button
                   type="button"
                   onClick={handleTestHaptics}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 text-[11px] font-bold transition-all flex-shrink-0 active:scale-95"
+                  className={`px-3 py-1 rounded-lg border text-[11px] font-bold transition-all flex-shrink-0 active:scale-95 ${
+                    hapticFeedbackTriggered
+                      ? 'bg-amber-500 text-black border-amber-300 font-extrabold shadow-lg shadow-amber-500/30 scale-105'
+                      : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700'
+                  }`}
                 >
-                  ⚡ Testar Vibração
+                  {hapticFeedbackTriggered ? '⚡ Vibrando!' : '⚡ Testar Vibração'}
                 </button>
               </div>
             </div>

@@ -1,7 +1,10 @@
+import imageCompression from 'browser-image-compression';
+
 /**
  * Redimensiona e comprime uma imagem para um tamanho ideal de alta resolução e baixo peso
+ * Utiliza browser-image-compression (Web Worker) com fallback seguro para Canvas 2D
  */
-export function compressImageFile(file, maxWidthParam = 1280, maxHeightParam = 1280, qualityParam = 0.85) {
+export async function compressImageFile(file, maxWidthParam = 1280, maxHeightParam = 1280, qualityParam = 0.85) {
   let maxWidth = 1280;
   let maxHeight = 1280;
   let quality = 0.85;
@@ -16,21 +19,38 @@ export function compressImageFile(file, maxWidthParam = 1280, maxHeightParam = 1
     quality = typeof qualityParam === 'number' ? qualityParam : 0.85;
   }
 
-  return new Promise((resolve, reject) => {
-    if (!file) {
-      reject(new Error('Nenhum arquivo fornecido.'));
-      return;
-    }
+  if (!file) {
+    throw new Error('Nenhum arquivo fornecido.');
+  }
 
-    // Se for GIF animado ou SVG, preservar original para não quebrar animação/vetor
-    if (file.type === 'image/gif' || file.type === 'image/svg+xml' || file.name?.endsWith('.gif') || file.name?.endsWith('.svg')) {
+  // Se for GIF animado ou SVG, preservar original para não quebrar animação/vetor
+  if (file.type === 'image/gif' || file.type === 'image/svg+xml' || file.name?.endsWith('.gif') || file.name?.endsWith('.svg')) {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => resolve(e.target?.result);
       reader.onerror = () => reject(new Error('Erro ao ler arquivo animado.'));
       reader.readAsDataURL(file);
-      return;
-    }
+    });
+  }
 
+  // 1. Tentar compressão ultra-rápida em Web Worker via browser-image-compression
+  try {
+    const options = {
+      maxSizeMB: 1.2,
+      maxWidthOrHeight: Math.max(maxWidth, maxHeight),
+      useWebWorker: true,
+      initialQuality: quality,
+      fileType: 'image/jpeg'
+    };
+    const compressedBlob = await imageCompression(file, options);
+    const base64 = await imageCompression.getDataUrlFromFile(compressedBlob);
+    if (base64) return base64;
+  } catch (workerErr) {
+    console.warn('[imageCompressor] WebWorker compression fallback to Canvas:', workerErr);
+  }
+
+  // 2. Fallback clássico em Canvas
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
@@ -59,12 +79,10 @@ export function compressImageFile(file, maxWidthParam = 1280, maxHeightParam = 1
           const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
           resolve(compressedBase64);
         } catch (canvasErr) {
-          // Fallback caso o canvas falhe (ex: formatos especiais)
           resolve(e.target?.result);
         }
       };
       img.onerror = () => {
-        // Fallback se a tag Image falhar ao decodificar (ex: HEIC no Safari)
         resolve(e.target?.result);
       };
       img.src = e.target?.result;
@@ -73,4 +91,5 @@ export function compressImageFile(file, maxWidthParam = 1280, maxHeightParam = 1
     reader.readAsDataURL(file);
   });
 }
+
 

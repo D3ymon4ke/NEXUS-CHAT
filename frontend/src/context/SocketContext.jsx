@@ -5,7 +5,11 @@ import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 const SocketContext = createContext(null);
 
-const customSocketUrl = import.meta.env.VITE_SOCKET_URL || import.meta.env.NEXT_PUBLIC_SOCKET_URL;
+const defaultSocketUrl = typeof window !== 'undefined' && window.location.protocol === 'https:'
+  ? 'https://187-127-40-228.sslip.io:5000'
+  : 'http://187.127.40.228:5000';
+
+const customSocketUrl = import.meta.env.VITE_SOCKET_URL || import.meta.env.NEXT_PUBLIC_SOCKET_URL || defaultSocketUrl;
 
 export function SocketProvider({ children }) {
   const { user, session } = useAuth();
@@ -57,7 +61,7 @@ export function SocketProvider({ children }) {
     };
   }, [user?.id]);
 
-  // --- 2. SOCKET.IO (Opcional quando explicitamente configurado ou em localhost) ---
+  // --- 2. SOCKET.IO DEDICADO NA VPS (Tempo Real de Ultra Baixa Latência) ---
   useEffect(() => {
     if (!user || !customSocketUrl) return;
 
@@ -72,14 +76,39 @@ export function SocketProvider({ children }) {
           displayName: user.display_name,
           avatarUrl: user.avatar_url
         },
-        reconnectionAttempts: 3,
-        reconnectionDelay: 5000,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 3000,
         transports: ['websocket', 'polling'],
-        timeout: 8000
+        timeout: 10000
       });
 
       newSocket.on('connect', () => {
         setConnected(true);
+        console.log('⚡ Conectado com sucesso ao Servidor VPS (Socket.IO):', newSocket.id);
+      });
+
+      newSocket.on('disconnect', (reason) => {
+        console.warn('⚠️ Desconectado temporariamente do Socket.IO VPS:', reason);
+      });
+
+      // Sincronização instantânea de usuários online via Socket.IO VPS
+      newSocket.on('online_users_list', (userIds) => {
+        if (Array.isArray(userIds)) {
+          setOnlineUsers(prev => new Set([...prev, ...userIds]));
+        }
+      });
+
+      newSocket.on('user_status_change', ({ userId, isOnline }) => {
+        if (!userId) return;
+        setOnlineUsers(prev => {
+          const next = new Set(prev);
+          if (isOnline) {
+            next.add(userId);
+          } else {
+            next.delete(userId);
+          }
+          return next;
+        });
       });
 
       newSocket.on('coins_earned', ({ amount, newBalance, reason }) => {
@@ -93,7 +122,7 @@ export function SocketProvider({ children }) {
         newSocket.disconnect();
       };
     } catch (e) {
-      console.warn('Socket.IO desativado em favor do Supabase Realtime.');
+      console.warn('Socket.IO em fallback silencioso para o Supabase Realtime.');
     }
   }, [user?.id, session?.access_token]);
 

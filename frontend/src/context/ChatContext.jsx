@@ -159,6 +159,23 @@ export function ChatProvider({ children }) {
     return new Map();
   }); // convId -> profileObject
 
+  // Referências síncronas para evitar fechamentos estáticos (Stale Closures) e reconexões no WebSocket
+  const activeConversationIdRef = useRef(activeConversationId);
+  const pinnedConversationIdsRef = useRef(pinnedConversationIds);
+  const userRef = useRef(user);
+
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
+
+  useEffect(() => {
+    pinnedConversationIdsRef.current = pinnedConversationIds;
+  }, [pinnedConversationIds]);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
   // Sincronizar pinos locais e inscrever no Web Push quando o usuário mudar
   useEffect(() => {
     if (user?.id) {
@@ -351,14 +368,28 @@ export function ChatProvider({ children }) {
   }, [user, conversations.length]);
 
   useEffect(() => {
+    // Ao alternar usuário: limpar cache em memória RAM e rascunhos de master identity
+    messagesCacheRef.current.clear();
+    const isCurrentUserAdmin = Boolean(user?.role === 'admin' || user?.is_admin || user?.username?.toLowerCase() === 'damon');
+    if (!isCurrentUserAdmin) {
+      setMasterIdentities(new Map());
+      try {
+        sessionStorage.removeItem('nexus_master_identities');
+      } catch (e) {}
+    }
     loadConversations();
-  }, [user?.id, loadConversations]);
+  }, [user?.id, user?.role, loadConversations]);
 
   // Listener para alternância de conta (Modo Fantasma)
   useEffect(() => {
     const handleAccountSwitched = () => {
       setActiveConversationId(null);
       setMessages([]);
+      messagesCacheRef.current.clear();
+      setMasterIdentities(new Map());
+      try {
+        sessionStorage.removeItem('nexus_master_identities');
+      } catch (e) {}
       if (loadConversations) loadConversations();
     };
     window.addEventListener('nexus_account_switched', handleAccountSwitched);
@@ -407,12 +438,16 @@ export function ChatProvider({ children }) {
       });
     }
 
+    // CORREÇÃO DO BUG: Se NÃO houver dados em cache para esta conversa,
+    // limpar imediatamente as mensagens anteriores para evitar qualquer lampejo (flash)
+    // de mensagens do chat anterior (ex: Super ADM)!
+    if (!hasLocalCache) {
+      setMessages([]);
+      setLoadingMessages(true);
+    }
+
     async function loadMessages() {
       try {
-        // SWR: SÓ exibe o loader se NÃO houver nenhuma mensagem em cache
-        if (!hasLocalCache) {
-          setLoadingMessages(true);
-        }
         if (isSupabaseConfigured && supabase) {
           try {
             const { data: dbMsgs, error: dbErr } = await supabase
@@ -625,12 +660,11 @@ export function ChatProvider({ children }) {
         }).catch(() => {});
       }
     };
-
     window.addEventListener('focus', handleWindowFocus);
     document.addEventListener('visibilitychange', handleWindowFocus);
     return () => {
       window.removeEventListener('focus', handleWindowFocus);
-      document.removeEventListener('visibilitychange', handleWindowFocus);
+      window.removeEventListener('visibilitychange', handleWindowFocus);
     };
   }, [activeConversationId, user?.id]);
 
@@ -649,195 +683,199 @@ export function ChatProvider({ children }) {
         },
         async (payload) => {
           const newMsg = payload.new;
-          if (newMsg) {
-            // Atualizar lista local de conversas com snippet e badge de não lidas
-            setConversations((prev) => {
-              const isCurrentActive = newMsg.conversation_id === activeConversationId;
-              let found = false;
-              const next = prev.map((c) => {
-                if (c.id === newMsg.conversation_id) {
-                  found = true;
-                  return {
-                    ...c,
-                    last_message: {
-                      id: newMsg.id,
-                      content: newMsg.content,
-                      type: newMsg.type,
-                      sender_id: newMsg.sender_id,
-                      created_at: newMsg.created_at
-                    },
-                    unread_count: isCurrentActive ? 0 : (c.unread_count || 0) + 1
-                  };
-                }
-                return c;
-              });
+          if (!newMsg) return;
 
-              // Se a conversa não estava na lista (ex: primeiro contato), recarrega via API
-              if (!found && loadConversations) {
-                loadConversations();
+          const currentActive = activeConversationIdRef.current;
+          const currentUser = userRef.current;
+          const isCurrentActive = newMsg.conversation_id === currentActive;
+
+          // Atualizar lista local de conversas com snippet e badge de não lidas
+          setConversations((prev) => {
+            let found = false;
+            const next = prev.map((c) => {
+              if (c.id === newMsg.conversation_id) {
+                found = true;
+                const alreadyHasMsg = c.last_message?.id === newMsg.id;
+                return {
+                  ...c,
+                  last_message: {
+                    id: newMsg.id,
+                    content: newMsg.content,
+                    type: newMsg.type,
+                    sender_id: newMsg.sender_id,
+                    created_at: newMsg.created_at
+                  },
+                  unread_count: isCurrentActive ? 0 : alreadyHasMsg ? (c.unread_count || 1) : (c.unread_count || 0) + 1
+                };
               }
-
-              return sortConversationsList(next, pinnedConversationIds);
+              return c;
             });
 
-            // Se for na conversa ativa e de outro usuário, adicionar à lista de mensagens visíveis
-            if (newMsg.conversation_id === activeConversationId && newMsg.sender_id !== user.id) {
-              // 1. Verificar se a mensagem já foi renderizada via broadcast instantâneo
-              let alreadyRendered = false;
-              setMessages((prev) => {
-                const existingIdx = prev.findIndex(
-                  (m) =>
-                    m.id === newMsg.id ||
-                    (m.tempId && (m.tempId === newMsg.id || m.id === newMsg.id)) ||
-                    (m.sender_id === newMsg.sender_id &&
-                      m.content === newMsg.content &&
-                      Math.abs(new Date(m.created_at).getTime() - new Date(newMsg.created_at).getTime()) < 15000)
-                );
+            // Se a conversa não estava na lista (ex: primeiro contato), recarrega via API
+            if (!found && loadConversations) {
+              loadConversations();
+            }
 
-                if (existingIdx !== -1) {
-                  alreadyRendered = true;
-                  // Reconciliação suave: atualiza o id para o definitivo do banco
-                  const next = [...prev];
-                  next[existingIdx] = {
-                    ...next[existingIdx],
-                    id: newMsg.id,
-                    status: 'sent'
-                  };
-                  return next;
-                }
+            return sortConversationsList(next, pinnedConversationIdsRef.current);
+          });
 
-                // 2. Renderização Otimista Imediata em 0ms usando o cache de perfil em memória
-                const cachedProfile = profileCacheRef.current.get(newMsg.sender_id) || {
-                  id: newMsg.sender_id,
-                  display_name: 'Membro'
+          // Se for na conversa ativa e de outro usuário, adicionar à lista de mensagens visíveis
+          if (newMsg.conversation_id === currentActive && newMsg.sender_id !== currentUser?.id) {
+            // 1. Verificar se a mensagem já foi renderizada via broadcast instantâneo
+            let alreadyRendered = false;
+            setMessages((prev) => {
+              const existingIdx = prev.findIndex(
+                (m) =>
+                  m.id === newMsg.id ||
+                  (m.tempId && (m.tempId === newMsg.id || m.id === newMsg.id)) ||
+                  (m.sender_id === newMsg.sender_id &&
+                    m.content === newMsg.content &&
+                    Math.abs(new Date(m.created_at).getTime() - new Date(newMsg.created_at).getTime()) < 15000)
+              );
+
+              if (existingIdx !== -1) {
+                alreadyRendered = true;
+                // Reconciliação suave: atualiza o id para o definitivo do banco
+                const next = [...prev];
+                next[existingIdx] = {
+                  ...next[existingIdx],
+                  id: newMsg.id,
+                  status: 'sent'
                 };
-
-                const initialFormatted = {
-                  ...newMsg,
-                  sender: cachedProfile,
-                  attachments:
-                    newMsg.type === 'image' || newMsg.content?.startsWith('http') || newMsg.content?.startsWith('data:image')
-                      ? [{ file_url: newMsg.content, file_name: 'imagem.jpg', file_type: 'image', file_size: 0 }]
-                      : [],
-                  reactions: []
-                };
-
-                const updated = [...prev, initialFormatted];
-                nexusStorage.saveMessages(newMsg.conversation_id, updated);
-                try {
-                  localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
-                } catch (e) {}
-                return updated;
-              });
-
-              if (!alreadyRendered) {
-                sounds.playReceive();
+                return next;
               }
 
-              // 3. Enriquecer assincronamente em segundo plano (SEM travar a tela)
-              (async () => {
-                try {
-                  const [{ data: sender }, { data: dbAtts }] = await Promise.all([
-                    profileCacheRef.current.has(newMsg.sender_id)
-                      ? Promise.resolve({ data: profileCacheRef.current.get(newMsg.sender_id) })
-                      : supabase.from('profiles').select('*').eq('id', newMsg.sender_id).maybeSingle(),
-                    supabase.from('message_attachments').select('*').eq('message_id', newMsg.id)
-                  ]);
+              // 2. Renderização Otimista Imediata em 0ms usando o cache de perfil em memória
+              const cachedProfile = profileCacheRef.current.get(newMsg.sender_id) || {
+                id: newMsg.sender_id,
+                display_name: 'Membro'
+              };
 
-                  if (sender?.id) {
-                    profileCacheRef.current.set(sender.id, sender);
-                  }
+              const initialFormatted = {
+                ...newMsg,
+                sender: cachedProfile,
+                attachments:
+                  newMsg.type === 'image' || newMsg.content?.startsWith('http') || newMsg.content?.startsWith('data:image')
+                    ? [{ file_url: newMsg.content, file_name: 'imagem.jpg', file_type: 'image', file_size: 0 }]
+                    : [],
+                reactions: []
+              };
 
-                  let finalAttachments = dbAtts || [];
-                  if (
-                    finalAttachments.length === 0 &&
-                    (newMsg.type === 'image' || newMsg.content?.startsWith('http') || newMsg.content?.startsWith('data:image'))
-                  ) {
-                    if (newMsg.content && (newMsg.content.startsWith('http') || newMsg.content.startsWith('data:image'))) {
-                      finalAttachments = [
-                        {
-                          file_url: newMsg.content,
-                          file_name: 'imagem.jpg',
-                          file_type: 'image',
-                          file_size: 0
-                        }
-                      ];
-                    }
-                  }
+              const updated = [...prev, initialFormatted];
+              nexusStorage.saveMessages(newMsg.conversation_id, updated);
+              try {
+                localStorage.setItem(`nexus_msgs_${newMsg.conversation_id}`, JSON.stringify(updated));
+              } catch (e) {}
+              return updated;
+            });
 
-                  setMessages((prev) =>
-                    prev.map((m) =>
-                      m.id === newMsg.id
-                        ? {
-                            ...m,
-                            sender: sender || m.sender,
-                            attachments: finalAttachments.length > 0 ? finalAttachments : m.attachments
-                          }
-                        : m
-                    )
-                  );
-                } catch (bgErr) {
-                  console.warn('Aviso enriquecimento em segundo plano:', bgErr);
-                }
-              })();
-            } else if (newMsg.conversation_id !== activeConversationId && newMsg.sender_id !== user.id) {
+            if (!alreadyRendered) {
               sounds.playReceive();
             }
 
-            // Emitir confirmação de entrega e leitura para o remetente em tempo real
-            if (newMsg.sender_id !== user.id && isSupabaseConfigured && supabase) {
-              const isCurrentActive = newMsg.conversation_id === activeConversationId;
-              const isVisible = typeof document !== 'undefined' && !document.hidden;
-              if (isCurrentActive && isVisible) {
-                supabase.channel('chat_global_messages_listener').send({
-                  type: 'broadcast',
-                  event: 'messages_read',
-                  payload: {
-                    conversationId: newMsg.conversation_id,
-                    readByUserId: user.id,
-                    readAt: new Date().toISOString()
-                  }
-                }).catch(() => {});
-              } else {
-                supabase.channel('chat_global_messages_listener').send({
-                  type: 'broadcast',
-                  event: 'message_delivered',
-                  payload: {
-                    conversationId: newMsg.conversation_id,
-                    messageId: newMsg.id,
-                    deliveredToUserId: user.id
-                  }
-                }).catch(() => {});
-              }
-            }
+            // 3. Enriquecer assincronamente em segundo plano (SEM travar a tela)
+            (async () => {
+              try {
+                const [{ data: sender }, { data: dbAtts }] = await Promise.all([
+                  profileCacheRef.current.has(newMsg.sender_id)
+                    ? Promise.resolve({ data: profileCacheRef.current.get(newMsg.sender_id) })
+                    : supabase.from('profiles').select('*').eq('id', newMsg.sender_id).maybeSingle(),
+                  supabase.from('message_attachments').select('*').eq('message_id', newMsg.id)
+                ]);
 
-            // Disparar Notificação Nativa/Push se o app estiver em segundo plano ou em outra conversa
-            if (newMsg.sender_id !== user.id) {
-              const isHidden = typeof document !== 'undefined' && document.hidden;
-              const isOtherConv = newMsg.conversation_id !== activeConversationId;
-              if (isHidden || isOtherConv) {
-                (async () => {
-                  try {
-                    const [{ data: senderData }, { data: attsData }] = await Promise.all([
-                      supabase.from('profiles').select('*').eq('id', newMsg.sender_id).maybeSingle(),
-                      supabase.from('message_attachments').select('*').eq('message_id', newMsg.id)
-                    ]);
-                    const senderName = senderData?.display_name || senderData?.username || 'Novo Membro';
-                    const previewText = formatNotificationPreview(newMsg.content, newMsg.type, attsData);
-                    notificationService.sendNotification({
-                      title: senderName,
-                      body: previewText,
-                      icon: senderData?.avatar_url || '/belmont-logo.jpg',
-                      conversationId: newMsg.conversation_id,
-                      onClick: () => {
-                        setActiveConversationId(newMsg.conversation_id);
+                if (sender?.id) {
+                  profileCacheRef.current.set(sender.id, sender);
+                }
+
+                let finalAttachments = dbAtts || [];
+                if (
+                  finalAttachments.length === 0 &&
+                  (newMsg.type === 'image' || newMsg.content?.startsWith('http') || newMsg.content?.startsWith('data:image'))
+                ) {
+                  if (newMsg.content && (newMsg.content.startsWith('http') || newMsg.content.startsWith('data:image'))) {
+                    finalAttachments = [
+                      {
+                        file_url: newMsg.content,
+                        file_name: 'imagem.jpg',
+                        file_type: 'image',
+                        file_size: 0
                       }
-                    });
-                  } catch (notifErr) {
-                    console.warn('Aviso de notificação:', notifErr);
+                    ];
                   }
-                })();
+                }
+
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === newMsg.id
+                      ? {
+                          ...m,
+                          sender: sender || m.sender,
+                          attachments: finalAttachments.length > 0 ? finalAttachments : m.attachments
+                        }
+                      : m
+                  )
+                );
+              } catch (bgErr) {
+                console.warn('Aviso enriquecimento em segundo plano:', bgErr);
               }
+            })();
+          } else if (newMsg.conversation_id !== currentActive && newMsg.sender_id !== currentUser?.id) {
+            sounds.playReceive();
+          }
+
+          // Emitir confirmação de entrega e leitura para o remetente em tempo real
+          if (newMsg.sender_id !== currentUser?.id && isSupabaseConfigured && supabase) {
+            const isVisible = typeof document !== 'undefined' && !document.hidden;
+            if (isCurrentActive && isVisible) {
+              supabase.channel('chat_global_messages_listener').send({
+                type: 'broadcast',
+                event: 'messages_read',
+                payload: {
+                  conversationId: newMsg.conversation_id,
+                  readByUserId: currentUser?.id,
+                  readAt: new Date().toISOString()
+                }
+              }).catch(() => {});
+            } else {
+              supabase.channel('chat_global_messages_listener').send({
+                type: 'broadcast',
+                event: 'message_delivered',
+                payload: {
+                  conversationId: newMsg.conversation_id,
+                  messageId: newMsg.id,
+                  deliveredToUserId: currentUser?.id
+                }
+              }).catch(() => {});
+            }
+          }
+
+          // Disparar Notificação Nativa/Push se o app estiver em segundo plano ou em outra conversa
+          if (newMsg.sender_id !== currentUser?.id) {
+            const isHidden = typeof document !== 'undefined' && document.hidden;
+            const isOtherConv = newMsg.conversation_id !== currentActive;
+            if (isHidden || isOtherConv) {
+              (async () => {
+                try {
+                  const [{ data: senderData }, { data: attsData }] = await Promise.all([
+                    supabase.from('profiles').select('*').eq('id', newMsg.sender_id).maybeSingle(),
+                    supabase.from('message_attachments').select('*').eq('message_id', newMsg.id)
+                  ]);
+                  const senderName = senderData?.display_name || senderData?.username || 'Novo Membro';
+                  const previewText = formatNotificationPreview(newMsg.content, newMsg.type, attsData);
+                  notificationService.sendNotification({
+                    title: senderName,
+                    body: previewText,
+                    icon: senderData?.avatar_url || '/belmont-logo.jpg',
+                    conversationId: newMsg.conversation_id,
+                    onClick: () => {
+                      activeConversationIdRef.current = newMsg.conversation_id;
+                      setActiveConversationId(newMsg.conversation_id);
+                    }
+                  });
+                } catch (notifErr) {
+                  console.warn('Aviso de notificação:', notifErr);
+                }
+              })();
             }
           }
         }
@@ -851,7 +889,7 @@ export function ChatProvider({ children }) {
         },
         (payload) => {
           const updated = payload.new;
-          if (updated && updated.conversation_id === activeConversationId) {
+          if (updated && updated.conversation_id === activeConversationIdRef.current) {
             setMessages((prev) => prev.map((m) => (m.id === updated.id ? { ...m, ...updated } : m)));
           }
           if (loadConversations) loadConversations();
@@ -895,7 +933,7 @@ export function ChatProvider({ children }) {
                   return m;
                 });
                 try {
-                  localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
+                  localStorage.setItem(`nexus_msgs_${activeConversationIdRef.current}`, JSON.stringify(updated));
                 } catch (e) {}
                 return updated;
               });
@@ -912,7 +950,7 @@ export function ChatProvider({ children }) {
                   return m;
                 });
                 try {
-                  localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
+                  localStorage.setItem(`nexus_msgs_${activeConversationIdRef.current}`, JSON.stringify(updated));
                 } catch (e) {}
                 return updated;
               });
@@ -933,34 +971,38 @@ export function ChatProvider({ children }) {
       )
       .on('broadcast', { event: 'instant_message' }, (eventPayload) => {
         const incoming = eventPayload?.payload?.message;
-        if (!incoming || incoming.sender_id === user?.id) return;
+        const currentActive = activeConversationIdRef.current;
+        const currentUser = userRef.current;
+        if (!incoming || incoming.sender_id === currentUser?.id) return;
 
         // Salvar perfil do remetente no cache em memória
         if (incoming.sender?.id) {
           profileCacheRef.current.set(incoming.sender.id, incoming.sender);
         }
 
+        const isCurrentActive = incoming.conversation_id === currentActive;
+
         // Atualizar lista de conversas com novo snippet em 0ms
         setConversations((prev) => {
-          const isCurrentActive = incoming.conversation_id === activeConversationId;
           let found = false;
           const next = prev.map((c) => {
             if (c.id === incoming.conversation_id) {
               found = true;
+              const alreadyHasMsg = c.last_message?.id === incoming.id || (incoming.tempId && c.last_message?.tempId === incoming.tempId);
               return {
                 ...c,
                 last_message: incoming,
-                unread_count: isCurrentActive ? 0 : (c.unread_count || 0) + 1
+                unread_count: isCurrentActive ? 0 : alreadyHasMsg ? (c.unread_count || 1) : (c.unread_count || 0) + 1
               };
             }
             return c;
           });
           if (!found && loadConversations) loadConversations();
-          return sortConversationsList(next, pinnedConversationIds);
+          return sortConversationsList(next, pinnedConversationIdsRef.current);
         });
 
         // Se a mensagem for na conversa ativa, renderizar na hora (Sub-50ms)
-        if (incoming.conversation_id === activeConversationId) {
+        if (incoming.conversation_id === currentActive) {
           setMessages((prev) => {
             if (
               prev.some(
@@ -974,24 +1016,24 @@ export function ChatProvider({ children }) {
             const updated = [...prev, incoming];
             nexusStorage.saveMessages(incoming.conversation_id, updated);
             try {
-              localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
+              localStorage.setItem(`nexus_msgs_${incoming.conversation_id}`, JSON.stringify(updated));
             } catch (e) {}
             return updated;
           });
           sounds.playReceive();
 
           // Se a janela estiver aberta e ativa na tela, avisar que a mensagem foi lida na hora!
-          if (typeof document !== 'undefined' && !document.hidden && isSupabaseConfigured && supabase) {
+          if (typeof document !== 'undefined' && !document.hidden && isSupabaseConfigured && supabase && currentUser) {
             supabase.channel('chat_global_messages_listener').send({
               type: 'broadcast',
               event: 'messages_read',
               payload: {
                 conversationId: incoming.conversation_id,
-                readByUserId: user.id,
+                readByUserId: currentUser.id,
                 readAt: new Date().toISOString()
               }
             }).catch(() => {});
-          } else if (isSupabaseConfigured && supabase) {
+          } else if (isSupabaseConfigured && supabase && currentUser) {
             // Se o app estiver em segundo plano, avisa que foi entregue!
             supabase.channel('chat_global_messages_listener').send({
               type: 'broadcast',
@@ -1000,13 +1042,13 @@ export function ChatProvider({ children }) {
                 conversationId: incoming.conversation_id,
                 messageId: incoming.id,
                 tempId: incoming.tempId,
-                deliveredToUserId: user.id
+                deliveredToUserId: currentUser.id
               }
             }).catch(() => {});
           }
         } else {
           sounds.playReceive();
-          if (isSupabaseConfigured && supabase) {
+          if (isSupabaseConfigured && supabase && currentUser) {
             // Em outra conversa: avisa que chegou ao aparelho do destinatário
             supabase.channel('chat_global_messages_listener').send({
               type: 'broadcast',
@@ -1015,7 +1057,7 @@ export function ChatProvider({ children }) {
                 conversationId: incoming.conversation_id,
                 messageId: incoming.id,
                 tempId: incoming.tempId,
-                deliveredToUserId: user.id
+                deliveredToUserId: currentUser.id
               }
             }).catch(() => {});
           }
@@ -1024,7 +1066,7 @@ export function ChatProvider({ children }) {
       .on('broadcast', { event: 'instant_message_edit' }, (eventPayload) => {
         const { messageId, conversationId, content, updated_at } = eventPayload?.payload || {};
         if (!messageId) return;
-        if (conversationId === activeConversationId) {
+        if (conversationId === activeConversationIdRef.current) {
           setMessages((prev) =>
             prev.map((m) =>
               m.id === messageId
@@ -1033,22 +1075,11 @@ export function ChatProvider({ children }) {
             )
           );
         }
-        setConversations((prev) =>
-          prev.map((c) => {
-            if (c.id === conversationId && c.last_message?.id === messageId) {
-              return {
-                ...c,
-                last_message: { ...c.last_message, content, is_edited: true }
-              };
-            }
-            return c;
-          })
-        );
       })
       .on('broadcast', { event: 'instant_message_delete' }, (eventPayload) => {
         const { messageId, conversationId } = eventPayload?.payload || {};
         if (!messageId) return;
-        if (conversationId === activeConversationId) {
+        if (conversationId === activeConversationIdRef.current) {
           setMessages((prev) =>
             prev.map((m) =>
               m.id === messageId ? { ...m, is_deleted: true, content: '🚫 Esta mensagem foi excluída' } : m
@@ -1060,24 +1091,25 @@ export function ChatProvider({ children }) {
         const { conversationId } = eventPayload?.payload || {};
         if (conversationId) {
           nexusStorage.clearMessages(conversationId);
-          if (conversationId === activeConversationId) {
+          if (conversationId === activeConversationIdRef.current) {
             setMessages([]);
             try {
-              localStorage.removeItem(`nexus_msgs_${activeConversationId}`);
+              localStorage.removeItem(`nexus_msgs_${conversationId}`);
             } catch (e) {}
           }
         }
       })
       .on('broadcast', { event: 'messages_read' }, (eventPayload) => {
         const { conversationId, readByUserId } = eventPayload?.payload || {};
-        if (!conversationId || readByUserId === user?.id) return;
+        const currentUser = userRef.current;
+        if (!conversationId || readByUserId === currentUser?.id) return;
 
         // Se for na conversa ativa, atualizar todas as mensagens próprias para 'read' (✓✓ azul/cyan)
-        if (conversationId === activeConversationId) {
+        if (conversationId === activeConversationIdRef.current) {
           setMessages((prev) => {
             let hasChanges = false;
             const updated = prev.map((m) => {
-              const isOwnMsg = m.sender_id === user?.id || Boolean(m.tempId);
+              const isOwnMsg = m.sender_id === currentUser?.id || Boolean(m.tempId);
               if (isOwnMsg && m.status !== 'read') {
                 hasChanges = true;
                 return { ...m, status: 'read' };
@@ -1087,7 +1119,7 @@ export function ChatProvider({ children }) {
 
             if (hasChanges) {
               try {
-                localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
+                localStorage.setItem(`nexus_msgs_${conversationId}`, JSON.stringify(updated));
               } catch (e) {}
               return updated;
             }
@@ -1097,9 +1129,10 @@ export function ChatProvider({ children }) {
       })
       .on('broadcast', { event: 'message_delivered' }, (eventPayload) => {
         const { conversationId, messageId, tempId, deliveredToUserId } = eventPayload?.payload || {};
-        if (!conversationId || deliveredToUserId === user?.id) return;
+        const currentUser = userRef.current;
+        if (!conversationId || deliveredToUserId === currentUser?.id) return;
 
-        if (conversationId === activeConversationId) {
+        if (conversationId === activeConversationIdRef.current) {
           setMessages((prev) => {
             let hasChanges = false;
             const updated = prev.map((m) => {
@@ -1114,7 +1147,7 @@ export function ChatProvider({ children }) {
 
             if (hasChanges) {
               try {
-                localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
+                localStorage.setItem(`nexus_msgs_${conversationId}`, JSON.stringify(updated));
               } catch (e) {}
               return updated;
             }
@@ -1124,7 +1157,8 @@ export function ChatProvider({ children }) {
       })
       .on('broadcast', { event: 'typing' }, (eventPayload) => {
         const payload = eventPayload?.payload;
-        if (!payload || payload.userId === user?.id) return;
+        const currentUser = userRef.current;
+        if (!payload || payload.userId === currentUser?.id) return;
         const { conversationId, userId, displayName, avatarUrl, username, isTyping } = payload;
         const key = `${conversationId}_${userId}`;
         setTypingUsersMap((prev) => {
@@ -1146,8 +1180,9 @@ export function ChatProvider({ children }) {
       })
       .on('broadcast', { event: 'instant_reaction' }, (eventPayload) => {
         const { messageId, conversationId, userId, emoji, isRemoving } = eventPayload?.payload || {};
-        if (!messageId || userId === user?.id) return;
-        if (conversationId === activeConversationId) {
+        const currentUser = userRef.current;
+        if (!messageId || userId === currentUser?.id) return;
+        if (conversationId === activeConversationIdRef.current) {
           setMessages((prev) =>
             prev.map((m) => {
               if (m.id === messageId) {
@@ -1170,11 +1205,10 @@ export function ChatProvider({ children }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeConversationId, user?.id, loadConversations, pinnedConversationIds]);
+  }, [user?.id]);
 
   const [showPollModal, setShowPollModal] = useState(false);
 
-  // Enviar Mensagem (Suporta tanto objeto { content, ... } quanto argumentos posicionais)
   const sendMessage = async (param1, param2 = [], param3 = 'text', param4 = null) => {
     let content = '';
     let attachments = [];
@@ -1195,7 +1229,8 @@ export function ChatProvider({ children }) {
 
     if (!user || (!content.trim() && attachments.length === 0)) return;
 
-    const activeMasterUser = masterIdentities.get(activeConversationId);
+    const isUserAdmin = Boolean(user?.role === 'admin' || user?.is_admin || user?.username?.toLowerCase() === 'damon');
+    const activeMasterUser = isUserAdmin ? masterIdentities.get(activeConversationId) : null;
     const effectiveSender = activeMasterUser || user;
     const effectiveSenderId = effectiveSender.id;
 
@@ -1596,8 +1631,11 @@ export function ChatProvider({ children }) {
 
     const handleNewMsg = (msg) => {
       if (!msg) return;
+      const currentActiveId = activeConversationIdRef.current;
+      const currentUser = userRef.current;
+
       setConversations(prev => {
-        const isCurrentActive = msg.conversation_id === activeConversationId;
+        const isCurrentActive = msg.conversation_id === currentActiveId;
         let found = false;
         const next = prev.map(c => {
           if (c.id === msg.conversation_id) {
@@ -1614,7 +1652,7 @@ export function ChatProvider({ children }) {
         return next;
       });
 
-      if (msg.conversation_id === activeConversationId && msg.sender_id !== user?.id) {
+      if (msg.conversation_id === currentActiveId && msg.sender_id !== currentUser?.id) {
         setMessages(prev => {
           if (prev.some(m => m.id === msg.id || (m.tempId && m.tempId === msg.id))) return prev;
           return [...prev, msg];
@@ -1625,7 +1663,7 @@ export function ChatProvider({ children }) {
 
     const handleMsgEdited = (data) => {
       const { messageId, conversationId, content, is_edited, updated_at } = data;
-      if (conversationId === activeConversationId) {
+      if (conversationId === activeConversationIdRef.current) {
         setMessages(prev => prev.map(m => (m.id === messageId ? { ...m, content, is_edited: true, updated_at: updated_at || new Date().toISOString() } : m)));
       }
       setConversations(prev => prev.map(c => {
@@ -1641,14 +1679,14 @@ export function ChatProvider({ children }) {
 
     const handleMsgDeleted = (data) => {
       const { messageId, conversationId } = data;
-      if (conversationId === activeConversationId) {
+      if (conversationId === activeConversationIdRef.current) {
         setMessages(prev => prev.map(m => m.id === messageId ? { ...m, is_deleted: true, content: '🚫 Esta mensagem foi excluída' } : m));
       }
     };
 
     const handleConvCleared = (data) => {
       const { conversationId } = data;
-      if (conversationId === activeConversationId) {
+      if (conversationId === activeConversationIdRef.current) {
         setMessages([]);
       }
       setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, last_message: null, unread_count: 0 } : c));
@@ -1657,7 +1695,7 @@ export function ChatProvider({ children }) {
     const handleConvDeleted = (data) => {
       const { conversationId } = data;
       setConversations(prev => prev.filter(c => c.id !== conversationId));
-      if (activeConversationId === conversationId) {
+      if (activeConversationIdRef.current === conversationId) {
         setActiveConversationId(null);
         setMessages([]);
       }
@@ -1680,7 +1718,7 @@ export function ChatProvider({ children }) {
       socket.off('conversation_deleted', handleConvDeleted);
       socket.off('conversation_removed', handleConvDeleted);
     };
-  }, [socket, connected, activeConversationId, user?.id, loadConversations]);
+  }, [socket, connected, loadConversations]);
 
   const emitTyping = (isTyping) => {
     if (!activeConversationId || !user) return;

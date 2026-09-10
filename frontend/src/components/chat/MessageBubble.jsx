@@ -1,4 +1,6 @@
 import React, { useState, useRef } from 'react';
+import { motion } from 'framer-motion';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '../../context/AuthContext';
@@ -22,6 +24,7 @@ import {
   Ban
 } from 'lucide-react';
 import { FormattedText } from './FormattedText';
+import { VoiceAudioPlayer } from './VoiceAudioPlayer';
 import { PollCard } from '../polls/PollCard';
 import { CoffeeInviteCard } from './CoffeeInviteCard';
 import { GhostMessageCard } from './GhostMessageCard';
@@ -120,6 +123,7 @@ export function MessageBubble({
   const handleCopy = () => {
     if (message.content && !isDeleted) {
       navigator.clipboard.writeText(message.content);
+      toast.success('Mensagem copiada!', { duration: 1500 });
       setShowMenu(false);
     }
   };
@@ -192,7 +196,10 @@ export function MessageBubble({
   };
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 10, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ type: 'spring', stiffness: 450, damping: 28, mass: 0.8 }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -504,15 +511,7 @@ export function MessageBubble({
 
                 if (att.file_type === 'audio' || att.file_url?.match(/\.(mp3|wav|ogg|webm)/i) || att.file_url?.startsWith('data:audio')) {
                   return (
-                    <div
-                      key={idx}
-                      className="flex items-center gap-3 p-2 rounded-xl bg-black/20 border border-white/10 my-1"
-                    >
-                      <audio controls className="h-8 max-w-[200px]">
-                        <source src={att.file_url} />
-                        Seu navegador não suporta áudio.
-                      </audio>
-                    </div>
+                    <VoiceAudioPlayer key={idx} src={att.file_url} isOwn={isOwn} />
                   );
                 }
 
@@ -672,6 +671,7 @@ export function MessageBubble({
           )}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
+

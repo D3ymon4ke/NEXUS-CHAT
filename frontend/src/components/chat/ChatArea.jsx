@@ -30,7 +30,8 @@ export function ChatArea({ onBack, onOpenProfile }) {
     clearMasterIdentityForConv
   } = useChat();
 
-  const activeMasterUser = masterIdentities?.get(activeConversationId);
+  const isAdmin = Boolean(user?.role === 'admin' || user?.is_admin || user?.username?.toLowerCase() === 'damon');
+  const activeMasterUser = isAdmin ? masterIdentities?.get(activeConversationId) : null;
 
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');

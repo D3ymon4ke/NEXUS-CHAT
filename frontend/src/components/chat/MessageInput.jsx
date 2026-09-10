@@ -8,6 +8,8 @@ import confetti from 'canvas-confetti';
 import { ANIMATED_STICKERS, STICKER_PRICE } from '../../lib/animatedStickers';
 import { compressImageFile } from '../../lib/imageCompressor';
 import { uploadChatMedia } from '../../lib/mediaUploader';
+import EmojiPicker, { Theme } from 'emoji-picker-react';
+import { toast } from 'sonner';
 import {
   Send,
   Paperclip,
@@ -90,6 +92,29 @@ export function MessageInput() {
     }
   }, [editingMessage]);
 
+  // Salvar rascunho automaticamente conforme o usuário digita (estilo Telegram)
+  useEffect(() => {
+    if (!activeConversation?.id || editingMessage) return;
+    if (content.trim()) {
+      try {
+        localStorage.setItem(`nexus_draft_${activeConversation.id}`, content);
+      } catch (e) {}
+    } else {
+      try {
+        localStorage.removeItem(`nexus_draft_${activeConversation.id}`);
+      } catch (e) {}
+    }
+  }, [content, activeConversation?.id, editingMessage]);
+
+  // Restaurar rascunho salvo ao alternar entre conversas
+  useEffect(() => {
+    if (!activeConversation?.id || editingMessage) return;
+    try {
+      const savedDraft = localStorage.getItem(`nexus_draft_${activeConversation.id}`) || '';
+      setContent(savedDraft);
+    } catch (e) {}
+  }, [activeConversation?.id]);
+
   // Ajuste automático de altura do textarea
   useEffect(() => {
     if (textareaRef.current) {
@@ -131,7 +156,7 @@ export function MessageInput() {
   const handleSendCoffeeInvite = async () => {
     if (!user) return;
     if (!isGroup) {
-      alert('O convite para café está disponível apenas em conversas de grupo.');
+      toast.warning('O convite para café está disponível apenas em conversas de grupo.');
       return;
     }
     haptics.medium();
@@ -260,7 +285,7 @@ export function MessageInput() {
       if (lower.startsWith('/enquete')) {
         setContent('');
         if (!isGroupAdmin) {
-          alert('Apenas administradores de grupo podem criar enquetes.');
+          toast.warning('Apenas administradores de grupo podem criar enquetes.');
           return;
         }
         setShowPollModal(true);
@@ -271,7 +296,7 @@ export function MessageInput() {
       if (lower.startsWith('/cafe') || lower.startsWith('/café')) {
         setContent('');
         if (!isGroup) {
-          alert('O convite para café está disponível apenas em grupos.');
+          toast.warning('O convite para café está disponível apenas em grupos.');
           return;
         }
         handleSendCoffeeInvite();
@@ -282,7 +307,7 @@ export function MessageInput() {
       if (lower === '/ghost' || lower === '/fantasma' || lower === '/1x' || lower.startsWith('/1x') || lower.startsWith('/timer')) {
         setContent('');
         if (!isDirectChat) {
-          alert('O Modo Fantasma está disponível exclusivamente em conversas privadas (1x1).');
+          toast.warning('O Modo Fantasma está disponível exclusivamente em conversas privadas (1x1).');
           return;
         }
         if (lower === '/1x' || lower.startsWith('/1x')) {
@@ -375,6 +400,11 @@ export function MessageInput() {
     const currentAttachments = [...attachments];
 
     setContent('');
+    if (activeConversation?.id) {
+      try {
+        localStorage.removeItem(`nexus_draft_${activeConversation.id}`);
+      } catch (e) {}
+    }
     setAttachments([]);
     setShowEmojiPicker(false);
     setShowGhostMenu(false);
@@ -467,7 +497,7 @@ export function MessageInput() {
 
     if (currentCoins < cost) {
       sounds.playError?.();
-      alert(`Saldo insuficiente! Você precisa de ${cost} Nexus Coins para enviar a figurinha "${sticker.name}". Ganhe moedas conversando ou resgatando o bônus diário na Loja!`);
+      toast.error(`Saldo insuficiente! Você precisa de ${cost} Nexus Coins para enviar a figurinha "${sticker.name}".`);
       return;
     }
 
@@ -994,7 +1024,7 @@ export function MessageInput() {
             </button>
 
             {showEmojiPicker && (
-              <div className="fixed sm:absolute bottom-16 sm:bottom-full left-2 right-2 sm:left-auto sm:right-0 mb-2 sm:mb-3 w-auto sm:w-84 max-w-sm bg-background-surface/95 border border-slate-700 rounded-2xl shadow-2xl p-3 z-30 backdrop-blur-md animate-fadeIn mx-auto">
+              <div className="fixed sm:absolute bottom-16 sm:bottom-full left-2 right-2 sm:left-auto sm:right-0 mb-2 sm:mb-3 w-auto sm:w-96 max-w-md bg-background-surface/95 border border-slate-700 rounded-2xl shadow-2xl p-2.5 z-30 backdrop-blur-md animate-fadeIn mx-auto">
                 {/* Abas Emojis vs Figurinhas Animadas + Atalho /nexus */}
                 <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 gap-1.5">
                   <div className="flex gap-1 bg-background-dark p-0.5 rounded-xl border border-slate-800 text-xs">
@@ -1038,28 +1068,19 @@ export function MessageInput() {
                   </div>
                 </div>
 
-                {/* ABA 1: EMOJIS PADRÃO */}
+                {/* ABA 1: EMOJIS EXPANSIVOS ESTILO TELEGRAM */}
                 {activeEmojiTab === 'emojis' && (
-                  <div className="space-y-2 max-h-48 sm:max-h-52 overflow-y-auto pr-1">
-                    {EMOJI_CATEGORIES.map(cat => (
-                      <div key={cat.name}>
-                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-                          {cat.name}
-                        </span>
-                        <div className="grid grid-cols-6 gap-1">
-                          {cat.emojis.map(e => (
-                            <button
-                              key={e}
-                              type="button"
-                              onClick={() => addEmoji(e)}
-                              className="text-base p-1 rounded-lg hover:bg-slate-700/60 transition-transform hover:scale-125 flex items-center justify-center"
-                            >
-                              {e}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+                  <div className="w-full overflow-hidden rounded-xl border border-slate-800/80">
+                    <EmojiPicker
+                      theme={Theme.DARK}
+                      onEmojiClick={(emojiData) => addEmoji(emojiData.emoji)}
+                      width="100%"
+                      height={320}
+                      searchPlaceHolder="Buscar emoji..."
+                      previewConfig={{ showPreview: false }}
+                      skinTonesDisabled={false}
+                      lazyLoadEmojis={true}
+                    />
                   </div>
                 )}
 

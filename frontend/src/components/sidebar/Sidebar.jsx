@@ -1000,7 +1000,7 @@ export function Sidebar({
             const directUser = conv.direct_user;
             const isDirect = conv.type === 'direct';
             const isOnline = isDirect && directUser && isUserOnline(directUser.id);
-            const activeMasterIdentity = masterIdentities?.get(conv.id);
+            const activeMasterIdentity = isAdmin ? masterIdentities?.get(conv.id) : null;
 
             const convName = isBelmont
               ? 'BELMONT CONFERENCE'

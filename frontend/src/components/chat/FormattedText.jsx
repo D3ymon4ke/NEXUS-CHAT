@@ -1,8 +1,21 @@
 import React, { useState } from 'react';
 import { Copy, Check, ExternalLink } from 'lucide-react';
+import Prism from 'prismjs';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-typescript';
+import 'prismjs/components/prism-python';
+import 'prismjs/components/prism-css';
+import 'prismjs/components/prism-json';
+import 'prismjs/components/prism-bash';
+import 'prismjs/components/prism-sql';
+import 'prismjs/themes/prism-tomorrow.css';
+import LinkifyIt from 'linkify-it';
+import { LinkPreviewCard } from './LinkPreviewCard';
+
+const linkify = new LinkifyIt();
 
 /**
- * Componente para renderizar blocos de código com botão de cópia
+ * Componente para renderizar blocos de código com destaque de sintaxe Prism e botão de cópia
  */
 function CodeBlock({ language, code }) {
   const [copied, setCopied] = useState(false);
@@ -14,10 +27,21 @@ function CodeBlock({ language, code }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const highlightedCode = React.useMemo(() => {
+    const lang = (language || '').toLowerCase().trim();
+    const grammar = Prism.languages[lang] || Prism.languages.javascript || Prism.languages.plain;
+    try {
+      if (grammar) {
+        return Prism.highlight(code, grammar, lang || 'javascript');
+      }
+    } catch (e) {}
+    return null;
+  }, [code, language]);
+
   return (
-    <div className="my-2 rounded-xl overflow-hidden bg-black/40 border border-white/10 text-xs font-mono select-text">
-      <div className="flex items-center justify-between px-3 py-1.5 bg-white/5 border-b border-white/5 text-[11px] text-slate-400">
-        <span className="font-semibold uppercase tracking-wider">{language || 'código'}</span>
+    <div className="my-2 rounded-xl overflow-hidden bg-[#1e1e2e]/90 border border-white/10 text-xs font-mono select-text shadow-lg">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-black/40 border-b border-white/10 text-[11px] text-slate-400">
+        <span className="font-semibold uppercase tracking-wider text-brand-400">{language || 'código'}</span>
         <button
           onClick={handleCopy}
           className="flex items-center gap-1 hover:text-white px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 transition-colors"
@@ -36,7 +60,11 @@ function CodeBlock({ language, code }) {
         </button>
       </div>
       <pre className="p-3 overflow-x-auto text-slate-200 leading-relaxed scrollbar-thin">
-        <code>{code}</code>
+        {highlightedCode ? (
+          <code dangerouslySetInnerHTML={{ __html: highlightedCode }} />
+        ) : (
+          <code>{code}</code>
+        )}
       </pre>
     </div>
   );
@@ -69,6 +97,17 @@ export function FormattedText({ text = '', isOwn = false }) {
   if (lastIndex < text.length) {
     parts.push({ type: 'text', content: text.substring(lastIndex) });
   }
+
+  // Extrair primeiros links para LinkPreviewCard estilo Telegram
+  const detectedLinks = React.useMemo(() => {
+    try {
+      const matches = linkify.match(text);
+      if (matches && matches.length > 0) {
+        return Array.from(new Set(matches.map((m) => m.url))).slice(0, 2);
+      }
+    } catch (e) {}
+    return [];
+  }, [text]);
 
   return (
     <div className="space-y-1 select-text">
@@ -121,6 +160,15 @@ export function FormattedText({ text = '', isOwn = false }) {
           </div>
         );
       })}
+
+      {/* Cartões de Pré-visualização de Links Estilo Telegram / Discord */}
+      {detectedLinks.length > 0 && (
+        <div className="pt-1 space-y-1">
+          {detectedLinks.map((link) => (
+            <LinkPreviewCard key={link} url={link} isOwn={isOwn} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

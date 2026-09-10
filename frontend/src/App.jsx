@@ -24,6 +24,7 @@ import { ForceUpdateModal } from './components/common/ForceUpdateModal';
 import { GhostAdminBar } from './components/admin/GhostAdminBar';
 import { apiRequest } from './lib/api';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
+import { Toaster } from 'sonner';
 
 function ChatDashboard() {
   const { user, loading } = useAuth();
@@ -414,6 +415,7 @@ class ErrorBoundary extends React.Component {
 export default function App() {
   return (
     <ErrorBoundary>
+      <Toaster position="top-center" richColors theme="dark" closeButton />
       <AuthProvider>
         <SocketProvider>
           <ChatProvider>
