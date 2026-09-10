@@ -1,5 +1,6 @@
 const { supabase, isConfigured } = require('../config/supabase');
 const { v4: uuidv4 } = require('uuid');
+const { getCachedMessages } = require('../utils/messageCache');
 
 const BELMONT_CONFERENCE_ID = '00000000-0000-0000-0000-000000000001';
 const BELMONT_CONFERENCE_LOGO = '/belmont-logo.jpg';
@@ -78,16 +79,23 @@ async function getUserConversations(req, res) {
       // 4. Buscar a última mensagem de cada conversa
       const enrichedConversations = await Promise.all(
         conversations.map(async (conv) => {
-          const { data: lastMsg } = await supabase
-            .from('messages')
-            .select(`
-              id, content, type, sender_id, created_at, is_edited, is_deleted,
-              sender:profiles(id, display_name, username, avatar_url)
-            `)
-            .eq('conversation_id', conv.id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
+          let lastMsg = null;
+          const cachedMsgs = getCachedMessages(conv.id);
+          if (cachedMsgs && cachedMsgs.length > 0) {
+            lastMsg = cachedMsgs[cachedMsgs.length - 1];
+          } else if (isConfigured && supabase) {
+            const { data } = await supabase
+              .from('messages')
+              .select(`
+                id, content, type, sender_id, created_at, is_edited, is_deleted,
+                sender:profiles(id, display_name, username, avatar_url)
+              `)
+              .eq('conversation_id', conv.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .single();
+            lastMsg = data;
+          }
 
           const myParticipation = participations?.find(p => p.conversation_id === conv.id);
 

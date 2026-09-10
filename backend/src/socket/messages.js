@@ -102,17 +102,37 @@ async function handleSendMessage(socket, io, data) {
         .eq('id', conversationId);
     }
 
-    // Emite para todos os membros conectados na sala da conversa
+    // 1. Emite para todos os membros conectados na sala da conversa
     io.to(`conversation:${conversationId}`).emit('new_message', formattedMessage);
+
+    // 2. Emite diretamente para a sala pessoal de cada participante (estilo Telegram/WhatsApp)
+    // Garante que o participante receba instantaneamente mesmo sem estar com o chat aberto na tela
+    if (isConfigured && supabase) {
+      supabase
+        .from('conversation_participants')
+        .select('user_id')
+        .eq('conversation_id', conversationId)
+        .then(({ data: participants }) => {
+          if (participants && participants.length > 0) {
+            participants.forEach((p) => {
+              if (p.user_id) {
+                io.to(`user:${p.user_id}`).emit('new_message', formattedMessage);
+              }
+            });
+          }
+        })
+        .catch(() => {});
+    }
 
     // Recompensa de Economia: +5 Nexus Coins por mensagem enviada (cooldown de 5s para evitar spam)
     handleMessageCoinReward(senderId, socket, io);
 
-    // Emite notificação global de nova mensagem para quem não está na sala ativa
+    // 3. Emite notificação global de nova mensagem para quem não está na sala ativa
     io.emit('conversation_updated', {
       conversationId,
       lastMessage: formattedMessage,
-      unreadCountDelta: 1
+      unreadCountDelta: 1,
+      senderId
     });
 
     // Dispara Web Push em background para membros offline através da VPS (Item 7)

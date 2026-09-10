@@ -593,7 +593,10 @@ export function ChatProvider({ children }) {
                 }
               }
 
-              setMessages(resolvedMsgs);
+              setMessages((prev) => {
+                const tempMsgs = prev.filter((m) => m.tempId && !resolvedMsgs.some((r) => r.id === m.tempId || r.tempId === m.tempId));
+                return [...resolvedMsgs, ...tempMsgs];
+              });
               messagesCacheRef.current.set(activeConversationId, resolvedMsgs);
               nexusStorage.saveMessages(activeConversationId, resolvedMsgs);
               try {
@@ -618,7 +621,10 @@ export function ChatProvider({ children }) {
 
         const res = await apiRequest(`/conversations/${activeConversationId}/messages`);
         if (res.success && res.messages) {
-          setMessages(res.messages);
+          setMessages((prev) => {
+            const tempMsgs = prev.filter((m) => m.tempId && !res.messages.some((r) => r.id === m.tempId || r.tempId === m.tempId));
+            return [...res.messages, ...tempMsgs];
+          });
           messagesCacheRef.current.set(activeConversationId, res.messages);
           nexusStorage.saveMessages(activeConversationId, res.messages);
           try {
@@ -673,6 +679,15 @@ export function ChatProvider({ children }) {
     if (socket && connected) {
       socket.emit('join_conversation', activeConversationId);
       socket.emit('mark_as_read', { conversationId: activeConversationId });
+      // Sincronização em menos de 2ms com o cache de RAM da VPS ao conectar/reconectar
+      socket.emit('get_conversation_messages_cache', { conversationId: activeConversationId }, (res) => {
+        if (res && res.success && Array.isArray(res.messages) && res.messages.length > 0) {
+          if (activeConversationIdRef.current === activeConversationId) {
+            setMessages(res.messages);
+            setLoadingMessages(false);
+          }
+        }
+      });
     }
 
     return () => {
@@ -682,30 +697,49 @@ export function ChatProvider({ children }) {
     };
   }, [activeConversationId, socket, connected, user?.id]);
 
-  // Emitir confirmação de leitura ao retornar o foco à aba/janela do navegador
+  // Sincronização automática e confirmação de leitura ao focar/desbloquear a tela
   useEffect(() => {
-    if (!isSupabaseConfigured || !supabase || !user?.id) return;
-
     const handleWindowFocus = () => {
-      if (activeConversationId && typeof document !== 'undefined' && !document.hidden) {
-        supabase.channel('chat_global_messages_listener').send({
-          type: 'broadcast',
-          event: 'messages_read',
-          payload: {
-            conversationId: activeConversationId,
-            readByUserId: user.id,
-            readAt: new Date().toISOString()
-          }
-        }).catch(() => {});
+      if (typeof document !== 'undefined' && !document.hidden) {
+        if (socket && connected && activeConversationId) {
+          socket.emit('join_conversation', activeConversationId);
+          socket.emit('mark_as_read', { conversationId: activeConversationId });
+          socket.emit('get_conversation_messages_cache', { conversationId: activeConversationId }, (res) => {
+            if (res && res.success && Array.isArray(res.messages) && res.messages.length > 0) {
+              if (activeConversationIdRef.current === activeConversationId) {
+                setMessages(res.messages);
+              }
+            }
+          });
+        }
+
+        if (loadConversations) {
+          loadConversations(true);
+        }
+
+        if (isSupabaseConfigured && supabase && user?.id && activeConversationId) {
+          supabase.channel('chat_global_messages_listener').send({
+            type: 'broadcast',
+            event: 'messages_read',
+            payload: {
+              conversationId: activeConversationId,
+              readByUserId: user.id,
+              readAt: new Date().toISOString()
+            }
+          }).catch(() => {});
+        }
       }
     };
+
     window.addEventListener('focus', handleWindowFocus);
+    window.addEventListener('online', handleWindowFocus);
     document.addEventListener('visibilitychange', handleWindowFocus);
     return () => {
       window.removeEventListener('focus', handleWindowFocus);
-      window.removeEventListener('visibilitychange', handleWindowFocus);
+      window.removeEventListener('online', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleWindowFocus);
     };
-  }, [activeConversationId, user?.id]);
+  }, [activeConversationId, socket, connected, user?.id, loadConversations]);
 
   // --- SUPABASE REALTIME (Mensagens Globais, Broadcast & Notificações de Conversas em Tempo Real) ---
   useEffect(() => {
@@ -1797,6 +1831,7 @@ export function ChatProvider({ children }) {
       // Salva instantaneamente a nova mensagem no IndexedDB
       nexusStorage.saveMessage(msg);
 
+      // Atualiza a lista de conversas e reordena imediatamente para o topo (estilo WhatsApp/Telegram)
       setConversations(prev => {
         const isCurrentActive = msg.conversation_id === currentActiveId;
         let found = false;
@@ -1806,20 +1841,62 @@ export function ChatProvider({ children }) {
             return {
               ...c,
               last_message: msg,
-              unread_count: isCurrentActive ? 0 : (c.unread_count || 0) + 1
+              unread_count: isCurrentActive ? 0 : (c.unread_count || 0) + 1,
+              updated_at: msg.created_at || new Date().toISOString()
             };
           }
           return c;
         });
-        if (!found && loadConversations) loadConversations();
-        return next;
+        if (!found && loadConversations) loadConversations(true);
+        return sortConversationsList(next, pinnedConversationIdsRef.current);
       });
 
-      if (msg.conversation_id === currentActiveId && msg.sender_id !== currentUser?.id) {
+      if (msg.conversation_id === currentActiveId) {
         setMessages(prev => {
-          if (prev.some(m => m.id === msg.id || (m.tempId && m.tempId === msg.id))) return prev;
+          if (prev.some(m => m.id === msg.id || (m.tempId && m.tempId === msg.id) || (msg.tempId && m.tempId === msg.tempId))) {
+            return prev.map(m => (m.tempId === msg.tempId || m.id === msg.id) ? { ...m, ...msg } : m);
+          }
           return [...prev, msg];
         });
+        if (msg.sender_id !== currentUser?.id) {
+          sounds.playReceive();
+        }
+      } else if (msg.sender_id !== currentUser?.id) {
+        // Toca som de nova mensagem mesmo estando em outro chat ou na barra lateral
+        sounds.playReceive();
+      }
+    };
+
+    // Atualização global de conversas via Socket.IO VPS
+    const handleConversationUpdated = (data) => {
+      if (!data || !data.conversationId) return;
+      const { conversationId, lastMessage, senderId } = data;
+      const currentActiveId = activeConversationIdRef.current;
+      const isCurrentActive = conversationId === currentActiveId;
+
+      setConversations((prev) => {
+        let found = false;
+        const next = prev.map((c) => {
+          if (c.id === conversationId) {
+            found = true;
+            return {
+              ...c,
+              last_message: lastMessage || c.last_message,
+              unread_count: isCurrentActive ? 0 : (c.unread_count || 0) + 1,
+              updated_at: lastMessage?.created_at || new Date().toISOString()
+            };
+          }
+          return c;
+        });
+
+        if (!found && loadConversations) {
+          loadConversations(true);
+        }
+
+        return sortConversationsList(next, pinnedConversationIdsRef.current);
+      });
+
+      if (!isCurrentActive && senderId !== userRef.current?.id) {
         sounds.playReceive();
       }
     };
@@ -1941,6 +2018,7 @@ export function ChatProvider({ children }) {
     socket.on('user_typing_stop', handleActionStop);
 
     socket.on('new_message', handleNewMsg);
+    socket.on('conversation_updated', handleConversationUpdated);
     socket.on('message_delivered', handleMessageDelivered);
     socket.on('messages_read_by_user', handleMessagesRead);
     socket.on('conversation_messages_read', handleMessagesRead);
@@ -1960,6 +2038,7 @@ export function ChatProvider({ children }) {
       socket.off('user_typing_stop', handleActionStop);
 
       socket.off('new_message', handleNewMsg);
+      socket.off('conversation_updated', handleConversationUpdated);
       socket.off('message_delivered', handleMessageDelivered);
       socket.off('messages_read_by_user', handleMessagesRead);
       socket.off('conversation_messages_read', handleMessagesRead);

@@ -76,8 +76,11 @@ export function SocketProvider({ children }) {
           displayName: user.display_name,
           avatarUrl: user.avatar_url
         },
-        reconnectionAttempts: 5,
-        reconnectionDelay: 3000,
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 800,
+        reconnectionDelayMax: 3000,
+        randomizationFactor: 0.2,
         transports: ['websocket', 'polling'],
         timeout: 10000
       });
@@ -87,8 +90,18 @@ export function SocketProvider({ children }) {
         console.log('⚡ Conectado com sucesso ao Servidor VPS (Socket.IO):', newSocket.id);
       });
 
+      newSocket.on('reconnect', (attemptNumber) => {
+        setConnected(true);
+        console.log(`🔄 Reconectado com sucesso ao Servidor VPS na tentativa #${attemptNumber}`);
+      });
+
       newSocket.on('disconnect', (reason) => {
+        setConnected(false);
         console.warn('⚠️ Desconectado temporariamente do Socket.IO VPS:', reason);
+        // Se a desconexão foi por erro de rede ou heartbeat, força tentativa imediata
+        if (reason === 'io server disconnect' || reason === 'transport close' || reason === 'ping timeout') {
+          newSocket.connect();
+        }
       });
 
       // Sincronização instantânea de usuários online via Socket.IO VPS
@@ -116,9 +129,30 @@ export function SocketProvider({ children }) {
         setTimeout(() => setCoinsAlert(null), 3500);
       });
 
+      // Reconectar instantaneamente ao desbloquear a tela ou focar na aba
+      const handleWakeUp = () => {
+        if (typeof document !== 'undefined' && !document.hidden) {
+          if (!newSocket.connected) {
+            console.log('📱 Dispositivo reativado / aba focada: reconectando Socket.IO VPS...');
+            newSocket.connect();
+          }
+        }
+      };
+
+      if (typeof window !== 'undefined') {
+        window.addEventListener('focus', handleWakeUp);
+        window.addEventListener('online', handleWakeUp);
+        document.addEventListener('visibilitychange', handleWakeUp);
+      }
+
       setSocket(newSocket);
 
       return () => {
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('focus', handleWakeUp);
+          window.removeEventListener('online', handleWakeUp);
+          document.removeEventListener('visibilitychange', handleWakeUp);
+        }
         newSocket.disconnect();
       };
     } catch (e) {
