@@ -37,7 +37,7 @@ async function handleSendMessage(socket, io, data) {
       return;
     }
 
-    const messageId = uuidv4();
+    const messageId = data.id || uuidv4();
     const createdAt = new Date().toISOString();
 
     const formattedMessage = {
@@ -67,9 +67,9 @@ async function handleSendMessage(socket, io, data) {
     // Armazena instantaneamente no cache de RAM da VPS (< 1ms)
     addMessageToCache(conversationId, formattedMessage);
 
-    // Salvar no Supabase se configurado
+    // Salvar no Supabase se configurado de forma idempotente (evita duplicatas no banco)
     if (isConfigured && supabase) {
-      const { error: msgError } = await supabase.from('messages').insert({
+      const { error: msgError } = await supabase.from('messages').upsert({
         id: messageId,
         conversation_id: conversationId,
         sender_id: senderId,
@@ -77,7 +77,7 @@ async function handleSendMessage(socket, io, data) {
         type,
         reply_to_id: replyToId,
         created_at: createdAt
-      });
+      }, { onConflict: 'id', ignoreDuplicates: true });
 
       if (msgError) {
         console.error('Erro ao persistir mensagem no Supabase:', msgError);
@@ -92,7 +92,7 @@ async function handleSendMessage(socket, io, data) {
           file_size: att.file_size || att.size || 0,
           file_type: att.file_type || att.type || 'document'
         }));
-        await supabase.from('message_attachments').insert(attachmentInserts);
+        await supabase.from('message_attachments').upsert(attachmentInserts, { onConflict: 'id', ignoreDuplicates: true });
       }
 
       // Atualizar data de última atividade da conversa
@@ -102,26 +102,26 @@ async function handleSendMessage(socket, io, data) {
         .eq('id', conversationId);
     }
 
-    // 1. Emite para todos os membros conectados na sala da conversa
-    io.to(`conversation:${conversationId}`).emit('new_message', formattedMessage);
-
-    // 2. Emite diretamente para a sala pessoal de cada participante (estilo Telegram/WhatsApp)
-    // Garante que o participante receba instantaneamente mesmo sem estar com o chat aberto na tela
+    // Emissão única e desduplicada para conversa e salas de usuários (Socket.IO deduplica por socket ao passar array)
     if (isConfigured && supabase) {
       supabase
         .from('conversation_participants')
         .select('user_id')
         .eq('conversation_id', conversationId)
         .then(({ data: participants }) => {
+          const targetRooms = new Set([`conversation:${conversationId}`]);
           if (participants && participants.length > 0) {
             participants.forEach((p) => {
-              if (p.user_id) {
-                io.to(`user:${p.user_id}`).emit('new_message', formattedMessage);
-              }
+              if (p.user_id) targetRooms.add(`user:${p.user_id}`);
             });
           }
+          io.to(Array.from(targetRooms)).emit('new_message', formattedMessage);
         })
-        .catch(() => {});
+        .catch(() => {
+          io.to(`conversation:${conversationId}`).emit('new_message', formattedMessage);
+        });
+    } else {
+      io.to(`conversation:${conversationId}`).emit('new_message', formattedMessage);
     }
 
     // Recompensa de Economia: +5 Nexus Coins por mensagem enviada (cooldown de 5s para evitar spam)

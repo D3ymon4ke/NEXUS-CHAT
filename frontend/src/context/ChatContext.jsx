@@ -593,14 +593,28 @@ export function ChatProvider({ children }) {
                 }
               }
 
+              // Deduplicação defensiva no histórico contra duplicatas antigas do banco
+              const deduplicatedMsgs = [];
+              for (const m of resolvedMsgs) {
+                const isDup = deduplicatedMsgs.some(existing =>
+                  existing.id === m.id ||
+                  (existing.sender_id === m.sender_id &&
+                   existing.content === m.content &&
+                   Math.abs(new Date(existing.created_at).getTime() - new Date(m.created_at).getTime()) < 6000)
+                );
+                if (!isDup) {
+                  deduplicatedMsgs.push(m);
+                }
+              }
+
               setMessages((prev) => {
-                const tempMsgs = prev.filter((m) => m.tempId && !resolvedMsgs.some((r) => r.id === m.tempId || r.tempId === m.tempId));
-                return [...resolvedMsgs, ...tempMsgs];
+                const tempMsgs = prev.filter((m) => m.tempId && !deduplicatedMsgs.some((r) => r.id === m.tempId || r.tempId === m.tempId));
+                return [...deduplicatedMsgs, ...tempMsgs];
               });
-              messagesCacheRef.current.set(activeConversationId, resolvedMsgs);
-              nexusStorage.saveMessages(activeConversationId, resolvedMsgs);
+              messagesCacheRef.current.set(activeConversationId, deduplicatedMsgs);
+              nexusStorage.saveMessages(activeConversationId, deduplicatedMsgs);
               try {
-                localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(resolvedMsgs));
+                localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(deduplicatedMsgs));
               } catch (cacheErr) {}
 
               // Sincroniza e aquece o cache de RAM na VPS
@@ -1299,6 +1313,7 @@ export function ChatProvider({ children }) {
           try {
             if (socket && connected) {
               socket.emit('send_message', {
+                id: msg.id,
                 conversationId: msg.conversation_id,
                 senderId: msg.sender_id,
                 content: msg.content,
@@ -1308,10 +1323,9 @@ export function ChatProvider({ children }) {
                 sender: msg.sender,
                 tempId: msg.tempId
               });
-            }
-
-            if (isSupabaseConfigured && supabase) {
+            } else if (isSupabaseConfigured && supabase) {
               await supabase.from('messages').insert({
+                id: msg.id,
                 conversation_id: msg.conversation_id,
                 sender_id: msg.sender_id,
                 content: msg.content,
@@ -1402,9 +1416,10 @@ export function ChatProvider({ children }) {
     const effectiveSenderId = effectiveSender.id;
 
     const isCurrentlyOffline = (typeof navigator !== 'undefined' && !navigator.onLine) || (!connected && !isSupabaseConfigured);
+    const messageId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const tempId = `temp-${Date.now()}`;
     const optimisticMessage = {
-      id: tempId,
+      id: messageId,
       tempId,
       conversation_id: activeConversationId,
       sender_id: effectiveSenderId,
@@ -1461,8 +1476,48 @@ export function ChatProvider({ children }) {
       }).catch((bErr) => console.warn('Aviso broadcast instant_message:', bErr));
     }
 
-    // 1. Inserir no Supabase
-    if (isSupabaseConfigured && supabase) {
+    // 1. Enviar prioritariamente via Socket.IO VPS se conectado (VPS é a fonte da verdade)
+    if (socket && connected) {
+      socket.emit('send_message', {
+        id: messageId,
+        conversationId: activeConversationId,
+        senderId: effectiveSenderId,
+        content,
+        type,
+        replyToId: optimisticMessage.reply_to_id,
+        attachments,
+        sender: optimisticMessage.sender,
+        tempId
+      });
+
+      // Confirmação otimista instantânea local (estilo WhatsApp)
+      const confirmedMsg = {
+        ...optimisticMessage,
+        status: 'sent'
+      };
+
+      setMessages((prev) => {
+        const updated = prev.map((m) => (m.id === messageId || m.tempId === tempId ? confirmedMsg : m));
+        nexusStorage.saveMessages(activeConversationId, updated);
+        try {
+          localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
+
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === activeConversationId
+            ? {
+                ...c,
+                last_message: confirmedMsg,
+                updated_at: new Date().toISOString()
+              }
+            : c
+        )
+      );
+    } else if (isSupabaseConfigured && supabase) {
+      // 2. Fallback direto ao Supabase (somente se WebSocket da VPS estiver desconectado)
       try {
         const safeType = (type === 'coffee_invite' || type === 'ghost' || type === 'poll' || type === 'nexus_burst') ? 'text' : (type || 'text');
         const effectiveContent = (content && content.trim())
@@ -1470,6 +1525,7 @@ export function ChatProvider({ children }) {
           : (attachments && attachments.length > 0 ? (attachments[0].file_url || '') : '');
 
         const { data: insertedMsg, error: insertErr } = await supabase.from('messages').insert({
+          id: messageId,
           conversation_id: activeConversationId,
           sender_id: effectiveSenderId,
           content: effectiveContent,
@@ -1484,22 +1540,20 @@ export function ChatProvider({ children }) {
           if (attachments && attachments.length > 0) {
             try {
               const attachmentPayloads = attachments.map((att) => ({
-                message_id: insertedMsg.id,
+                message_id: messageId,
                 file_url: att.file_url || att.url || '',
                 file_name: att.file_name || att.name || 'imagem.jpg',
                 file_size: att.file_size || att.size || 0,
                 file_type: att.file_type || att.type || (att.file_url?.startsWith('data:image') ? 'image' : 'file')
               }));
 
-              const { data: dbAtts, error: dbAttErr } = await supabase
+              const { data: dbAtts } = await supabase
                 .from('message_attachments')
                 .insert(attachmentPayloads)
                 .select();
 
-              if (dbAtts && !dbAttErr) {
+              if (dbAtts) {
                 savedAttachments = dbAtts;
-              } else if (dbAttErr) {
-                console.warn('Erro ao inserir message_attachments no Supabase:', dbAttErr);
               }
             } catch (attEx) {
               console.warn('Erro ao processar anexos:', attEx);
@@ -1508,13 +1562,13 @@ export function ChatProvider({ children }) {
 
           const confirmedMsg = {
             ...optimisticMessage,
-            id: insertedMsg.id,
+            id: messageId,
             attachments: savedAttachments,
             status: 'sent'
           };
 
           setMessages((prev) => {
-            const updated = prev.map((m) => (m.tempId === tempId ? confirmedMsg : m));
+            const updated = prev.map((m) => (m.id === messageId || m.tempId === tempId ? confirmedMsg : m));
             nexusStorage.saveMessages(activeConversationId, updated);
             try {
               localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
@@ -1535,11 +1589,11 @@ export function ChatProvider({ children }) {
             )
           );
 
-          // +5 moedas por envio
+          // +5 moedas por envio no fallback
           const newBalance = (effectiveSender.nexus_coins || 100) + 5;
           await supabase.from('profiles').update({ nexus_coins: newBalance }).eq('id', effectiveSenderId);
 
-          // 3. Disparar Web Push pelo Servidor Vercel (/api/send-push) para os destinatários da conversa
+          // Disparar Web Push somente no fallback offline se VPS não estiver conectada
           try {
             let recipientIds = [];
             if (activeConversation?.type === 'direct' && activeConversation.direct_user?.id) {
@@ -1548,16 +1602,6 @@ export function ChatProvider({ children }) {
               recipientIds = activeConversation.participants
                 .map((p) => p.user_id || p.id)
                 .filter((uid) => uid && uid !== effectiveSenderId);
-            } else if (isSupabaseConfigured && supabase) {
-              const { data: parts } = await supabase
-                .from('conversation_participants')
-                .select('user_id')
-                .eq('conversation_id', activeConversationId);
-              if (parts) {
-                recipientIds = parts
-                  .map((p) => p.user_id)
-                  .filter((uid) => uid && uid !== effectiveSenderId);
-              }
             }
 
             if (recipientIds.length > 0) {
@@ -1572,28 +1616,14 @@ export function ChatProvider({ children }) {
               });
             }
           } catch (pushEx) {
-            console.warn('Aviso ao disparar Web Push do servidor:', pushEx);
+            console.warn('Aviso ao disparar Web Push no fallback:', pushEx);
           }
         } else if (insertErr) {
-          console.warn('Erro ao inserir mensagem no Supabase:', insertErr);
+          console.warn('Erro ao inserir mensagem no fallback Supabase:', insertErr);
         }
       } catch (err) {
-        console.error('Erro ao persistir mensagem no Supabase:', err);
+        console.error('Erro ao persistir mensagem no Supabase via fallback:', err);
       }
-    }
-
-    // 2. Enviar via Socket.IO se conectado
-    if (socket && connected) {
-      socket.emit('send_message', {
-        conversationId: activeConversationId,
-        senderId: effectiveSenderId,
-        content,
-        type,
-        replyToId: optimisticMessage.reply_to_id,
-        attachments,
-        sender: optimisticMessage.sender,
-        tempId
-      });
     }
   };
 
@@ -1853,8 +1883,26 @@ export function ChatProvider({ children }) {
 
       if (msg.conversation_id === currentActiveId) {
         setMessages(prev => {
-          if (prev.some(m => m.id === msg.id || (m.tempId && m.tempId === msg.id) || (msg.tempId && m.tempId === msg.tempId))) {
-            return prev.map(m => (m.tempId === msg.tempId || m.id === msg.id) ? { ...m, ...msg } : m);
+          const isDuplicate = prev.some(m =>
+            m.id === msg.id ||
+            (m.tempId && (m.tempId === msg.id || m.tempId === msg.tempId)) ||
+            (msg.tempId && (m.id === msg.tempId || m.tempId === msg.tempId)) ||
+            (m.sender_id === msg.sender_id &&
+              m.content === msg.content &&
+              Math.abs(new Date(m.created_at || Date.now()).getTime() - new Date(msg.created_at || Date.now()).getTime()) < 6000)
+          );
+
+          if (isDuplicate) {
+            return prev.map(m =>
+              (m.id === msg.id ||
+                (m.tempId && (m.tempId === msg.id || m.tempId === msg.tempId)) ||
+                (msg.tempId && (m.id === msg.tempId || m.tempId === msg.tempId)) ||
+                (m.sender_id === msg.sender_id &&
+                  m.content === msg.content &&
+                  Math.abs(new Date(m.created_at || Date.now()).getTime() - new Date(msg.created_at || Date.now()).getTime()) < 6000))
+                ? { ...m, ...msg, id: msg.id, status: 'sent' }
+                : m
+            );
           }
           return [...prev, msg];
         });
