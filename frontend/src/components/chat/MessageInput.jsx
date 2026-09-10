@@ -6,7 +6,7 @@ import { sounds } from '../../lib/sound';
 import { haptics } from '../../lib/haptics';
 import confetti from 'canvas-confetti';
 import { ANIMATED_STICKERS, STICKER_PRICE } from '../../lib/animatedStickers';
-import { compressImageFile } from '../../lib/imageCompressor';
+import { compressImageFile, generateBlurPlaceholder } from '../../lib/imageCompressor';
 import { uploadChatMedia } from '../../lib/mediaUploader';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { toast } from 'sonner';
@@ -44,6 +44,7 @@ export function MessageInput() {
     sendMessage,
     editMessage,
     emitTyping,
+    emitUserAction,
     replyingTo,
     setReplyingTo,
     editingMessage,
@@ -145,12 +146,14 @@ export function MessageInput() {
 
   const handleInputChange = (e) => {
     setContent(e.target.value);
-    emitTyping(true);
+    if (emitUserAction) emitUserAction('typing');
+    else emitTyping(true);
 
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
     typingTimerRef.current = setTimeout(() => {
-      emitTyping(false);
-    }, 2000);
+      if (emitUserAction) emitUserAction(null);
+      else emitTyping(false);
+    }, 2500);
   };
 
   const handleSendCoffeeInvite = async () => {
@@ -337,8 +340,13 @@ export function MessageInput() {
   const readAndAttachImage = async (file) => {
     try {
       setUploading(true);
+      if (emitUserAction) emitUserAction('uploading_photo');
       const compressedBase64 = await compressImageFile(file, 1600, 1600, 0.85);
       const previewUrl = compressedBase64 || (typeof URL !== 'undefined' ? URL.createObjectURL(file) : '');
+
+      // Gera placeholder ultraleve (~300 bytes) para renderização instantânea (0ms) no estilo Telegram
+      const { placeholder: blurPlaceholder, width: imgWidth, height: imgHeight, aspectRatio: imgAspectRatio } =
+        await generateBlurPlaceholder(compressedBase64 || file);
 
       // Tenta upload imediato para o bucket público do Supabase Storage
       let uploadedUrl = null;
@@ -355,6 +363,10 @@ export function MessageInput() {
           file_url: uploadedUrl || previewUrl,
           file_type: 'image',
           file_size: file.size || Math.round(((compressedBase64 || '').length * 3) / 4),
+          blur_placeholder: blurPlaceholder,
+          width: imgWidth,
+          height: imgHeight,
+          aspect_ratio: imgAspectRatio,
           _rawFile: file,
           _base64: compressedBase64
         }
@@ -408,7 +420,8 @@ export function MessageInput() {
     setAttachments([]);
     setShowEmojiPicker(false);
     setShowGhostMenu(false);
-    emitTyping(false);
+    if (emitUserAction) emitUserAction(null);
+    else emitTyping(false);
 
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -542,6 +555,7 @@ export function MessageInput() {
       if (file.type.startsWith('image/')) {
         await readAndAttachImage(file);
       } else {
+        if (emitUserAction) emitUserAction('uploading_file');
         // Arquivo genérico
         const reader = new FileReader();
         reader.onload = async (ev) => {
@@ -846,32 +860,32 @@ export function MessageInput() {
 
           {/* Botões de Ação: Fantasma (1x1), Café (Grupos), Enquete (Admin) & Emojis */}
           <div className="pb-1.5 pr-1.5 sm:pb-2 sm:pr-2 flex items-center gap-0.5 relative flex-shrink-0">
-            {/* Botão Modo Fantasma 👻 (Apenas em chats 1x1) */}
-            {!editingMessage && isDirectChat && (
+            {/* Botão de Mensagens Temporárias / Modo Fantasma 🔥👻 */}
+            {!editingMessage && (
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setShowGhostMenu(!showGhostMenu)}
                   className={`p-1 sm:p-1.5 transition-all rounded-lg relative ${
                     ghostMode
-                      ? 'text-purple-400 bg-purple-500/20 ring-1 ring-purple-500 animate-pulse'
-                      : 'text-slate-400 hover:text-purple-400'
+                      ? 'text-rose-400 bg-rose-500/20 ring-1 ring-rose-500 animate-pulse'
+                      : 'text-slate-400 hover:text-rose-400'
                   }`}
-                  title="Modo Fantasma & Mensagens Temporárias (Exclusivo 1x1) 👻"
+                  title="Mensagens Temporárias & Auto-destruição 🔥"
                 >
-                  <Ghost className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <Flame className="w-4 h-4 sm:w-5 sm:h-5" />
                   {ghostMode && (
-                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-purple-400 ring-2 ring-background-dark" />
+                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-background-dark animate-ping" />
                   )}
                 </button>
 
-                {/* Popover do Modo Fantasma */}
+                {/* Popover de Mensagens Temporárias */}
                 {showGhostMenu && (
-                  <div className="fixed sm:absolute bottom-16 sm:bottom-full left-2 right-2 sm:left-auto sm:right-0 mb-2 sm:mb-3 w-auto sm:w-64 max-w-xs bg-slate-950/95 border border-purple-500/50 rounded-2xl shadow-2xl p-3 z-30 backdrop-blur-xl animate-fadeIn mx-auto">
-                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-purple-900/50">
-                      <div className="flex items-center gap-1.5 text-purple-300 font-extrabold text-xs">
-                        <Ghost className="w-4 h-4 text-purple-400" />
-                        <span>Modo Fantasma 1x1 👻</span>
+                  <div className="fixed sm:absolute bottom-16 sm:bottom-full left-2 right-2 sm:left-auto sm:right-0 mb-2 sm:mb-3 w-auto sm:w-64 max-w-xs bg-slate-950/95 border border-rose-500/40 rounded-2xl shadow-2xl p-3 z-30 backdrop-blur-xl animate-fadeIn mx-auto">
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-rose-900/40">
+                      <div className="flex items-center gap-1.5 text-rose-300 font-extrabold text-xs">
+                        <Flame className="w-4 h-4 text-rose-400" />
+                        <span>Mensagens Temporárias 🔥</span>
                       </div>
                       <button
                         type="button"
@@ -891,11 +905,11 @@ export function MessageInput() {
                           sounds.playPop();
                         }}
                         className={`w-full p-2 rounded-xl text-left flex items-center justify-between transition-colors ${
-                          ghostMode === 'view_once' ? 'bg-purple-600 text-white font-bold' : 'text-slate-200 hover:bg-purple-950/50'
+                          ghostMode === 'view_once' ? 'bg-rose-600 text-white font-bold' : 'text-slate-200 hover:bg-rose-950/40'
                         }`}
                       >
                         <div className="flex items-center gap-2">
-                          <Lock className="w-4 h-4 text-purple-400" />
+                          <Lock className="w-4 h-4 text-rose-400" />
                           <span>Visualização Única (1x)</span>
                         </div>
                         <span className="text-[10px] opacity-75">Foto Secreta</span>
@@ -909,14 +923,32 @@ export function MessageInput() {
                           sounds.playPop();
                         }}
                         className={`w-full p-2 rounded-xl text-left flex items-center justify-between transition-colors ${
-                          ghostMode === '10s' ? 'bg-purple-600 text-white font-bold' : 'text-slate-200 hover:bg-purple-950/50'
+                          ghostMode === '10s' ? 'bg-rose-600 text-white font-bold' : 'text-slate-200 hover:bg-rose-950/40'
                         }`}
                       >
                         <div className="flex items-center gap-2">
                           <Flame className="w-4 h-4 text-rose-400" />
                           <span>10 Segundos</span>
                         </div>
-                        <span className="text-[10px] opacity-75">10s após ler</span>
+                        <span className="text-[10px] opacity-75">10s no servidor</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGhostMode('30s');
+                          setShowGhostMenu(false);
+                          sounds.playPop();
+                        }}
+                        className={`w-full p-2 rounded-xl text-left flex items-center justify-between transition-colors ${
+                          ghostMode === '30s' ? 'bg-rose-600 text-white font-bold' : 'text-slate-200 hover:bg-rose-950/40'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Flame className="w-4 h-4 text-amber-400" />
+                          <span>30 Segundos</span>
+                        </div>
+                        <span className="text-[10px] opacity-75">30s no servidor</span>
                       </button>
 
                       <button
@@ -927,14 +959,32 @@ export function MessageInput() {
                           sounds.playPop();
                         }}
                         className={`w-full p-2 rounded-xl text-left flex items-center justify-between transition-colors ${
-                          ghostMode === '1m' ? 'bg-purple-600 text-white font-bold' : 'text-slate-200 hover:bg-purple-950/50'
+                          ghostMode === '1m' ? 'bg-rose-600 text-white font-bold' : 'text-slate-200 hover:bg-rose-950/40'
                         }`}
                       >
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4 text-amber-400" />
                           <span>1 Minuto</span>
                         </div>
-                        <span className="text-[10px] opacity-75">1m após ler</span>
+                        <span className="text-[10px] opacity-75">1m no servidor</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGhostMode('5m');
+                          setShowGhostMenu(false);
+                          sounds.playPop();
+                        }}
+                        className={`w-full p-2 rounded-xl text-left flex items-center justify-between transition-colors ${
+                          ghostMode === '5m' ? 'bg-rose-600 text-white font-bold' : 'text-slate-200 hover:bg-rose-950/40'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-sky-400" />
+                          <span>5 Minutos</span>
+                        </div>
+                        <span className="text-[10px] opacity-75">5m no servidor</span>
                       </button>
 
                       <button
@@ -945,14 +995,14 @@ export function MessageInput() {
                           sounds.playPop();
                         }}
                         className={`w-full p-2 rounded-xl text-left flex items-center justify-between transition-colors ${
-                          ghostMode === '1h' ? 'bg-purple-600 text-white font-bold' : 'text-slate-200 hover:bg-purple-950/50'
+                          ghostMode === '1h' ? 'bg-rose-600 text-white font-bold' : 'text-slate-200 hover:bg-rose-950/40'
                         }`}
                       >
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4 text-sky-400" />
                           <span>1 Hora</span>
                         </div>
-                        <span className="text-[10px] opacity-75">1h de duração</span>
+                        <span className="text-[10px] opacity-75">1h no servidor</span>
                       </button>
 
                       <button
@@ -962,10 +1012,10 @@ export function MessageInput() {
                           setShowGhostMenu(false);
                           sounds.playPop();
                         }}
-                        className="w-full p-2 rounded-xl text-left flex items-center gap-2 text-rose-400 hover:bg-rose-500/10 transition-colors mt-1 border-t border-purple-950 pt-2"
+                        className="w-full p-2 rounded-xl text-left flex items-center gap-2 text-slate-400 hover:text-white hover:bg-white/5 transition-colors mt-1 border-t border-rose-950/60 pt-2"
                       >
                         <X className="w-4 h-4" />
-                        <span>Desativar Modo Fantasma</span>
+                        <span>Desativar Temporizador</span>
                       </button>
                     </div>
                   </div>

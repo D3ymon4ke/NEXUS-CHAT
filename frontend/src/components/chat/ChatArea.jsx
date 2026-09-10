@@ -9,7 +9,7 @@ import { ImageViewerModal } from './ImageViewerModal';
 import { WALLPAPER_STYLES } from '../../lib/shopCatalog';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronDown, MessageSquare, ShieldCheck, Sparkles, Search, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, MessageSquare, ShieldCheck, Sparkles, Search, X, WifiOff } from 'lucide-react';
 
 export function ChatArea({ onBack, onOpenProfile }) {
   const { user } = useAuth();
@@ -27,7 +27,9 @@ export function ChatArea({ onBack, onOpenProfile }) {
     setReplyingTo,
     setEditingMessage,
     masterIdentities,
-    clearMasterIdentityForConv
+    clearMasterIdentityForConv,
+    isOffline,
+    pendingOutboxCount
   } = useChat();
 
   const isAdmin = Boolean(user?.role === 'admin' || user?.is_admin || user?.username?.toLowerCase() === 'damon');
@@ -35,6 +37,9 @@ export function ChatArea({ onBack, onOpenProfile }) {
 
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const [highlightMessageId, setHighlightMessageId] = useState(null);
+  const [filterOnlyMatches, setFilterOnlyMatches] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
 
@@ -97,9 +102,62 @@ export function ChatArea({ onBack, onOpenProfile }) {
     );
   }
 
-  // Filtrar mensagens para a busca
-  const displayMessages = searchQuery.trim()
-    ? messages.filter((m) => m.content?.toLowerCase().includes(searchQuery.toLowerCase()))
+  // Cálculo de correspondências da busca dentro da conversa
+  const matchingMessages = React.useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase().trim();
+    return messages.filter((m) => {
+      if (m.is_deleted) return false;
+      const contentMatch = m.content && m.content.toLowerCase().includes(q);
+      const attMatch = m.attachments && m.attachments.some((a) => (a.file_name || a.name || '').toLowerCase().includes(q));
+      return contentMatch || attMatch;
+    });
+  }, [messages, searchQuery]);
+
+  // Navegar entre os resultados da busca
+  const jumpToMatch = (index) => {
+    if (matchingMessages.length === 0) return;
+    const boundedIndex = (index + matchingMessages.length) % matchingMessages.length;
+    setCurrentMatchIndex(boundedIndex);
+    const targetMsg = matchingMessages[boundedIndex];
+    if (targetMsg) {
+      const targetId = targetMsg.id || targetMsg.tempId;
+      setHighlightMessageId(targetId);
+      const el = document.getElementById(`msg-${targetId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  };
+
+  // Quando o termo de busca muda, foca na ocorrência mais recente
+  useEffect(() => {
+    if (matchingMessages.length > 0) {
+      jumpToMatch(matchingMessages.length - 1);
+    } else {
+      setHighlightMessageId(null);
+    }
+  }, [searchQuery, matchingMessages.length]);
+
+  // Atalhos de teclado
+  const handleSearchKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        jumpToMatch(currentMatchIndex - 1);
+      } else {
+        jumpToMatch(currentMatchIndex + 1);
+      }
+    } else if (e.key === 'Escape') {
+      setIsSearching(false);
+      setSearchQuery('');
+      setHighlightMessageId(null);
+    }
+  };
+
+  // Filtrar mensagens para a busca (caso o usuário queira ver só os matches)
+  const displayMessages = filterOnlyMatches && searchQuery.trim()
+    ? matchingMessages
     : messages;
 
   const pinnedMessages = messages.filter((m) => m.is_pinned);
@@ -128,10 +186,29 @@ export function ChatArea({ onBack, onOpenProfile }) {
         onSearchToggle={() => {
           setIsSearching(!isSearching);
           setSearchQuery('');
+          setHighlightMessageId(null);
         }}
         isSearching={isSearching}
         onOpenProfile={onOpenProfile}
       />
+
+      {/* Banner de Modo Offline Inteligente */}
+      {isOffline && (
+        <div className="px-3 sm:px-4 py-1.5 bg-amber-500/15 border-b border-amber-500/30 flex items-center justify-between text-amber-300 text-xs z-20 animate-fadeIn flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <WifiOff className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+            <span className="font-semibold text-[11px] sm:text-xs">
+              Modo Offline • Histórico e busca disponíveis via IndexedDB
+            </span>
+          </div>
+          {pendingOutboxCount > 0 && (
+            <span className="text-[10px] bg-amber-500/25 px-2 py-0.5 rounded-full border border-amber-500/40 font-bold flex items-center gap-1">
+              <span>{pendingOutboxCount} {pendingOutboxCount === 1 ? 'pendente' : 'pendentes'}</span>
+              <span>⏳</span>
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Banner de Super DM Ativa (Modo Master Secreto) */}
       {activeMasterUser && (
@@ -163,22 +240,72 @@ export function ChatArea({ onBack, onOpenProfile }) {
         </div>
       )}
 
-      {/* Barra de Pesquisa de Mensagens Interna */}
+      {/* Barra de Pesquisa de Mensagens Interna com Navegador */}
       {isSearching && (
-        <div className="px-3 sm:px-4 py-2 bg-background-surface/90 border-b border-slate-800 flex items-center gap-2 animate-fadeIn flex-shrink-0 min-w-0 w-full max-w-full">
-          <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
-          <input
-            type="text"
-            autoFocus
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Pesquisar nesta conversa..."
-            className="flex-1 min-w-0 bg-transparent text-xs text-slate-200 placeholder-slate-500 focus:outline-none"
-          />
+        <div className="px-3 sm:px-4 py-2 bg-background-surface/95 border-b border-slate-800/80 flex items-center justify-between gap-2 animate-fadeIn flex-shrink-0 min-w-0 w-full max-w-full backdrop-blur z-20 shadow-md">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <Search className="w-4 h-4 text-brand-400 flex-shrink-0" />
+            <input
+              type="text"
+              autoFocus
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Pesquisar mensagens (Enter para avançar)..."
+              className="flex-1 min-w-0 bg-transparent text-xs text-slate-100 placeholder-slate-400 focus:outline-none"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setHighlightMessageId(null);
+                }}
+                className="text-slate-400 hover:text-white flex-shrink-0 p-1 rounded-md"
+                title="Limpar busca"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
           {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="text-slate-400 hover:text-white flex-shrink-0 p-1">
-              <X className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-1.5 flex-shrink-0 border-l border-slate-700/60 pl-2">
+              <span className="text-[11px] font-medium text-slate-300 select-none">
+                {matchingMessages.length > 0
+                  ? `${currentMatchIndex + 1} de ${matchingMessages.length}`
+                  : 'Nenhum resultado'}
+              </span>
+
+              <button
+                disabled={matchingMessages.length === 0}
+                onClick={() => jumpToMatch(currentMatchIndex - 1)}
+                className="p-1 rounded text-slate-300 hover:text-white hover:bg-slate-700/60 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                title="Resultado anterior (Shift+Enter)"
+              >
+                <ChevronUp className="w-4 h-4" />
+              </button>
+
+              <button
+                disabled={matchingMessages.length === 0}
+                onClick={() => jumpToMatch(currentMatchIndex + 1)}
+                className="p-1 rounded text-slate-300 hover:text-white hover:bg-slate-700/60 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                title="Próximo resultado (Enter)"
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsSearching(false);
+                  setSearchQuery('');
+                  setHighlightMessageId(null);
+                }}
+                className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-700/40 transition-colors ml-1"
+                title="Fechar pesquisa (Esc)"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -233,7 +360,14 @@ export function ChatArea({ onBack, onOpenProfile }) {
                   </div>
                 )}
 
-                <div id={`msg-${msg.id}`} className="w-full max-w-full min-w-0">
+                <div
+                  id={`msg-${msg.id || msg.tempId}`}
+                  className={`w-full max-w-full min-w-0 transition-all duration-300 rounded-2xl ${
+                    highlightMessageId === (msg.id || msg.tempId)
+                      ? 'ring-2 ring-brand-400 bg-brand-500/20 py-1.5 px-2 shadow-[0_0_20px_rgba(59,130,246,0.35)]'
+                      : ''
+                  }`}
+                >
                   <MessageBubble
                     message={msg}
                     isOwn={isOwn}
@@ -254,13 +388,23 @@ export function ChatArea({ onBack, onOpenProfile }) {
 
         {Array.isArray(typingUsers) && typingUsers.length > 0 && (
           <div className="flex items-center gap-2 py-1.5 px-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 w-fit text-xs text-slate-300 shadow-md backdrop-blur animate-fadeIn my-1">
-            <div className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-bounce [animation-delay:-0.3s]" />
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-bounce [animation-delay:-0.15s]" />
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-bounce" />
-            </div>
+            {typingUsers[0]?.action === 'uploading_photo' ? (
+              <span className="text-sm animate-bounceShort">📸</span>
+            ) : typingUsers[0]?.action === 'uploading_file' ? (
+              <span className="text-sm animate-bounceShort">📎</span>
+            ) : (
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-bounce" />
+              </div>
+            )}
             <span className="text-[11px] font-medium text-slate-300">
-              {typingUsers.length === 1
+              {typingUsers[0]?.action === 'uploading_photo'
+                ? `${typingUsers[0]?.displayName || typingUsers[0]?.username || 'Alguém'} está enviando uma foto...`
+                : typingUsers[0]?.action === 'uploading_file'
+                ? `${typingUsers[0]?.displayName || typingUsers[0]?.username || 'Alguém'} está enviando um arquivo...`
+                : typingUsers.length === 1
                 ? `${typingUsers[0]?.displayName || typingUsers[0]?.username || 'Alguém'} está digitando...`
                 : `${typingUsers.map((u) => u?.displayName || u?.username || 'Alguém').join(', ')} estão digitando...`}
             </span>

@@ -23,6 +23,7 @@ import {
   Pause,
   Ban
 } from 'lucide-react';
+import { ChatImage } from './ChatImage';
 import { FormattedText } from './FormattedText';
 import { VoiceAudioPlayer } from './VoiceAudioPlayer';
 import { PollCard } from '../polls/PollCard';
@@ -497,13 +498,15 @@ export function MessageBubble({
 
                 if (isImg) {
                   return (
-                    <div key={idx} className="relative overflow-hidden rounded-xl bg-black/20 my-1 max-w-full">
-                      <img
+                    <div key={idx} className="my-1 max-w-full">
+                      <ChatImage
                         src={att.file_url}
                         alt={att.file_name || 'Imagem'}
+                        blurPlaceholder={att.blur_placeholder || message.blur_placeholder}
+                        width={att.width || message.width}
+                        height={att.height || message.height}
+                        aspectRatio={att.aspect_ratio || message.aspect_ratio}
                         onClick={() => onImageClick && onImageClick(att.file_url)}
-                        className="max-h-72 max-w-full rounded-xl object-contain cursor-pointer hover:opacity-95 transition-opacity"
-                        loading="lazy"
                       />
                     </div>
                   );
@@ -548,13 +551,15 @@ export function MessageBubble({
             (message.content?.startsWith('http') && message.content?.includes('/storage/v1/object/public/chat-media/')) ||
             (message.file_url && (message.file_url.startsWith('http') || message.file_url.startsWith('data:image/')))
           ) && (
-            <div className="mb-1.5 relative overflow-hidden rounded-xl bg-black/20 my-1 max-w-full">
-              <img
+            <div className="mb-1.5 my-1 max-w-full">
+              <ChatImage
                 src={message.file_url || message.content}
                 alt="Foto"
+                blurPlaceholder={message.blur_placeholder}
+                width={message.width}
+                height={message.height}
+                aspectRatio={message.aspect_ratio}
                 onClick={() => onImageClick && onImageClick(message.file_url || message.content)}
-                className="max-h-72 max-w-full rounded-xl object-contain cursor-pointer hover:opacity-95 transition-opacity shadow-sm"
-                loading="lazy"
               />
             </div>
           )}

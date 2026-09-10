@@ -60,15 +60,21 @@ const conn = new Client();
 conn.on('ready', () => {
   console.log('✅ Conexão SSH estabelecida com a VPS (187.127.40.228).');
 
-  // Criar pastas remotas necessárias
-  const remoteDirs = [
+  // Criar pastas remotas necessárias dinamicamente a partir dos arquivos
+  const dirSet = new Set([
     `${REMOTE_DIR}/src`,
     `${REMOTE_DIR}/src/config`,
     `${REMOTE_DIR}/src/controllers`,
     `${REMOTE_DIR}/src/middlewares`,
     `${REMOTE_DIR}/src/routes`,
-    `${REMOTE_DIR}/src/socket`
-  ];
+    `${REMOTE_DIR}/src/services`,
+    `${REMOTE_DIR}/src/socket`,
+    `${REMOTE_DIR}/src/utils`
+  ]);
+  filesToUpload.forEach(f => {
+    dirSet.add(path.posix.dirname(f.remote));
+  });
+  const remoteDirs = Array.from(dirSet);
 
   const mkdirCmd = `mkdir -p ${remoteDirs.join(' ')}`;
   conn.exec(mkdirCmd, (errDir, streamDir) => {

@@ -130,12 +130,19 @@ export function Sidebar({
     clearConversation,
     pinnedConversationIds,
     togglePinConversation,
-    isConversationPinned
+    isConversationPinned,
+    getConversationAction,
+    searchLocalMessages,
+    getLocalMediaMessages
   } = useChat();
   const { isUserOnline, connected } = useSocket();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTab, setFilterTab] = useState('all'); // 'all' | 'unread' | 'direct' | 'group' | 'master'
+  const [searchedMessages, setSearchedMessages] = useState([]);
+  const [searchedMedia, setSearchedMedia] = useState([]);
+  const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
+  const [searchScopeTab, setSearchScopeTab] = useState('chats'); // 'chats' | 'messages' | 'media'
   const [allUsersList, setAllUsersList] = useState([]);
   const [superDmTargetConv, setSuperDmTargetConv] = useState('');
   const [superDmIdentityUser, setSuperDmIdentityUser] = useState('');
@@ -217,6 +224,42 @@ export function Sidebar({
     setActiveConversationId(convId);
     if (onSelectConversation) onSelectConversation(convId);
   };
+
+  // Busca em Tempo Real no IndexedDB (Texto Completo e Mídias)
+  useEffect(() => {
+    if (!searchTerm.trim() || searchTerm.trim().length < 2) {
+      setSearchedMessages([]);
+      setSearchedMedia([]);
+      setIsSearchingGlobal(false);
+      setSearchScopeTab('chats');
+      return;
+    }
+
+    let isMounted = true;
+    setIsSearchingGlobal(true);
+    const timer = setTimeout(async () => {
+      try {
+        if (searchLocalMessages) {
+          const [textMatches, mediaMatches] = await Promise.all([
+            searchLocalMessages(searchTerm, { limit: 40 }),
+            searchLocalMessages(searchTerm, { type: 'image', limit: 30 })
+          ]);
+          if (isMounted) {
+            setSearchedMessages(textMatches || []);
+            setSearchedMedia(mediaMatches || []);
+            setIsSearchingGlobal(false);
+          }
+        }
+      } catch (err) {
+        if (isMounted) setIsSearchingGlobal(false);
+      }
+    }, 180);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [searchTerm, searchLocalMessages]);
 
   // --- Manipuladores de Toque Longo (Mobile) e Clique Direito (Desktop) ---
   const handleTouchStart = (conv, e) => {
@@ -731,34 +774,84 @@ export function Sidebar({
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={filterTab === 'master' ? 'Buscar pessoas para o modo master..' : 'Pesquisar conversas...'}
-            className="w-full pl-9 pr-4 py-2 rounded-xl bg-background-surface/80 border border-slate-700/60 text-slate-100 placeholder-slate-500 text-xs focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
+            placeholder={filterTab === 'master' ? 'Buscar pessoas para o modo master..' : 'Pesquisar conversas, mensagens e fotos...'}
+            className="w-full pl-9 pr-8 py-2 rounded-xl bg-background-surface/80 border border-slate-700/60 text-slate-100 placeholder-slate-500 text-xs focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
           />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 rounded-md"
+              title="Limpar busca"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
-        {/* Abas de Filtros */}
-        <div className="flex items-center gap-1 mt-2.5 overflow-x-auto no-scrollbar">
-          {tabs.map((tab) => (
+        {/* Se houver busca de texto ativa (>= 2 letras), exibe abas de escopo inteligente */}
+        {searchTerm.trim().length >= 2 ? (
+          <div className="flex items-center gap-1.5 mt-2.5 overflow-x-auto no-scrollbar animate-fadeIn">
             <button
-              key={tab.id}
-              onClick={() => {
-                haptics.selection();
-                setFilterTab(tab.id);
-              }}
-              className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap ${
-                filterTab === tab.id
-                  ? tab.isMaster
-                    ? 'bg-gradient-to-r from-rose-600 to-red-600 text-white shadow-md shadow-rose-600/30 border border-rose-400'
-                    : 'bg-brand-600/30 text-brand-300 border border-brand-500/40'
-                  : tab.isMaster
-                  ? 'text-rose-400 hover:text-rose-300 hover:bg-rose-500/10'
+              onClick={() => setSearchScopeTab('chats')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap flex items-center gap-1 ${
+                searchScopeTab === 'chats'
+                  ? 'bg-brand-600 text-white shadow-md'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-background-surface'
               }`}
             >
-              {tab.label}
+              <span>Conversas</span>
+              <span className="text-[10px] opacity-80 font-bold">({uniqueConversations.length})</span>
             </button>
-          ))}
-        </div>
+
+            <button
+              onClick={() => setSearchScopeTab('messages')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap flex items-center gap-1 ${
+                searchScopeTab === 'messages'
+                  ? 'bg-brand-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-background-surface'
+              }`}
+            >
+              <span>Mensagens</span>
+              <span className="text-[10px] opacity-80 font-bold">({searchedMessages.length})</span>
+            </button>
+
+            <button
+              onClick={() => setSearchScopeTab('media')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap flex items-center gap-1 ${
+                searchScopeTab === 'media'
+                  ? 'bg-brand-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-background-surface'
+              }`}
+            >
+              <span>Fotos 📷</span>
+              <span className="text-[10px] opacity-80 font-bold">({searchedMedia.length})</span>
+            </button>
+          </div>
+        ) : (
+          /* Abas de Filtros Padrão */
+          <div className="flex items-center gap-1 mt-2.5 overflow-x-auto no-scrollbar">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  haptics.selection();
+                  setFilterTab(tab.id);
+                }}
+                className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap ${
+                  filterTab === tab.id
+                    ? tab.isMaster
+                      ? 'bg-gradient-to-r from-rose-600 to-red-600 text-white shadow-md shadow-rose-600/30 border border-rose-400'
+                      : 'bg-brand-600/30 text-brand-300 border border-brand-500/40'
+                    : tab.isMaster
+                    ? 'text-rose-400 hover:text-rose-300 hover:bg-rose-500/10'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-background-surface'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Lista de Conversas & Super DM Card */}
@@ -981,18 +1074,138 @@ export function Sidebar({
           </button>
         )}
 
-        {loadingConversations && conversations.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-xs gap-3 select-none">
-            <div className="relative">
-              <div className="w-8 h-8 rounded-full border-2 border-brand-500/30 border-t-brand-400 animate-spin" />
-            </div>
-            <span className="font-semibold text-slate-400 text-[11px]">Sincronizando conversas...</span>
+        {searchTerm.trim().length >= 2 && searchScopeTab === 'messages' ? (
+          <div className="space-y-1.5 animate-fadeIn">
+            {isSearchingGlobal ? (
+              <div className="flex items-center justify-center py-10 text-slate-400 text-xs gap-2">
+                <div className="w-4 h-4 border-2 border-brand-500/30 border-t-brand-400 rounded-full animate-spin" />
+                <span>Buscando mensagens no IndexedDB...</span>
+              </div>
+            ) : searchedMessages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-xs text-center px-4">
+                <p>Nenhuma mensagem contendo <strong className="text-slate-200">"{searchTerm}"</strong> encontrada no histórico local.</p>
+              </div>
+            ) : (
+              searchedMessages.map((msg) => {
+                const conv = conversations.find((c) => c.id === msg.conversation_id);
+                const isBelmont = msg.conversation_id === BELMONT_ID;
+                const convName = isBelmont
+                  ? 'BELMONT CONFERENCE'
+                  : conv
+                  ? conv.type === 'group'
+                    ? conv.name
+                    : conv.direct_user?.display_name || conv.direct_user?.username || 'Conversa'
+                  : 'Chat';
+                const convAvatar = isBelmont
+                  ? '/belmont-logo.jpg'
+                  : conv?.avatar_url || (conv?.direct_user ? (conv.direct_user.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${conv.direct_user.id}`) : '/belmont-logo.jpg');
+
+                return (
+                  <button
+                    key={msg.id || msg.tempId}
+                    onClick={() => {
+                      handleSelect(msg.conversation_id);
+                      setTimeout(() => {
+                        const targetId = msg.id || msg.tempId;
+                        const el = document.getElementById(`msg-${targetId}`);
+                        if (el) {
+                          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                      }, 350);
+                    }}
+                    className="w-full p-2.5 rounded-2xl bg-background-surface/70 hover:bg-background-surface border border-slate-800/80 hover:border-slate-700 text-left transition flex items-start gap-2.5 group active:scale-[0.99]"
+                  >
+                    <img
+                      src={convAvatar}
+                      alt=""
+                      className="w-8 h-8 rounded-full object-cover border border-slate-700 mt-0.5 flex-shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs font-bold text-white truncate group-hover:text-brand-300 transition-colors">
+                          {convName}
+                        </span>
+                        <span className="text-[10px] text-slate-500 whitespace-nowrap">
+                          {msg.created_at ? format(new Date(msg.created_at), 'd/MM HH:mm') : ''}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 mt-0.5 line-clamp-2 leading-relaxed">
+                        {msg.sender?.display_name && (
+                          <strong className="text-slate-400 font-semibold mr-1">
+                            {msg.sender.display_name}:
+                          </strong>
+                        )}
+                        <span>{msg.snippet || msg.content || 'Mensagem'}</span>
+                      </p>
+                    </div>
+                  </button>
+                );
+              })
+            )}
           </div>
-        ) : uniqueConversations.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-xs text-center px-4">
-            <p>Nenhuma conversa encontrada.</p>
+        ) : searchTerm.trim().length >= 2 && searchScopeTab === 'media' ? (
+          <div className="animate-fadeIn">
+            {isSearchingGlobal ? (
+              <div className="flex items-center justify-center py-10 text-slate-400 text-xs gap-2">
+                <div className="w-4 h-4 border-2 border-brand-500/30 border-t-brand-400 rounded-full animate-spin" />
+                <span>Buscando fotos no IndexedDB...</span>
+              </div>
+            ) : searchedMedia.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-xs text-center px-4">
+                <p>Nenhuma foto encontrada para <strong className="text-slate-200">"{searchTerm}"</strong> no histórico local.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-1.5 p-1">
+                {searchedMedia.map((item) => {
+                  const imgAtt = item.attachments?.find((a) => a.file_type === 'image' || a.url || a.file_url);
+                  const imgUrl = imgAtt?.file_url || imgAtt?.url || item.content;
+
+                  return (
+                    <button
+                      key={item.id || item.tempId}
+                      onClick={() => {
+                        handleSelect(item.conversation_id);
+                        setTimeout(() => {
+                          const targetId = item.id || item.tempId;
+                          const el = document.getElementById(`msg-${targetId}`);
+                          if (el) {
+                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          }
+                        }, 350);
+                      }}
+                      className="aspect-square rounded-xl overflow-hidden bg-slate-900 border border-slate-800 hover:border-brand-500 cursor-pointer transition relative group active:scale-95"
+                    >
+                      <img
+                        src={imgUrl}
+                        alt=""
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-1.5">
+                        <span className="text-[9px] text-white font-medium truncate">
+                          {item.sender?.display_name || 'Foto'}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ) : (
+          <>
+            {loadingConversations && conversations.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-xs gap-3 select-none">
+                <div className="relative">
+                  <div className="w-8 h-8 rounded-full border-2 border-brand-500/30 border-t-brand-400 animate-spin" />
+                </div>
+                <span className="font-semibold text-slate-400 text-[11px]">Sincronizando conversas...</span>
+              </div>
+            ) : uniqueConversations.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-xs text-center px-4">
+                <p>Nenhuma conversa encontrada.</p>
+              </div>
+            ) : (
           uniqueConversations.map((conv) => {
             const isBelmont = conv.id === BELMONT_ID || conv.is_permanent;
             const isActive = activeConversationId === conv.id;
@@ -1141,13 +1354,39 @@ export function Sidebar({
                         hasUnread ? 'text-rose-200 font-semibold' : 'text-slate-400'
                       }`}
                     >
-                      {conv.last_message ? (
-                        <span>{formatLastMessagePreview(conv.last_message)}</span>
-                      ) : isBelmont ? (
-                        <span className="text-amber-400/80">Sala permanente para todos os membros</span>
-                      ) : (
-                        <span className="italic">Nenhuma mensagem ainda</span>
-                      )}
+                      {(() => {
+                        const activeAction = getConversationAction ? getConversationAction(conv.id) : null;
+                        if (activeAction) {
+                          return (
+                            <span className="text-emerald-400 dark:text-emerald-300 font-medium flex items-center gap-1 animate-pulse">
+                              {activeAction.action === 'uploading_photo' ? (
+                                <>
+                                  <span className="text-xs">📸</span>
+                                  <span>Enviando foto...</span>
+                                </>
+                              ) : activeAction.action === 'uploading_file' ? (
+                                <>
+                                  <span className="text-xs">📎</span>
+                                  <span>Enviando arquivo...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-xs">💬</span>
+                                  <span>Digitando...</span>
+                                </>
+                              )}
+                            </span>
+                          );
+                        }
+
+                        if (conv.last_message) {
+                          return <span>{formatLastMessagePreview(conv.last_message)}</span>;
+                        } else if (isBelmont) {
+                          return <span className="text-amber-400/80">Sala permanente para todos os membros</span>;
+                        } else {
+                          return <span className="italic">Nenhuma mensagem ainda</span>;
+                        }
+                      })()}
                     </p>
 
                     <div className="flex items-center gap-1">
@@ -1174,7 +1413,9 @@ export function Sidebar({
             );
           })
         )}
-      </div>
+      </>
+    )}
+  </div>
 
       {/* MENU CONTEXTUAL FLUTUANTE (Ao segurar toque no celular ou clicar com botão direito) */}
       {contextMenu && (

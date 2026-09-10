@@ -1,58 +1,85 @@
 // Mapeamento: `${conversationId}:${userId}` -> NodeJS.Timeout
-const typingTimeouts = new Map();
+const actionTimeouts = new Map();
 
 /**
- * Registra o início da digitação de um usuário em uma conversa
+ * Registra o início de uma ação rica em tempo real (estilo Telegram)
+ * action: 'typing' | 'uploading_photo' | 'uploading_file'
  */
-function handleTypingStart(socket, io, data) {
-  const { conversationId, user } = data;
+function handleActionStart(socket, io, data) {
+  const { conversationId, user, action = 'typing' } = data;
   if (!conversationId || !user) return;
 
   const key = `${conversationId}:${user.id}`;
 
-  // Se já houver um timer de timeout, limpa
-  if (typingTimeouts.has(key)) {
-    clearTimeout(typingTimeouts.get(key));
+  if (actionTimeouts.has(key)) {
+    clearTimeout(actionTimeouts.get(key));
   }
 
-  // Notifica os outros membros da sala da conversa
-  socket.to(`conversation:${conversationId}`).emit('user_typing_start', {
+  const payload = {
     conversationId,
+    action, // 'typing', 'uploading_photo', 'uploading_file'
     user: {
       id: user.id,
       displayName: user.displayName || user.username || 'Alguém',
       avatarUrl: user.avatarUrl
-    }
-  });
+    },
+    startedAt: Date.now()
+  };
 
-  // Cria um timeout de segurança de 4 segundos para parar de digitar automaticamente
+  // Notifica os participantes dentro da sala da conversa
+  socket.to(`conversation:${conversationId}`).emit('user_action_start', payload);
+
+  // Mantém emissão de compatibilidade se for digitação
+  if (action === 'typing') {
+    socket.to(`conversation:${conversationId}`).emit('user_typing_start', payload);
+  }
+
+  // Notifica globalmente para atualizar a lista lateral (sidebar preview)
+  io.emit('user_action_preview', payload);
+
+  // Timeout de segurança de 4.5 segundos
   const timeout = setTimeout(() => {
-    handleTypingStop(socket, io, data);
-  }, 4000);
+    handleActionStop(socket, io, data);
+  }, 4500);
 
-  typingTimeouts.set(key, timeout);
+  actionTimeouts.set(key, timeout);
 }
 
 /**
- * Registra o término da digitação
+ * Registra o término da ação
  */
-function handleTypingStop(socket, io, data) {
+function handleActionStop(socket, io, data) {
   const { conversationId, user } = data;
   if (!conversationId || !user) return;
 
   const key = `${conversationId}:${user.id}`;
-  if (typingTimeouts.has(key)) {
-    clearTimeout(typingTimeouts.get(key));
-    typingTimeouts.delete(key);
+  if (actionTimeouts.has(key)) {
+    clearTimeout(actionTimeouts.get(key));
+    actionTimeouts.delete(key);
   }
 
-  socket.to(`conversation:${conversationId}`).emit('user_typing_stop', {
+  const payload = {
     conversationId,
     userId: user.id
-  });
+  };
+
+  socket.to(`conversation:${conversationId}`).emit('user_action_stop', payload);
+  socket.to(`conversation:${conversationId}`).emit('user_typing_stop', payload);
+  io.emit('user_action_preview_stop', payload);
+}
+
+// Funções de compatibilidade com chamadas anteriores
+function handleTypingStart(socket, io, data) {
+  handleActionStart(socket, io, { ...data, action: 'typing' });
+}
+
+function handleTypingStop(socket, io, data) {
+  handleActionStop(socket, io, data);
 }
 
 module.exports = {
+  handleActionStart,
+  handleActionStop,
   handleTypingStart,
   handleTypingStop
 };

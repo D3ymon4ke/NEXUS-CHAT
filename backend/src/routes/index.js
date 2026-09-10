@@ -13,6 +13,7 @@ const uploadController = require('../controllers/uploadController');
 const economyController = require('../controllers/economyController');
 const walletController = require('../controllers/walletController');
 const adminController = require('../controllers/adminController');
+const pushController = require('../controllers/pushController');
 
 // --- Health Check ---
 router.get('/health', (req, res) => {
@@ -112,6 +113,9 @@ router.get('/link-preview', async (req, res) => {
     return res.json({ success: false, error: err.message });
   }
 });
+
+// --- Web Push Route ---
+router.post('/send-push', pushController.sendPush);
 
 module.exports = router;
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
+import { useSocket } from '../../context/SocketContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { sounds } from '../../lib/sound';
 import {
@@ -20,6 +21,7 @@ import {
 export function GhostMessageCard({ message, isOwn }) {
   const { user } = useAuth();
   const { deleteMessage } = useChat();
+  const { socket, connected } = useSocket();
 
   let ghostData = null;
   try {
@@ -68,7 +70,9 @@ export function GhostMessageCard({ message, isOwn }) {
   const getDurationSeconds = (type) => {
     switch (type) {
       case '10s': return 10;
+      case '30s': return 30;
       case '1m': return 60;
+      case '5m': return 300;
       case '1h': return 3600;
       case '24h': return 86400;
       default: return 10;
@@ -78,20 +82,31 @@ export function GhostMessageCard({ message, isOwn }) {
   const timerBadgeLabel = {
     view_once: 'Visualização Única (1x)',
     '10s': '10 Segundos',
+    '30s': '30 Segundos',
     '1m': '1 Minuto',
+    '5m': '5 Minutos',
     '1h': '1 Hora',
     '24h': '24 Horas'
-  }[ghostType] || 'Fantasma';
+  }[ghostType] || 'Temporária';
 
-  // Função para expirar / autodestruir a mensagem no Supabase e banco
+  // Função para expirar / autodestruir a mensagem no servidor VPS e no Supabase
   const handleExpireMessage = async () => {
     try {
       sounds.playPop();
+
+      // Notifica o servidor VPS para queimar a mensagem no cache e banco imediatamente
+      if (socket && connected) {
+        socket.emit('burn_ghost_message', {
+          messageId: message.id,
+          conversationId: message.conversation_id
+        });
+      }
+
       const updatedPayload = JSON.stringify({
         ghost_message: {
           ...ghostData,
           isExpired: true,
-          content: '[Mensagem Fantasma Expirada]',
+          content: '🔥 Mensagem autodestruída',
           attachments: []
         }
       });

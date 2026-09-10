@@ -92,4 +92,69 @@ export async function compressImageFile(file, maxWidthParam = 1280, maxHeightPar
   });
 }
 
+/**
+ * Gera uma miniatura ultraleve (~300 bytes, 24px) com dimensões exatas da foto
+ * Usado para renderização instantânea com efeito blur (estilo Telegram / blurhash)
+ */
+export async function generateBlurPlaceholder(fileOrBase64) {
+  return new Promise((resolve) => {
+    if (!fileOrBase64) {
+      return resolve({ placeholder: null, width: null, height: null, aspectRatio: null });
+    }
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    img.onload = () => {
+      try {
+        const naturalWidth = img.naturalWidth || img.width;
+        const naturalHeight = img.naturalHeight || img.height;
+        const maxDimension = 24;
+        let w = maxDimension;
+        let h = maxDimension;
+
+        if (naturalWidth && naturalHeight) {
+          if (naturalWidth > naturalHeight) {
+            h = Math.max(1, Math.round((naturalHeight * maxDimension) / naturalWidth));
+          } else {
+            w = Math.max(1, Math.round((naturalWidth * maxDimension) / naturalHeight));
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h);
+          const placeholder = canvas.toDataURL('image/jpeg', 0.4);
+          resolve({
+            placeholder,
+            width: naturalWidth || null,
+            height: naturalHeight || null,
+            aspectRatio: naturalWidth && naturalHeight ? naturalWidth / naturalHeight : null
+          });
+          return;
+        }
+        resolve({ placeholder: null, width: naturalWidth, height: naturalHeight, aspectRatio: null });
+      } catch (err) {
+        resolve({ placeholder: null, width: null, height: null, aspectRatio: null });
+      }
+    };
+
+    img.onerror = () => {
+      resolve({ placeholder: null, width: null, height: null, aspectRatio: null });
+    };
+
+    if (typeof fileOrBase64 === 'string') {
+      img.src = fileOrBase64;
+    } else if (fileOrBase64 instanceof Blob || fileOrBase64 instanceof File) {
+      img.src = URL.createObjectURL(fileOrBase64);
+    } else {
+      resolve({ placeholder: null, width: null, height: null, aspectRatio: null });
+    }
+  });
+}
+
+
 

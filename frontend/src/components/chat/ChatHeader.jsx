@@ -152,15 +152,37 @@ export function ChatHeader({ onBack, onSearchToggle, isSearching, onOpenProfile 
               ) : null}
             </div>
 
-            {/* Indicador de Digitação ou Subtítulo */}
+            {/* Indicador de Ações Ricas (Telegram Style) ou Subtítulo */}
             {Array.isArray(typingUsers) && typingUsers.length > 0 ? (
-              <div className="flex items-center gap-1 text-[11px] sm:text-xs text-brand-400 animate-pulse truncate min-w-0">
-                <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-bounceShort flex-shrink-0" />
-                <span className="truncate">
-                  {typingUsers.length === 1
-                    ? `${typingUsers[0]?.displayName || typingUsers[0]?.username || 'Usuário'} está digitando...`
-                    : 'Várias pessoas digitando...'}
-                </span>
+              <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-brand-400 dark:text-brand-300 animate-pulse truncate min-w-0 font-medium">
+                {typingUsers[0]?.action === 'uploading_photo' ? (
+                  <>
+                    <span className="text-xs flex-shrink-0 animate-bounceShort">📸</span>
+                    <span className="truncate">
+                      {typingUsers.length === 1
+                        ? `${typingUsers[0]?.displayName || typingUsers[0]?.username || 'Usuário'} está enviando foto...`
+                        : 'Enviando fotos...'}
+                    </span>
+                  </>
+                ) : typingUsers[0]?.action === 'uploading_file' ? (
+                  <>
+                    <span className="text-xs flex-shrink-0 animate-bounceShort">📎</span>
+                    <span className="truncate">
+                      {typingUsers.length === 1
+                        ? `${typingUsers[0]?.displayName || typingUsers[0]?.username || 'Usuário'} está enviando arquivo...`
+                        : 'Enviando arquivos...'}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-bounceShort flex-shrink-0" />
+                    <span className="truncate">
+                      {typingUsers.length === 1
+                        ? `${typingUsers[0]?.displayName || typingUsers[0]?.username || 'Usuário'} está digitando...`
+                        : 'Várias pessoas digitando...'}
+                    </span>
+                  </>
+                )}
               </div>
             ) : (
               <p className={`text-[11px] sm:text-xs truncate ${

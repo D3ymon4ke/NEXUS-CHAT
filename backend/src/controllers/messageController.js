@@ -1,7 +1,8 @@
 const { supabase, isConfigured } = require('../config/supabase');
+const { getCachedMessages, setCachedMessages } = require('../utils/messageCache');
 
 /**
- * Busca histórico de mensagens de uma conversa com paginação
+ * Busca histórico de mensagens de uma conversa com paginação e cache de RAM
  */
 async function getConversationMessages(req, res) {
   try {
@@ -10,6 +11,18 @@ async function getConversationMessages(req, res) {
 
     if (!conversationId) {
       return res.status(400).json({ success: false, error: 'ID da conversa é obrigatório.' });
+    }
+
+    // Se for primeira página (sem before), tenta responder instantaneamente da RAM da VPS (< 2ms)
+    if (!before) {
+      const cached = getCachedMessages(conversationId);
+      if (cached && cached.length > 0) {
+        return res.json({
+          success: true,
+          messages: cached,
+          fromCache: true
+        });
+      }
     }
 
     if (isConfigured && supabase) {
@@ -40,9 +53,16 @@ async function getConversationMessages(req, res) {
       }
 
       // Inverte a ordem para retornar cronológico (mais antigo primeiro)
+      const chronological = (messages || []).reverse();
+
+      // Alimenta o cache de RAM da VPS se for a página mais recente
+      if (!before && chronological.length > 0) {
+        setCachedMessages(conversationId, chronological);
+      }
+
       return res.json({
         success: true,
-        messages: (messages || []).reverse()
+        messages: chronological
       });
     }
 

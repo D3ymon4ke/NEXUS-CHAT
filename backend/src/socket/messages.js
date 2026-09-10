@@ -1,5 +1,20 @@
 const { supabase, isConfigured } = require('../config/supabase');
 const { v4: uuidv4 } = require('uuid');
+const {
+  getCachedMessages,
+  setCachedMessages,
+  addMessageToCache,
+  updateMessageInCache,
+  markDeliveredInCache,
+  markReadInCache,
+  deleteMessageInCache,
+  clearConversationCache
+} = require('../utils/messageCache');
+const {
+  parseDurationSeconds,
+  scheduleEphemeralDestruction
+} = require('./ephemeral');
+const { sendPushForNewMessage } = require('../services/pushService');
 
 /**
  * Trata o envio de uma nova mensagem em tempo real
@@ -49,6 +64,9 @@ async function handleSendMessage(socket, io, data) {
       status: 'sent'
     };
 
+    // Armazena instantaneamente no cache de RAM da VPS (< 1ms)
+    addMessageToCache(conversationId, formattedMessage);
+
     // Salvar no Supabase se configurado
     if (isConfigured && supabase) {
       const { error: msgError } = await supabase.from('messages').insert({
@@ -97,6 +115,33 @@ async function handleSendMessage(socket, io, data) {
       unreadCountDelta: 1
     });
 
+    // Dispara Web Push em background para membros offline através da VPS (Item 7)
+    sendPushForNewMessage(conversationId, formattedMessage, senderId).catch((pushErr) => {
+      console.warn('Aviso ao disparar Web Push no handleSendMessage:', pushErr.message);
+    });
+
+    // Agenda autodestruição no servidor VPS se for mensagem efêmera / temporária (Item 6)
+    if (type === 'ghost' || (content && typeof content === 'string' && content.includes('"ghost_message"'))) {
+      try {
+        let ghostData = null;
+        if (typeof content === 'string' && content.startsWith('{')) {
+          const parsed = JSON.parse(content);
+          ghostData = parsed.ghost_message;
+        } else if (typeof content === 'object' && content.ghost_message) {
+          ghostData = content.ghost_message;
+        }
+
+        if (ghostData && ghostData.ghostType) {
+          const secs = parseDurationSeconds(ghostData.ghostType);
+          if (secs) {
+            scheduleEphemeralDestruction(io, messageId, conversationId, secs);
+          }
+        }
+      } catch (ghostErr) {
+        console.warn('Aviso ao agendar autodestruição:', ghostErr);
+      }
+    }
+
   } catch (error) {
     console.error('Erro ao processar envio de mensagem:', error);
     socket.emit('error_message', { message: 'Falha ao processar mensagem.' });
@@ -112,6 +157,13 @@ async function handleEditMessage(socket, io, data) {
     if (!messageId || !conversationId || !content) return;
 
     const updatedAt = new Date().toISOString();
+
+    // Atualiza cache de RAM imediatamente
+    updateMessageInCache(conversationId, messageId, {
+      content,
+      is_edited: true,
+      updated_at: updatedAt
+    });
 
     if (isConfigured && supabase) {
       let query = supabase
@@ -154,6 +206,9 @@ async function handleClearConversation(socket, io, data) {
     const { conversationId, userId } = data;
     if (!conversationId) return;
 
+    // Limpa cache de RAM da conversa
+    clearConversationCache(conversationId);
+
     io.to(`conversation:${conversationId}`).emit('conversation_cleared', {
       conversationId,
       clearedBy: userId,
@@ -178,6 +233,8 @@ async function handleDeleteConversation(socket, io, data) {
     const { conversationId, userId } = data;
     if (!conversationId) return;
 
+    clearConversationCache(conversationId);
+
     io.to(`conversation:${conversationId}`).emit('conversation_deleted', {
       conversationId,
       deletedBy: userId
@@ -198,6 +255,9 @@ async function handleDeleteMessage(socket, io, data) {
   try {
     const { messageId, conversationId, senderId } = data;
     if (!messageId || !conversationId) return;
+
+    // Atualiza cache de RAM
+    deleteMessageInCache(conversationId, messageId);
 
     if (isConfigured && supabase) {
       await supabase
@@ -222,6 +282,8 @@ async function handlePinMessage(socket, io, data) {
   try {
     const { messageId, conversationId, isPinned } = data;
     if (!messageId || !conversationId) return;
+
+    updateMessageInCache(conversationId, messageId, { is_pinned: isPinned });
 
     if (isConfigured && supabase) {
       await supabase
@@ -283,12 +345,47 @@ async function handleReactMessage(socket, io, data) {
 }
 
 /**
+ * Trata confirmação de recebimento/entrega no aparelho do destinatário
+ */
+async function handleMessageDelivered(socket, io, data) {
+  try {
+    const { conversationId, messageId, tempId, senderId, deliveredToUserId } = data;
+    if (!conversationId) return;
+
+    // Atualiza o cache de RAM na VPS
+    markDeliveredInCache(conversationId, messageId, tempId);
+
+    const payload = {
+      conversationId,
+      messageId,
+      tempId,
+      deliveredToUserId: deliveredToUserId || socket.user?.id,
+      deliveredAt: new Date().toISOString()
+    };
+
+    // Emite para a sala da conversa
+    socket.to(`conversation:${conversationId}`).emit('message_delivered', payload);
+
+    // Se soubermos o remetente, envia também para a sala pessoal dele
+    if (senderId) {
+      io.to(`user:${senderId}`).emit('message_delivered', payload);
+    }
+  } catch (error) {
+    console.error('Erro ao processar confirmação de entrega:', error);
+  }
+}
+
+/**
  * Trata confirmação de leitura de mensagens
  */
 async function handleMarkAsRead(socket, io, data) {
   try {
     const { conversationId, userId, lastMessageId } = data;
-    if (!conversationId || !userId) return;
+    const effectiveUserId = userId || socket.user?.id;
+    if (!conversationId || !effectiveUserId) return;
+
+    // Atualiza status das mensagens no cache de RAM
+    markReadInCache(conversationId, effectiveUserId);
 
     if (isConfigured && supabase) {
       await supabase
@@ -298,16 +395,53 @@ async function handleMarkAsRead(socket, io, data) {
           unread_count: 0
         })
         .eq('conversation_id', conversationId)
-        .eq('user_id', userId);
+        .eq('user_id', effectiveUserId);
     }
 
-    socket.to(`conversation:${conversationId}`).emit('messages_read_by_user', {
+    const payload = {
       conversationId,
-      userId,
+      userId: effectiveUserId,
       readAt: new Date().toISOString()
-    });
+    };
+
+    socket.to(`conversation:${conversationId}`).emit('messages_read_by_user', payload);
+    io.emit('conversation_messages_read', payload);
   } catch (error) {
     console.error('Erro ao marcar mensagens como lidas:', error);
+  }
+}
+
+/**
+ * Retorna as mensagens em cache de RAM diretamente pelo Socket (< 2ms)
+ */
+function handleGetConversationCache(socket, io, data, callback) {
+  const { conversationId } = data || {};
+  if (!conversationId) {
+    if (typeof callback === 'function') callback({ success: false, messages: [] });
+    return;
+  }
+
+  const cached = getCachedMessages(conversationId);
+  const result = {
+    success: true,
+    conversationId,
+    messages: cached || [],
+    fromCache: !!cached
+  };
+
+  if (typeof callback === 'function') {
+    callback(result);
+  }
+  socket.emit('conversation_cache_loaded', result);
+}
+
+/**
+ * Sincroniza/aquece o cache de RAM a partir do cliente
+ */
+function handleSyncConversationCache(socket, io, data) {
+  const { conversationId, messages } = data || {};
+  if (conversationId && Array.isArray(messages) && messages.length > 0) {
+    setCachedMessages(conversationId, messages);
   }
 }
 
@@ -373,7 +507,10 @@ module.exports = {
   handlePinMessage,
   handleReactMessage,
   handleMarkAsRead,
+  handleMessageDelivered,
   handleClearConversation,
   handleDeleteConversation,
-  handleMessageCoinReward
+  handleMessageCoinReward,
+  handleGetConversationCache,
+  handleSyncConversationCache
 };

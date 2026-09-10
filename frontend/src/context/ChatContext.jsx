@@ -263,10 +263,22 @@ export function ChatProvider({ children }) {
     return null;
   }, [activeConversationId, conversations]);
 
-  // Lista de usuários digitando na conversa ativa
+  // Lista de usuários digitando ou realizando ações na conversa ativa
   const activeTypingUsers = Array.from(typingUsersMap.values()).filter(
     (t) => t && t.conversationId === activeConversationId && (t.expiresAt || 0) > Date.now()
   );
+
+  // Retorna a ação em andamento para uma conversa (usado no preview animado da lista de chats)
+  const getConversationAction = useCallback((convId) => {
+    if (!convId) return null;
+    const now = Date.now();
+    for (const entry of typingUsersMap.values()) {
+      if (entry && entry.conversationId === convId && (entry.expiresAt || 0) > now) {
+        return entry;
+      }
+    }
+    return null;
+  }, [typingUsersMap]);
 
   const toggleSound = () => {
     setSoundEnabled(prev => {
@@ -446,6 +458,18 @@ export function ChatProvider({ children }) {
       setLoadingMessages(true);
     }
 
+    // Carregamento ultrarrápido do cache em memória RAM da VPS (< 2ms)
+    if (socket && connected) {
+      socket.emit('get_conversation_messages_cache', { conversationId: activeConversationId }, (res) => {
+        if (res && res.success && Array.isArray(res.messages) && res.messages.length > 0) {
+          if (activeConversationIdRef.current === activeConversationId) {
+            setMessages(res.messages);
+            setLoadingMessages(false);
+          }
+        }
+      });
+    }
+
     async function loadMessages() {
       try {
         if (isSupabaseConfigured && supabase) {
@@ -575,6 +599,14 @@ export function ChatProvider({ children }) {
               try {
                 localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(resolvedMsgs));
               } catch (cacheErr) {}
+
+              // Sincroniza e aquece o cache de RAM na VPS
+              if (socket && connected && resolvedMsgs.length > 0) {
+                socket.emit('sync_conversation_cache', {
+                  conversationId: activeConversationId,
+                  messages: resolvedMsgs
+                });
+              }
               return;
             } else if (dbErr) {
               console.warn('Aviso Supabase ao carregar mensagens:', dbErr);
@@ -592,6 +624,13 @@ export function ChatProvider({ children }) {
           try {
             localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(res.messages));
           } catch (cacheErr) {}
+
+          if (socket && connected && res.messages.length > 0) {
+            socket.emit('sync_conversation_cache', {
+              conversationId: activeConversationId,
+              messages: res.messages
+            });
+          }
         }
       } catch (err) {
         console.error('Erro ao carregar mensagens:', err);
@@ -1159,7 +1198,7 @@ export function ChatProvider({ children }) {
         const payload = eventPayload?.payload;
         const currentUser = userRef.current;
         if (!payload || payload.userId === currentUser?.id) return;
-        const { conversationId, userId, displayName, avatarUrl, username, isTyping } = payload;
+        const { conversationId, userId, displayName, avatarUrl, username, isTyping, action } = payload;
         const key = `${conversationId}_${userId}`;
         setTypingUsersMap((prev) => {
           const next = new Map(prev);
@@ -1170,7 +1209,8 @@ export function ChatProvider({ children }) {
               displayName: displayName || username || 'Usuário',
               avatarUrl,
               username,
-              expiresAt: Date.now() + 4000
+              action: action || 'typing',
+              expiresAt: Date.now() + 4500
             });
           } else {
             next.delete(key);
@@ -1208,6 +1248,99 @@ export function ChatProvider({ children }) {
   }, [user?.id]);
 
   const [showPollModal, setShowPollModal] = useState(false);
+  const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' ? !navigator.onLine : false);
+  const [pendingOutboxCount, setPendingOutboxCount] = useState(0);
+  const isFlushingOutboxRef = useRef(false);
+
+  // Esvaziar fila de mensagens offline enviando para VPS e Supabase
+  const flushOutbox = useCallback(async () => {
+    if (isFlushingOutboxRef.current) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+    isFlushingOutboxRef.current = true;
+
+    try {
+      const pending = await nexusStorage.getOutboxMessages();
+      if (pending && pending.length > 0) {
+        for (const msg of pending) {
+          try {
+            if (socket && connected) {
+              socket.emit('send_message', {
+                conversationId: msg.conversation_id,
+                senderId: msg.sender_id,
+                content: msg.content,
+                type: msg.type,
+                replyToId: msg.reply_to_id,
+                attachments: msg.attachments,
+                sender: msg.sender,
+                tempId: msg.tempId
+              });
+            }
+
+            if (isSupabaseConfigured && supabase) {
+              await supabase.from('messages').insert({
+                conversation_id: msg.conversation_id,
+                sender_id: msg.sender_id,
+                content: msg.content,
+                type: msg.type === 'image' ? 'image' : (msg.type || 'text'),
+                reply_to_id: msg.reply_to_id
+              });
+            }
+
+            await nexusStorage.removeOutboxMessage(msg.tempId);
+            setMessages((prev) => prev.map((m) => (m.tempId === msg.tempId ? { ...m, status: 'sent' } : m)));
+          } catch (itemErr) {
+            console.warn('Aviso ao sincronizar mensagem offline:', itemErr);
+          }
+        }
+      }
+      const remaining = await nexusStorage.getOutboxMessages();
+      setPendingOutboxCount(remaining.length);
+    } catch (err) {
+      console.warn('Erro ao esvaziar outbox:', err);
+    } finally {
+      isFlushingOutboxRef.current = false;
+    }
+  }, [socket, connected]);
+
+  // Monitorar eventos de rede online/offline
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      flushOutbox();
+    };
+    const handleOffline = () => {
+      setIsOffline(true);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    nexusStorage.getOutboxMessages().then((msgs) => {
+      setPendingOutboxCount(msgs.length);
+      if (typeof navigator !== 'undefined' && navigator.onLine && msgs.length > 0) {
+        flushOutbox();
+      }
+    });
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [flushOutbox]);
+
+  useEffect(() => {
+    if (connected) {
+      flushOutbox();
+    }
+  }, [connected, flushOutbox]);
+
+  const searchLocalMessages = useCallback(async (query, options) => {
+    return nexusStorage.searchMessages(query, options);
+  }, []);
+
+  const getLocalMediaMessages = useCallback(async (conversationId, limit) => {
+    return nexusStorage.getMediaMessages(conversationId, limit);
+  }, []);
 
   const sendMessage = async (param1, param2 = [], param3 = 'text', param4 = null) => {
     let content = '';
@@ -1234,6 +1367,7 @@ export function ChatProvider({ children }) {
     const effectiveSender = activeMasterUser || user;
     const effectiveSenderId = effectiveSender.id;
 
+    const isCurrentlyOffline = (typeof navigator !== 'undefined' && !navigator.onLine) || (!connected && !isSupabaseConfigured);
     const tempId = `temp-${Date.now()}`;
     const optimisticMessage = {
       id: tempId,
@@ -1264,7 +1398,7 @@ export function ChatProvider({ children }) {
         equipped_badge: effectiveSender.equipped_badge,
         equipped_name_color: effectiveSender.equipped_name_color
       },
-      status: 'sending'
+      status: isCurrentlyOffline ? 'queued' : 'sending'
     };
 
     setMessages((prev) => {
@@ -1274,6 +1408,13 @@ export function ChatProvider({ children }) {
     });
     setReplyingTo(null);
     sounds.playSend();
+
+    // Se estiver em modo offline, enfileira no Outbox do IndexedDB e aguarda reconexão
+    if (isCurrentlyOffline) {
+      nexusStorage.saveOutboxMessage(optimisticMessage);
+      setPendingOutboxCount((prev) => prev + 1);
+      return;
+    }
 
     // 0. Disparo Instantâneo via Supabase Realtime Broadcast P2P (chega aos destinatários em ~20-50ms via WebSocket sem esperar gravação no Postgres)
     if (isSupabaseConfigured && supabase && activeConversationId) {
@@ -1625,7 +1766,7 @@ export function ChatProvider({ children }) {
     }
   };
 
-  // --- LISTENERS WEBSOCKET SOCKET.IO (Edições em tempo real, exclusões e limpezas) ---
+  // --- LISTENERS WEBSOCKET SOCKET.IO (Tempo Real VPS: Mensagens, Tiques de Entrega e Leitura) ---
   useEffect(() => {
     if (!socket || !connected) return;
 
@@ -1633,6 +1774,28 @@ export function ChatProvider({ children }) {
       if (!msg) return;
       const currentActiveId = activeConversationIdRef.current;
       const currentUser = userRef.current;
+
+      // Acusar entrega imediata ao remetente via VPS
+      if (msg.sender_id !== currentUser?.id) {
+        socket.emit('mark_as_delivered', {
+          conversationId: msg.conversation_id,
+          messageId: msg.id,
+          tempId: msg.tempId,
+          senderId: msg.sender_id
+        });
+
+        // Se a conversa já estiver aberta, acusa leitura instantânea
+        if (msg.conversation_id === currentActiveId) {
+          socket.emit('mark_as_read', {
+            conversationId: msg.conversation_id,
+            userId: currentUser?.id,
+            lastMessageId: msg.id
+          });
+        }
+      }
+
+      // Salva instantaneamente a nova mensagem no IndexedDB
+      nexusStorage.saveMessage(msg);
 
       setConversations(prev => {
         const isCurrentActive = msg.conversation_id === currentActiveId;
@@ -1658,6 +1821,45 @@ export function ChatProvider({ children }) {
           return [...prev, msg];
         });
         sounds.playReceive();
+      }
+    };
+
+    // Confirmação de Entrega (✓✓ 2 Tiques Cinzas)
+    const handleMessageDelivered = (data) => {
+      const { conversationId, messageId, tempId, deliveredToUserId } = data || {};
+      const currentUser = userRef.current;
+      if (!conversationId || deliveredToUserId === currentUser?.id) return;
+
+      if (conversationId === activeConversationIdRef.current) {
+        setMessages(prev =>
+          prev.map(m => {
+            const isTarget =
+              (messageId && m.id === messageId) ||
+              (tempId && (m.tempId === tempId || m.id === tempId));
+            if (isTarget && m.status !== 'read') {
+              return { ...m, status: 'delivered' };
+            }
+            return m;
+          })
+        );
+      }
+    };
+
+    // Confirmação de Leitura (✓✓ 2 Tiques Azuis / Ciano)
+    const handleMessagesRead = (data) => {
+      const { conversationId, userId } = data || {};
+      const currentUser = userRef.current;
+      if (!conversationId || userId === currentUser?.id) return;
+
+      if (conversationId === activeConversationIdRef.current) {
+        setMessages(prev =>
+          prev.map(m => {
+            if (m.sender_id === currentUser?.id && m.status !== 'read') {
+              return { ...m, status: 'read' };
+            }
+            return m;
+          })
+        );
       }
     };
 
@@ -1701,7 +1903,47 @@ export function ChatProvider({ children }) {
       }
     };
 
+    const handleActionStart = (payload) => {
+      if (!payload || !payload.conversationId || !payload.user?.id) return;
+      if (payload.user.id === userRef.current?.id) return;
+      const key = `${payload.conversationId}_${payload.user.id}`;
+      setTypingUsersMap(prev => {
+        const next = new Map(prev);
+        next.set(key, {
+          conversationId: payload.conversationId,
+          userId: payload.user.id,
+          displayName: payload.user.displayName || payload.user.username || 'Alguém',
+          username: payload.user.username,
+          avatarUrl: payload.user.avatarUrl,
+          action: payload.action || 'typing',
+          expiresAt: Date.now() + 4500
+        });
+        return next;
+      });
+    };
+
+    const handleActionStop = (payload) => {
+      if (!payload || !payload.conversationId || !payload.userId) return;
+      const key = `${payload.conversationId}_${payload.userId}`;
+      setTypingUsersMap(prev => {
+        if (!prev.has(key)) return prev;
+        const next = new Map(prev);
+        next.delete(key);
+        return next;
+      });
+    };
+
+    socket.on('user_action_start', handleActionStart);
+    socket.on('user_action_stop', handleActionStop);
+    socket.on('user_action_preview', handleActionStart);
+    socket.on('user_action_preview_stop', handleActionStop);
+    socket.on('user_typing_start', handleActionStart);
+    socket.on('user_typing_stop', handleActionStop);
+
     socket.on('new_message', handleNewMsg);
+    socket.on('message_delivered', handleMessageDelivered);
+    socket.on('messages_read_by_user', handleMessagesRead);
+    socket.on('conversation_messages_read', handleMessagesRead);
     socket.on('message_edited', handleMsgEdited);
     socket.on('conversation_message_edited', handleMsgEdited);
     socket.on('message_deleted', handleMsgDeleted);
@@ -1710,7 +1952,17 @@ export function ChatProvider({ children }) {
     socket.on('conversation_removed', handleConvDeleted);
 
     return () => {
+      socket.off('user_action_start', handleActionStart);
+      socket.off('user_action_stop', handleActionStop);
+      socket.off('user_action_preview', handleActionStart);
+      socket.off('user_action_preview_stop', handleActionStop);
+      socket.off('user_typing_start', handleActionStart);
+      socket.off('user_typing_stop', handleActionStop);
+
       socket.off('new_message', handleNewMsg);
+      socket.off('message_delivered', handleMessageDelivered);
+      socket.off('messages_read_by_user', handleMessagesRead);
+      socket.off('conversation_messages_read', handleMessagesRead);
       socket.off('message_edited', handleMsgEdited);
       socket.off('conversation_message_edited', handleMsgEdited);
       socket.off('message_deleted', handleMsgDeleted);
@@ -1720,10 +1972,10 @@ export function ChatProvider({ children }) {
     };
   }, [socket, connected, loadConversations]);
 
-  const emitTyping = (isTyping) => {
+  const emitUserAction = useCallback((action = 'typing') => {
     if (!activeConversationId || !user) return;
 
-    // 1. Broadcast instantâneo via Supabase Realtime (funciona em produção na Vercel)
+    // 1. Broadcast instantâneo via Supabase Realtime (fallback)
     if (isSupabaseConfigured && supabase) {
       supabase.channel('chat_global_messages_listener').send({
         type: 'broadcast',
@@ -1734,31 +1986,37 @@ export function ChatProvider({ children }) {
           displayName: user.display_name || user.username,
           username: user.username,
           avatarUrl: user.avatar_url,
-          isTyping
+          action: action || 'typing',
+          isTyping: !!action
         }
       }).catch(() => {});
     }
 
-    // 2. Socket.IO (quando configurado)
+    // 2. Socket.IO (tempo real na VPS)
     if (socket && connected) {
-      if (isTyping) {
-        socket.emit('typing_start', {
+      if (action) {
+        socket.emit('action_start', {
           conversationId: activeConversationId,
+          action,
           user: {
             id: user.id,
-            displayName: user.display_name,
+            displayName: user.display_name || user.username,
             username: user.username,
             avatarUrl: user.avatar_url
           }
         });
       } else {
-        socket.emit('typing_stop', {
+        socket.emit('action_stop', {
           conversationId: activeConversationId,
           user: { id: user.id }
         });
       }
     }
-  };
+  }, [activeConversationId, user, socket, connected, isSupabaseConfigured]);
+
+  const emitTyping = useCallback((isTyping) => {
+    emitUserAction(isTyping ? 'typing' : null);
+  }, [emitUserAction]);
 
   const pinMessage = async (messageId, isPinned) => {
     setMessages(prev => prev.map(m => m.id === messageId ? { ...m, is_pinned: isPinned } : m));
@@ -2021,12 +2279,19 @@ export function ChatProvider({ children }) {
         setReplyingTo,
         setEditingMessage,
         emitTyping,
+        emitUserAction,
+        getConversationAction,
         toggleSound,
         masterIdentities,
         setMasterIdentityForConv,
         clearMasterIdentityForConv,
         showPollModal,
         setShowPollModal,
+        isOffline,
+        pendingOutboxCount,
+        flushOutbox,
+        searchLocalMessages,
+        getLocalMediaMessages,
         setMessages,
         clearMessages: () => setMessages([])
       }}

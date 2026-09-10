@@ -204,11 +204,14 @@ export const notificationService = {
     }
   },
 
-  // Disparar Web Push pelo Servidor Vercel (/api/send-push) para destinatários
+  // Disparar Web Push pelo Servidor VPS (/api/send-push) para destinatários
   sendServerPush: async ({ recipientIds = [], title, body, icon, data = {}, senderId = null, conversationId = null }) => {
     if (!Array.isArray(recipientIds) || recipientIds.length === 0) return;
     try {
-      fetch('/api/send-push', {
+      const vpsUrl = import.meta.env?.VITE_VPS_API_URL || 'https://187-127-40-228.sslip.io:5000';
+      const endpoint = `${vpsUrl}/api/send-push`;
+
+      fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -220,8 +223,21 @@ export const notificationService = {
           senderId,
           conversationId
         })
-      }).catch((err) => {
-        console.warn('Aviso ao disparar Web Push no servidor:', err);
+      }).catch(() => {
+        // Fallback para rota relativa local se VPS falhar
+        fetch('/api/send-push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipientIds,
+            title,
+            body,
+            icon: icon || '/belmont-logo.jpg',
+            data,
+            senderId,
+            conversationId
+          })
+        }).catch(() => {});
       });
     } catch (e) {}
   },

@@ -7,7 +7,9 @@ const {
 } = require('./presence');
 const {
   handleTypingStart,
-  handleTypingStop
+  handleTypingStop,
+  handleActionStart,
+  handleActionStop
 } = require('./typing');
 const {
   handleSendMessage,
@@ -16,9 +18,15 @@ const {
   handlePinMessage,
   handleReactMessage,
   handleMarkAsRead,
+  handleMessageDelivered,
   handleClearConversation,
-  handleDeleteConversation
+  handleDeleteConversation,
+  handleGetConversationCache,
+  handleSyncConversationCache
 } = require('./messages');
+const {
+  handleBurnGhostMessage
+} = require('./ephemeral');
 
 function setupSocketIO(io) {
   // Middleware de autenticação para conexões WebSocket
@@ -59,13 +67,31 @@ function setupSocketIO(io) {
       }
     });
 
-    // --- DIGITAÇÃO ---
+    // --- AÇÕES RICAS EM TEMPO REAL (DIGITANDO, ENVIANDO FOTO, ARQUIVO) ---
+    socket.on('action_start', (data) => {
+      handleActionStart(socket, io, { ...data, user });
+    });
+
+    socket.on('action_stop', (data) => {
+      handleActionStop(socket, io, { ...data, user });
+    });
+
+    // Compatibilidade com eventos legados de digitação
     socket.on('typing_start', (data) => {
-      handleTypingStart(socket, io, { ...data, user });
+      handleActionStart(socket, io, { ...data, user, action: 'typing' });
     });
 
     socket.on('typing_stop', (data) => {
-      handleTypingStop(socket, io, { ...data, user });
+      handleActionStop(socket, io, { ...data, user });
+    });
+
+    // --- CACHE EM MEMÓRIA RAM NA VPS (< 2ms) ---
+    socket.on('get_conversation_messages_cache', (data, callback) => {
+      handleGetConversationCache(socket, io, data, callback);
+    });
+
+    socket.on('sync_conversation_cache', (data) => {
+      handleSyncConversationCache(socket, io, data);
     });
 
     // --- MENSAGENS ---
@@ -99,6 +125,15 @@ function setupSocketIO(io) {
 
     socket.on('mark_as_read', (data) => {
       handleMarkAsRead(socket, io, { ...data, userId });
+    });
+
+    socket.on('mark_as_delivered', (data) => {
+      handleMessageDelivered(socket, io, { ...data, deliveredToUserId: userId });
+    });
+
+    // --- MENSAGENS EFÊMERAS (AUTODESTRUIÇÃO / VISUALIZAÇÃO ÚNICA) ---
+    socket.on('burn_ghost_message', (data) => {
+      handleBurnGhostMessage(socket, io, data);
     });
 
     // --- PRESENÇA ---
