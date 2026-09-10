@@ -5,6 +5,7 @@ import { apiRequest } from '../lib/api';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { sounds } from '../lib/sound';
 import { notificationService, formatNotificationPreview } from '../lib/notificationService';
+import { nexusStorage } from '../lib/nexusStorage';
 
 const ChatContext = createContext(null);
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
@@ -74,6 +75,30 @@ export function ChatProvider({ children }) {
       });
     }
   }, [user]);
+
+  // Hidratação instantânea do IndexedDB ao inicializar (Zero-Spinner / Zero-Delay)
+  useEffect(() => {
+    nexusStorage.getConversations().then((storedConvs) => {
+      if (Array.isArray(storedConvs) && storedConvs.length > 0) {
+        setConversations((prev) => {
+          if (prev.length === 0) {
+            const currentPins = getStoredPins(user?.id);
+            return sortConversationsList(storedConvs, currentPins);
+          }
+          return prev;
+        });
+        setLoadingConversations(false);
+      }
+    });
+
+    nexusStorage.getAllProfiles().then((cachedProfiles) => {
+      if (Array.isArray(cachedProfiles) && cachedProfiles.length > 0) {
+        cachedProfiles.forEach((p) => {
+          if (p?.id) profileCacheRef.current.set(p.id, p);
+        });
+      }
+    });
+  }, [user?.id]);
 
   const [conversations, setConversations] = useState(() => {
     try {
@@ -289,6 +314,11 @@ export function ChatProvider({ children }) {
         const currentPins = getStoredPins(user?.id);
         const sorted = sortConversationsList(res.conversations, currentPins);
         setConversations(sorted);
+
+        // Salvar no IndexedDB persistente
+        nexusStorage.saveConversations(sorted);
+        nexusStorage.saveProfiles(Array.from(profileCacheRef.current.values()));
+
         try {
           localStorage.setItem(`nexus_cached_conversations_${user.id}`, JSON.stringify(sorted));
         } catch (e) {}
@@ -333,7 +363,7 @@ export function ChatProvider({ children }) {
       }
     }
 
-    // 2. Verificação no cache persistente (localStorage)
+    // 2. Verificação no cache persistente (localStorage síncrono e IndexedDB assíncrono em 0ms)
     if (!hasLocalCache) {
       try {
         const cached = localStorage.getItem(`nexus_msgs_${activeConversationId}`);
@@ -345,9 +375,16 @@ export function ChatProvider({ children }) {
             hasLocalCache = true;
           }
         }
-      } catch (e) {
-        console.warn('Erro ao ler cache de mensagens:', e);
-      }
+      } catch (e) {}
+
+      // Busca instantânea em segundo plano no IndexedDB de alta performance
+      nexusStorage.getMessages(activeConversationId).then((idbMsgs) => {
+        if (Array.isArray(idbMsgs) && idbMsgs.length > 0) {
+          messagesCacheRef.current.set(activeConversationId, idbMsgs);
+          setMessages((current) => (current.length === 0 ? idbMsgs : current));
+          setLoadingMessages(false);
+        }
+      });
     }
 
     async function loadMessages() {
@@ -479,6 +516,7 @@ export function ChatProvider({ children }) {
 
               setMessages(resolvedMsgs);
               messagesCacheRef.current.set(activeConversationId, resolvedMsgs);
+              nexusStorage.saveMessages(activeConversationId, resolvedMsgs);
               try {
                 localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(resolvedMsgs));
               } catch (cacheErr) {}
@@ -495,6 +533,7 @@ export function ChatProvider({ children }) {
         if (res.success && res.messages) {
           setMessages(res.messages);
           messagesCacheRef.current.set(activeConversationId, res.messages);
+          nexusStorage.saveMessages(activeConversationId, res.messages);
           try {
             localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(res.messages));
           } catch (cacheErr) {}
@@ -664,6 +703,7 @@ export function ChatProvider({ children }) {
                 };
 
                 const updated = [...prev, initialFormatted];
+                nexusStorage.saveMessages(newMsg.conversation_id, updated);
                 try {
                   localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
                 } catch (e) {}
@@ -912,6 +952,7 @@ export function ChatProvider({ children }) {
               return prev;
             }
             const updated = [...prev, incoming];
+            nexusStorage.saveMessages(incoming.conversation_id, updated);
             try {
               localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
             } catch (e) {}
@@ -997,11 +1038,14 @@ export function ChatProvider({ children }) {
       })
       .on('broadcast', { event: 'instant_clear_conversation' }, (eventPayload) => {
         const { conversationId } = eventPayload?.payload || {};
-        if (conversationId === activeConversationId) {
-          setMessages([]);
-          try {
-            localStorage.removeItem(`nexus_msgs_${activeConversationId}`);
-          } catch (e) {}
+        if (conversationId) {
+          nexusStorage.clearMessages(conversationId);
+          if (conversationId === activeConversationId) {
+            setMessages([]);
+            try {
+              localStorage.removeItem(`nexus_msgs_${activeConversationId}`);
+            } catch (e) {}
+          }
         }
       })
       .on('broadcast', { event: 'messages_read' }, (eventPayload) => {
@@ -1168,7 +1212,11 @@ export function ChatProvider({ children }) {
       status: 'sending'
     };
 
-    setMessages(prev => [...prev, optimisticMessage]);
+    setMessages((prev) => {
+      const updated = [...prev, optimisticMessage];
+      nexusStorage.saveMessages(activeConversationId, updated);
+      return updated;
+    });
     setReplyingTo(null);
     sounds.playSend();
 
@@ -1237,6 +1285,7 @@ export function ChatProvider({ children }) {
 
           setMessages((prev) => {
             const updated = prev.map((m) => (m.tempId === tempId ? confirmedMsg : m));
+            nexusStorage.saveMessages(activeConversationId, updated);
             try {
               localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
             } catch (e) {}
@@ -1421,6 +1470,8 @@ export function ChatProvider({ children }) {
       if (targetConvId === activeConversationId) {
         setMessages([]);
       }
+
+      nexusStorage.clearMessages(targetConvId);
 
       setConversations(prev =>
         prev.map(c => c.id === targetConvId ? { ...c, last_message: null, unread_count: 0 } : c)
