@@ -7,6 +7,7 @@ import { haptics } from '../../lib/haptics';
 import {
   Check,
   CheckCheck,
+  Clock,
   MoreVertical,
   Reply,
   Copy,
@@ -601,13 +602,26 @@ export function MessageBubble({
 
               {/* Ícone de status de leitura para mensagens enviadas */}
               {isOwn && !isDeleted && (
-                <span className="ml-0.5">
+                <span
+                  className="ml-0.5 inline-flex items-center"
+                  title={
+                    message.status === 'read'
+                      ? 'Lida'
+                      : message.status === 'delivered'
+                      ? 'Entregue'
+                      : message.status === 'sending'
+                      ? 'Enviando...'
+                      : 'Enviada'
+                  }
+                >
                   {message.status === 'read' ? (
-                    <CheckCheck className="w-3.5 h-3.5 text-sky-300" />
+                    <CheckCheck className="w-3.5 h-3.5 text-cyan-400 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)] transition-all duration-300" />
                   ) : message.status === 'delivered' ? (
-                    <CheckCheck className="w-3.5 h-3.5" />
+                    <CheckCheck className="w-3.5 h-3.5 text-slate-400/90 transition-all duration-300" />
+                  ) : message.status === 'sending' ? (
+                    <Clock className="w-3 h-3 text-slate-400/70 animate-pulse" />
                   ) : (
-                    <Check className="w-3 h-3" />
+                    <Check className="w-3 h-3 text-slate-400/80 transition-all duration-300" />
                   )}
                 </span>
               )}

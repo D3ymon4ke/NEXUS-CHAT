@@ -380,7 +380,40 @@ export function ChatProvider({ children }) {
                 }
               });
 
-              const resolvedMsgs = dbMsgs.map((m) => {
+              // Mapear status de leitura para as mensagens carregadas
+              let lastOtherMsgIndex = -1;
+              dbMsgs.forEach((m, idx) => {
+                if (m.sender_id !== user?.id) {
+                  lastOtherMsgIndex = idx;
+                }
+              });
+
+              // Recuperar status salvos do cache local
+              const localSavedStatuses = new Map();
+              try {
+                const savedJson = localStorage.getItem(`nexus_msgs_${activeConversationId}`);
+                if (savedJson) {
+                  const arr = JSON.parse(savedJson);
+                  if (Array.isArray(arr)) {
+                    arr.forEach((m) => {
+                      if (m.id && m.status) localSavedStatuses.set(m.id, m.status);
+                    });
+                  }
+                }
+              } catch (e) {}
+
+              const resolvedMsgs = dbMsgs.map((m, index) => {
+                let initialStatus = 'sent';
+                if (m.sender_id === user?.id) {
+                  if (localSavedStatuses.get(m.id) === 'read' || (lastOtherMsgIndex !== -1 && index < lastOtherMsgIndex)) {
+                    initialStatus = 'read';
+                  } else if (localSavedStatuses.has(m.id)) {
+                    initialStatus = localSavedStatuses.get(m.id);
+                  } else {
+                    initialStatus = 'delivered';
+                  }
+                }
+
                 let resolvedReply = m.reply_to;
                 if (!resolvedReply && m.reply_to_id && msgMap.has(m.reply_to_id)) {
                   const target = msgMap.get(m.reply_to_id);
@@ -408,6 +441,7 @@ export function ChatProvider({ children }) {
 
                 return {
                   ...m,
+                  status: m.status || initialStatus,
                   reply_to: resolvedReply || null,
                   attachments: resolvedAttachments
                 };
@@ -477,7 +511,7 @@ export function ChatProvider({ children }) {
     setEditingMessage(null);
     setTypingUsersMap(new Map());
 
-    // Limpar badge de não lidas para a conversa selecionada
+    // Limpar badge de não lidas e emitir sinal de leitura em tempo real
     if (activeConversationId) {
       setConversations(prev => prev.map(c => c.id === activeConversationId ? { ...c, unread_count: 0 } : c));
       if (isSupabaseConfigured && supabase && user) {
@@ -487,6 +521,19 @@ export function ChatProvider({ children }) {
           .eq('conversation_id', activeConversationId)
           .eq('user_id', user.id)
           .then(() => {});
+
+        // Emitir broadcast de leitura em tempo real via WebSocket
+        if (typeof document !== 'undefined' && !document.hidden) {
+          supabase.channel('chat_global_messages_listener').send({
+            type: 'broadcast',
+            event: 'messages_read',
+            payload: {
+              conversationId: activeConversationId,
+              readByUserId: user.id,
+              readAt: new Date().toISOString()
+            }
+          }).catch(() => {});
+        }
       }
     }
 
@@ -501,6 +548,32 @@ export function ChatProvider({ children }) {
       }
     };
   }, [activeConversationId, socket, connected, user?.id]);
+
+  // Emitir confirmação de leitura ao retornar o foco à aba/janela do navegador
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || !user?.id) return;
+
+    const handleWindowFocus = () => {
+      if (activeConversationId && typeof document !== 'undefined' && !document.hidden) {
+        supabase.channel('chat_global_messages_listener').send({
+          type: 'broadcast',
+          event: 'messages_read',
+          payload: {
+            conversationId: activeConversationId,
+            readByUserId: user.id,
+            readAt: new Date().toISOString()
+          }
+        }).catch(() => {});
+      }
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleWindowFocus);
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleWindowFocus);
+    };
+  }, [activeConversationId, user?.id]);
 
   // --- SUPABASE REALTIME (Mensagens Globais, Broadcast & Notificações de Conversas em Tempo Real) ---
   useEffect(() => {
@@ -649,6 +722,33 @@ export function ChatProvider({ children }) {
               })();
             } else if (newMsg.conversation_id !== activeConversationId && newMsg.sender_id !== user.id) {
               sounds.playReceive();
+            }
+
+            // Emitir confirmação de entrega e leitura para o remetente em tempo real
+            if (newMsg.sender_id !== user.id && isSupabaseConfigured && supabase) {
+              const isCurrentActive = newMsg.conversation_id === activeConversationId;
+              const isVisible = typeof document !== 'undefined' && !document.hidden;
+              if (isCurrentActive && isVisible) {
+                supabase.channel('chat_global_messages_listener').send({
+                  type: 'broadcast',
+                  event: 'messages_read',
+                  payload: {
+                    conversationId: newMsg.conversation_id,
+                    readByUserId: user.id,
+                    readAt: new Date().toISOString()
+                  }
+                }).catch(() => {});
+              } else {
+                supabase.channel('chat_global_messages_listener').send({
+                  type: 'broadcast',
+                  event: 'message_delivered',
+                  payload: {
+                    conversationId: newMsg.conversation_id,
+                    messageId: newMsg.id,
+                    deliveredToUserId: user.id
+                  }
+                }).catch(() => {});
+              }
             }
 
             // Disparar Notificação Nativa/Push se o app estiver em segundo plano ou em outra conversa
@@ -818,8 +918,46 @@ export function ChatProvider({ children }) {
             return updated;
           });
           sounds.playReceive();
+
+          // Se a janela estiver aberta e ativa na tela, avisar que a mensagem foi lida na hora!
+          if (typeof document !== 'undefined' && !document.hidden && isSupabaseConfigured && supabase) {
+            supabase.channel('chat_global_messages_listener').send({
+              type: 'broadcast',
+              event: 'messages_read',
+              payload: {
+                conversationId: incoming.conversation_id,
+                readByUserId: user.id,
+                readAt: new Date().toISOString()
+              }
+            }).catch(() => {});
+          } else if (isSupabaseConfigured && supabase) {
+            // Se o app estiver em segundo plano, avisa que foi entregue!
+            supabase.channel('chat_global_messages_listener').send({
+              type: 'broadcast',
+              event: 'message_delivered',
+              payload: {
+                conversationId: incoming.conversation_id,
+                messageId: incoming.id,
+                tempId: incoming.tempId,
+                deliveredToUserId: user.id
+              }
+            }).catch(() => {});
+          }
         } else {
           sounds.playReceive();
+          if (isSupabaseConfigured && supabase) {
+            // Em outra conversa: avisa que chegou ao aparelho do destinatário
+            supabase.channel('chat_global_messages_listener').send({
+              type: 'broadcast',
+              event: 'message_delivered',
+              payload: {
+                conversationId: incoming.conversation_id,
+                messageId: incoming.id,
+                tempId: incoming.tempId,
+                deliveredToUserId: user.id
+              }
+            }).catch(() => {});
+          }
         }
       })
       .on('broadcast', { event: 'instant_message_edit' }, (eventPayload) => {
@@ -864,6 +1002,60 @@ export function ChatProvider({ children }) {
           try {
             localStorage.removeItem(`nexus_msgs_${activeConversationId}`);
           } catch (e) {}
+        }
+      })
+      .on('broadcast', { event: 'messages_read' }, (eventPayload) => {
+        const { conversationId, readByUserId } = eventPayload?.payload || {};
+        if (!conversationId || readByUserId === user?.id) return;
+
+        // Se for na conversa ativa, atualizar todas as mensagens próprias para 'read' (✓✓ azul/cyan)
+        if (conversationId === activeConversationId) {
+          setMessages((prev) => {
+            let hasChanges = false;
+            const updated = prev.map((m) => {
+              const isOwnMsg = m.sender_id === user?.id || Boolean(m.tempId);
+              if (isOwnMsg && m.status !== 'read') {
+                hasChanges = true;
+                return { ...m, status: 'read' };
+              }
+              return m;
+            });
+
+            if (hasChanges) {
+              try {
+                localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
+              } catch (e) {}
+              return updated;
+            }
+            return prev;
+          });
+        }
+      })
+      .on('broadcast', { event: 'message_delivered' }, (eventPayload) => {
+        const { conversationId, messageId, tempId, deliveredToUserId } = eventPayload?.payload || {};
+        if (!conversationId || deliveredToUserId === user?.id) return;
+
+        if (conversationId === activeConversationId) {
+          setMessages((prev) => {
+            let hasChanges = false;
+            const updated = prev.map((m) => {
+              const isTarget =
+                (messageId && m.id === messageId) || (tempId && (m.tempId === tempId || m.id === tempId));
+              if (isTarget && m.status !== 'read' && m.status !== 'delivered') {
+                hasChanges = true;
+                return { ...m, status: 'delivered' };
+              }
+              return m;
+            });
+
+            if (hasChanges) {
+              try {
+                localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(updated));
+              } catch (e) {}
+              return updated;
+            }
+            return prev;
+          });
         }
       })
       .on('broadcast', { event: 'typing' }, (eventPayload) => {
