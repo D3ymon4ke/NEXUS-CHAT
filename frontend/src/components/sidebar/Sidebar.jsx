@@ -733,6 +733,8 @@ export function Sidebar({
         </div>
       </div>
 
+      {/* Lista de Conversas & Super DM Card */}
+      <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
         {/* CARD SUPER DM & ALTERNADOR DE CONTAS (VISÍVEL QUANDO NA ABA MASTER) */}
         {filterTab === 'master' && (
           <div className="space-y-2.5 mb-3">
