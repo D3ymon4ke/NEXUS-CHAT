@@ -29,7 +29,11 @@ export function ChatArea({ onBack, onOpenProfile }) {
     masterIdentities,
     clearMasterIdentityForConv,
     isOffline,
-    pendingOutboxCount
+    pendingOutboxCount,
+    hasMoreMessages,
+    loadingOlderMessages,
+    loadOlderMessages,
+    jumpToMessage
   } = useChat();
 
   const isAdmin = Boolean(user?.role === 'admin' || user?.is_admin || user?.username?.toLowerCase() === 'damon');
@@ -46,6 +50,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
   const messagesEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const isInitialLoadForConvRef = useRef(true);
+  const prevScrollSnapshotRef = useRef(null);
 
   // Auto-scroll otimizado para o final (instantâneo ao trocar de chat, suave para novas mensagens)
   const scrollToBottom = (smooth = true) => {
@@ -71,6 +76,16 @@ export function ChatArea({ onBack, onOpenProfile }) {
       scrollToBottom(false);
       return;
     }
+
+    // Se acabou de carregar mensagens antigas, preservar a posição de rolagem
+    if (prevScrollSnapshotRef.current && scrollContainerRef.current) {
+      const { oldHeight, oldTop } = prevScrollSnapshotRef.current;
+      const newHeight = scrollContainerRef.current.scrollHeight;
+      scrollContainerRef.current.scrollTop = newHeight - oldHeight + oldTop;
+      prevScrollSnapshotRef.current = null;
+      return;
+    }
+
     if (!showScrollBottom) {
       scrollToBottom(true);
     }
@@ -90,6 +105,15 @@ export function ChatArea({ onBack, onOpenProfile }) {
     return () => el.removeEventListener('scroll', lockX);
   }, [activeConversation?.id]);
 
+  const handleFetchOlder = async () => {
+    if (!hasMoreMessages || loadingOlderMessages || !scrollContainerRef.current) return;
+    prevScrollSnapshotRef.current = {
+      oldHeight: scrollContainerRef.current.scrollHeight,
+      oldTop: scrollContainerRef.current.scrollTop
+    };
+    await loadOlderMessages();
+  };
+
   const handleScroll = () => {
     if (!scrollContainerRef.current) return;
     if (scrollContainerRef.current.scrollLeft !== 0) {
@@ -98,6 +122,27 @@ export function ChatArea({ onBack, onOpenProfile }) {
     const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
     const isUp = scrollHeight - scrollTop - clientHeight > 150;
     setShowScrollBottom(isUp);
+
+    // Carregar mais mensagens antigas automaticamente ao chegar no topo
+    if (scrollTop < 30 && hasMoreMessages && !loadingOlderMessages) {
+      handleFetchOlder();
+    }
+  };
+
+  // Pular diretamente para uma mensagem (balão clicado, citação de resposta ou busca)
+  const handleJumpToMessage = async (msgId) => {
+    if (!msgId) return;
+    setHighlightMessageId(msgId);
+    if (jumpToMessage) {
+      await jumpToMessage(msgId);
+    }
+    const el = document.getElementById(`msg-${msgId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    setTimeout(() => {
+      setHighlightMessageId((c) => (c === msgId ? null : c));
+    }, 2500);
   };
 
   if (!activeConversation) {
@@ -142,11 +187,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
     const targetMsg = matchingMessages[boundedIndex];
     if (targetMsg) {
       const targetId = targetMsg.id || targetMsg.tempId;
-      setHighlightMessageId(targetId);
-      const el = document.getElementById(`msg-${targetId}`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      handleJumpToMessage(targetId);
     }
   };
 
@@ -334,10 +375,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
       <PinnedBanner
         pinnedMessages={pinnedMessages}
         onUnpin={(msgId) => pinMessage(msgId, false)}
-        onJumpToMessage={(msgId) => {
-          const el = document.getElementById(`msg-${msgId}`);
-          el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }}
+        onJumpToMessage={(msgId) => handleJumpToMessage(msgId)}
       />
 
       {/* Área de Mensagens com Scroll */}
@@ -347,6 +385,29 @@ export function ChatArea({ onBack, onOpenProfile }) {
         style={{ overflowX: 'hidden', touchAction: 'pan-y' }}
         className="flex-1 min-h-0 min-w-0 w-full max-w-full overflow-y-auto overflow-x-hidden touch-pan-y overscroll-x-none overscroll-contain px-2.5 sm:px-4 py-3 sm:py-4 space-y-1 relative"
       >
+        {/* Botão de carregar mensagens anteriores (paginação sob demanda) */}
+        {hasMoreMessages && displayMessages.length > 0 && (
+          <div className="flex justify-center py-2 select-none">
+            <button
+              onClick={handleFetchOlder}
+              disabled={loadingOlderMessages}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium text-brand-300 bg-background-surface/85 hover:bg-background-surface border border-slate-700/70 hover:border-brand-500/50 shadow-sm transition-all active:scale-95 disabled:opacity-50"
+            >
+              {loadingOlderMessages ? (
+                <>
+                  <div className="w-3.5 h-3.5 rounded-full border-2 border-brand-500/30 border-t-brand-400 animate-spin" />
+                  <span>Carregando anteriores...</span>
+                </>
+              ) : (
+                <>
+                  <ChevronUp className="w-3.5 h-3.5 text-brand-400" />
+                  <span>Carregar mensagens anteriores</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
         {loadingMessages && displayMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-400 text-xs gap-3 select-none">
             <div className="relative">
@@ -399,6 +460,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
                     onReact={(id, emoji) => reactToMessage(id, emoji)}
                     onImageClick={(url) => setSelectedImage(url)}
                     onOpenProfile={(u) => onOpenProfile && onOpenProfile(u)}
+                    onJumpToReply={(replyId) => handleJumpToMessage(replyId)}
                   />
                 </div>
               </React.Fragment>

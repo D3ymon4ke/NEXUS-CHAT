@@ -67,14 +67,15 @@ const BADGE_LABELS = {
 function MessageBubbleComponent({
   message,
   isOwn,
-  showSenderInfo = true,
+  showSenderInfo,
   onReply,
   onEdit,
   onDelete,
   onPin,
   onReact,
   onImageClick,
-  onOpenProfile
+  onOpenProfile,
+  onJumpToReply
 }) {
   const { user: currentUser } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
@@ -456,11 +457,18 @@ function MessageBubbleComponent({
           {/* Citação da Resposta (Reply Quote) */}
           {!isDeleted && message.reply_to && (
             <div
-              className={`mb-1.5 p-2 rounded-lg border-l-2 text-xs flex flex-col ${
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onJumpToReply && (message.reply_to?.id || message.reply_to_id)) {
+                  onJumpToReply(message.reply_to?.id || message.reply_to_id);
+                }
+              }}
+              className={`mb-1.5 p-2 rounded-lg border-l-2 text-xs flex flex-col cursor-pointer hover:opacity-90 active:scale-[0.99] transition-all ${
                 isOwn
-                  ? 'bg-black/25 border-white/70 text-white/90'
-                  : 'bg-background-dark/60 border-brand-500 text-slate-300'
+                  ? 'bg-black/25 border-white/70 text-white/90 hover:bg-black/35'
+                  : 'bg-background-dark/60 border-brand-500 text-slate-300 hover:bg-background-dark/80'
               }`}
+              title="Ir para a mensagem citada"
             >
               <div className="flex items-center gap-1 font-semibold text-[11px] text-brand-300">
                 <Reply className="w-3 h-3 rotate-180 opacity-75 inline-block" />

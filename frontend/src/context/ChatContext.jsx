@@ -207,6 +207,8 @@ export function ChatProvider({ children }) {
     return true;
   });
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [pinnedConversationIds, setPinnedConversationIds] = useState(() => getStoredPins(user?.id));
   const [typingUsersMap, setTypingUsersMap] = useState(new Map()); // `${convId}_${userId}` -> userObj
   const [replyingTo, setReplyingTo] = useState(null);
@@ -547,14 +549,19 @@ export function ChatProvider({ children }) {
                 reactions:message_reactions(id, emoji, user_id)
               `)
               .eq('conversation_id', activeConversationId)
-              .order('created_at', { ascending: true })
-              .limit(200);
+              .order('created_at', { ascending: false })
+              .limit(40);
 
             if (dbMsgs && !dbErr) {
               if (activeConversationIdRef.current !== activeConversationId) return;
+              setHasMoreMessages(dbMsgs.length >= 40);
+
+              // Inverte a ordem das mensagens obtidas para cronológica
+              const chronologicalDbMsgs = [...dbMsgs].reverse();
+
               // Reconstruir citações de respostas (reply_to) e anexos de imagem
               const msgMap = new Map();
-              dbMsgs.forEach((m) => {
+              chronologicalDbMsgs.forEach((m) => {
                 msgMap.set(m.id, m);
                 if (m.sender?.id) {
                   profileCacheRef.current.set(m.sender.id, m.sender);
@@ -563,7 +570,7 @@ export function ChatProvider({ children }) {
 
               // Mapear status de leitura para as mensagens carregadas
               let lastOtherMsgIndex = -1;
-              dbMsgs.forEach((m, idx) => {
+              chronologicalDbMsgs.forEach((m, idx) => {
                 if (m.sender_id !== user?.id) {
                   lastOtherMsgIndex = idx;
                 }
@@ -583,7 +590,7 @@ export function ChatProvider({ children }) {
                 }
               } catch (e) {}
 
-              const resolvedMsgs = dbMsgs.map((m, index) => {
+              const resolvedMsgs = chronologicalDbMsgs.map((m, index) => {
                 let initialStatus = 'sent';
                 if (m.sender_id === user?.id) {
                   if (localSavedStatuses.get(m.id) === 'read' || (lastOtherMsgIndex !== -1 && index < lastOtherMsgIndex)) {
@@ -684,9 +691,10 @@ export function ChatProvider({ children }) {
           }
         }
 
-        const res = await apiRequest(`/conversations/${activeConversationId}/messages`);
+        const res = await apiRequest(`/conversations/${activeConversationId}/messages?limit=40`);
         if (activeConversationIdRef.current !== activeConversationId) return;
         if (res.success && res.messages) {
+          setHasMoreMessages(res.messages.length >= 40);
           setMessages((prev) => {
             const merged = mergeAndDeduplicateMessages(prev, res.messages);
             messagesCacheRef.current.set(activeConversationId, merged);
@@ -1409,6 +1417,134 @@ export function ChatProvider({ children }) {
   const getLocalMediaMessages = useCallback(async (conversationId, limit) => {
     return nexusStorage.getMediaMessages(conversationId, limit);
   }, []);
+
+  // Carregar mensagens anteriores sob demanda (paginação para o topo)
+  const loadOlderMessages = useCallback(async () => {
+    if (!activeConversationId || loadingOlderMessages || !hasMoreMessages) return;
+    setLoadingOlderMessages(true);
+
+    try {
+      const oldestMsg = messages[0];
+      const beforeTimestamp = oldestMsg?.created_at;
+      if (!beforeTimestamp) {
+        setHasMoreMessages(false);
+        return;
+      }
+
+      if (isSupabaseConfigured && supabase) {
+        const { data: dbOlder, error } = await supabase
+          .from('messages')
+          .select(`
+            *,
+            sender:profiles(*),
+            attachments:message_attachments(*),
+            reactions:message_reactions(id, emoji, user_id)
+          `)
+          .eq('conversation_id', activeConversationId)
+          .lt('created_at', beforeTimestamp)
+          .order('created_at', { ascending: false })
+          .limit(40);
+
+        if (dbOlder && !error) {
+          if (dbOlder.length < 40) {
+            setHasMoreMessages(false);
+          }
+          const chronological = [...dbOlder].reverse().map((m) => {
+            let resolvedAttachments = m.attachments || [];
+            if (
+              resolvedAttachments.length === 0 &&
+              (m.type === 'image' || m.content?.startsWith('http') || m.content?.startsWith('data:image'))
+            ) {
+              if (m.content && (m.content.startsWith('http') || m.content.startsWith('data:image'))) {
+                resolvedAttachments = [{
+                  file_url: m.content,
+                  file_name: 'imagem.jpg',
+                  file_type: 'image',
+                  file_size: 0
+                }];
+              }
+            }
+            return {
+              ...m,
+              attachments: resolvedAttachments
+            };
+          });
+
+          setMessages((prev) => mergeAndDeduplicateMessages(chronological, prev));
+          return;
+        }
+      }
+
+      const res = await apiRequest(`/conversations/${activeConversationId}/messages?limit=40&before=${encodeURIComponent(beforeTimestamp)}`);
+      if (res.success && res.messages) {
+        if (res.messages.length < 40) {
+          setHasMoreMessages(false);
+        }
+        setMessages((prev) => mergeAndDeduplicateMessages(res.messages, prev));
+      }
+    } catch (err) {
+      console.warn('Erro ao carregar mensagens anteriores:', err);
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  }, [activeConversationId, loadingOlderMessages, hasMoreMessages, messages]);
+
+  // Pular e focar exatamente em uma mensagem específica (ex: ao clicar no balão citado)
+  const jumpToMessage = useCallback(async (targetMsgId) => {
+    if (!targetMsgId) return false;
+
+    // 1. Mensagem já renderizada na tela
+    const el = document.getElementById(`msg-${targetMsgId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return true;
+    }
+
+    // 2. Mensagem antiga que ainda não estava no bloco atual
+    if (isSupabaseConfigured && supabase && activeConversationId) {
+      try {
+        const { data: targetMsg } = await supabase
+          .from('messages')
+          .select(`
+            *,
+            sender:profiles(*),
+            attachments:message_attachments(*),
+            reactions:message_reactions(id, emoji, user_id)
+          `)
+          .eq('id', targetMsgId)
+          .maybeSingle();
+
+        if (targetMsg) {
+          const { data: surrounding } = await supabase
+            .from('messages')
+            .select(`
+              *,
+              sender:profiles(*),
+              attachments:message_attachments(*),
+              reactions:message_reactions(id, emoji, user_id)
+            `)
+            .eq('conversation_id', activeConversationId)
+            .gte('created_at', targetMsg.created_at)
+            .order('created_at', { ascending: true })
+            .limit(40);
+
+          const listToMerge = surrounding && surrounding.length > 0 ? surrounding : [targetMsg];
+          setMessages((prev) => mergeAndDeduplicateMessages(prev, listToMerge));
+
+          setTimeout(() => {
+            const targetEl = document.getElementById(`msg-${targetMsgId}`);
+            if (targetEl) {
+              targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 150);
+          return true;
+        }
+      } catch (e) {
+        console.warn('Aviso jumpToMessage:', e);
+      }
+    }
+    return false;
+  }, [activeConversationId]);
 
   const sendMessage = async (param1, param2 = [], param3 = 'text', param4 = null) => {
     let content = '';
@@ -2424,6 +2560,10 @@ export function ChatProvider({ children }) {
         flushOutbox,
         searchLocalMessages,
         getLocalMediaMessages,
+        hasMoreMessages,
+        loadingOlderMessages,
+        loadOlderMessages,
+        jumpToMessage,
         setMessages,
         clearMessages: () => setMessages([])
       }}
