@@ -16,15 +16,33 @@ function getCachedMessages(conversationId) {
 }
 
 /**
- * Define ou atualiza todo o bloco de mensagens em cache de uma conversa
+ * Define ou atualiza todo o bloco de mensagens em cache de uma conversa de forma segura (mesclando por ID)
  */
 function setCachedMessages(conversationId, messages) {
   if (!conversationId || !Array.isArray(messages)) return;
-  // Mantém no máximo MAX_MESSAGES_PER_CONV ordenadas por data
-  const sorted = [...messages]
+  const existing = conversationCache.get(conversationId) || [];
+  
+  const msgMap = new Map();
+  existing.forEach(m => {
+    if (m && (m.id || m.tempId)) {
+      const key = m.id || m.tempId;
+      msgMap.set(key, m);
+    }
+  });
+
+  messages.forEach(m => {
+    if (m && (m.id || m.tempId)) {
+      const key = m.id || m.tempId;
+      const prev = msgMap.get(key) || {};
+      msgMap.set(key, { ...prev, ...m });
+    }
+  });
+
+  const merged = Array.from(msgMap.values())
     .sort((a, b) => new Date(a.created_at || a.createdAt || 0) - new Date(b.created_at || b.createdAt || 0))
     .slice(-MAX_MESSAGES_PER_CONV);
-  conversationCache.set(conversationId, sorted);
+
+  conversationCache.set(conversationId, merged);
 }
 
 /**
@@ -35,7 +53,9 @@ function addMessageToCache(conversationId, message) {
   const list = conversationCache.get(conversationId) || [];
 
   const existingIdx = list.findIndex(
-    m => m.id === message.id || (message.tempId && m.tempId === message.tempId)
+    m => (message.id && m.id === message.id) ||
+         (message.tempId && (m.tempId === message.tempId || m.id === message.tempId)) ||
+         (m.tempId && message.id === m.tempId)
   );
 
   if (existingIdx >= 0) {

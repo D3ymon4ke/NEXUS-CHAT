@@ -433,15 +433,44 @@ async function handleMarkAsRead(socket, io, data) {
 
 /**
  * Retorna as mensagens em cache de RAM diretamente pelo Socket (< 2ms)
+ * Se o cache estiver frio ou vazio, busca no Supabase e aquece o cache.
  */
-function handleGetConversationCache(socket, io, data, callback) {
+async function handleGetConversationCache(socket, io, data, callback) {
   const { conversationId } = data || {};
   if (!conversationId) {
     if (typeof callback === 'function') callback({ success: false, messages: [] });
     return;
   }
 
-  const cached = getCachedMessages(conversationId);
+  let cached = getCachedMessages(conversationId);
+
+  if ((!cached || cached.length === 0) && isConfigured && supabase) {
+    try {
+      const { data: dbMsgs, error } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          sender:profiles(id, display_name, username, avatar_url, equipped_frame, equipped_bubble, equipped_badge, equipped_name_color),
+          attachments:message_attachments(*),
+          reactions:message_reactions(id, emoji, user_id),
+          reply_to:messages!reply_to_id(
+            id, content, type, sender_id,
+            sender:profiles(id, display_name, username)
+          )
+        `)
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (dbMsgs && !error && dbMsgs.length > 0) {
+        cached = [...dbMsgs].reverse();
+        setCachedMessages(conversationId, cached);
+      }
+    } catch (e) {
+      console.warn('Erro ao aquecer cache via Supabase:', e);
+    }
+  }
+
   const result = {
     success: true,
     conversationId,

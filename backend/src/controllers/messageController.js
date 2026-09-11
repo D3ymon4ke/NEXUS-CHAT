@@ -13,24 +13,12 @@ async function getConversationMessages(req, res) {
       return res.status(400).json({ success: false, error: 'ID da conversa é obrigatório.' });
     }
 
-    // Se for primeira página (sem before), tenta responder instantaneamente da RAM da VPS (< 2ms)
-    if (!before) {
-      const cached = getCachedMessages(conversationId);
-      if (cached && cached.length > 0) {
-        return res.json({
-          success: true,
-          messages: cached,
-          fromCache: true
-        });
-      }
-    }
-
     if (isConfigured && supabase) {
       let query = supabase
         .from('messages')
         .select(`
           *,
-          sender:profiles(id, display_name, username, avatar_url),
+          sender:profiles(id, display_name, username, avatar_url, equipped_frame, equipped_bubble, equipped_badge, equipped_name_color),
           attachments:message_attachments(*),
           reactions:message_reactions(id, emoji, user_id),
           reply_to:messages!reply_to_id(
@@ -49,20 +37,30 @@ async function getConversationMessages(req, res) {
       const { data: messages, error } = await query;
 
       if (error) {
-        return res.status(500).json({ success: false, error: error.message });
+        console.error('Erro Supabase getConversationMessages:', error);
+      } else if (messages) {
+        // Inverte a ordem para retornar cronológico (mais antigo primeiro)
+        const chronological = [...messages].reverse();
+
+        // Alimenta o cache de RAM da VPS se for a página mais recente
+        if (!before && chronological.length > 0) {
+          setCachedMessages(conversationId, chronological);
+        }
+
+        return res.json({
+          success: true,
+          messages: chronological
+        });
       }
+    }
 
-      // Inverte a ordem para retornar cronológico (mais antigo primeiro)
-      const chronological = (messages || []).reverse();
-
-      // Alimenta o cache de RAM da VPS se for a página mais recente
-      if (!before && chronological.length > 0) {
-        setCachedMessages(conversationId, chronological);
-      }
-
+    // Fallback: se Supabase não configurado ou indisponível temporariamente, usa o cache da RAM
+    const cached = getCachedMessages(conversationId);
+    if (cached && cached.length > 0) {
       return res.json({
         success: true,
-        messages: chronological
+        messages: cached,
+        fromCache: true
       });
     }
 

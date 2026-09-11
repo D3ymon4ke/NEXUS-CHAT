@@ -58,6 +58,69 @@ export const sortConversationsList = (convList = [], pinnedIds = []) => {
   });
 };
 
+export const mergeAndDeduplicateMessages = (currentList = [], incomingList = []) => {
+  const current = Array.isArray(currentList) ? currentList : [];
+  const incoming = Array.isArray(incomingList) ? incomingList : [];
+
+  const result = [...current];
+
+  for (const msg of incoming) {
+    if (!msg) continue;
+
+    const existingIndex = result.findIndex((existing) => {
+      if (!existing) return false;
+      // Match por ID definitivo
+      if (msg.id && existing.id && existing.id === msg.id) return true;
+      // Match por tempId
+      if (msg.tempId && existing.tempId && existing.tempId === msg.tempId) return true;
+      // Match cruzado ID vs tempId
+      if (msg.tempId && existing.id && existing.id === msg.tempId) return true;
+      if (msg.id && existing.tempId && existing.tempId === msg.id) return true;
+      // Match por conteúdo idêntico e remetente em menos de 1.5s (proteção contra reconexões)
+      if (
+        msg.sender_id &&
+        existing.sender_id === msg.sender_id &&
+        msg.content === existing.content &&
+        Math.abs(new Date(msg.created_at || 0).getTime() - new Date(existing.created_at || 0).getTime()) < 1500
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    if (existingIndex !== -1) {
+      const existing = result[existingIndex];
+      result[existingIndex] = {
+        ...existing,
+        ...msg,
+        id: msg.id || existing.id,
+        status:
+          existing.status === 'read' || msg.status === 'read'
+            ? 'read'
+            : existing.status === 'delivered' || msg.status === 'delivered'
+            ? 'delivered'
+            : msg.status || existing.status || 'sent',
+        attachments:
+          msg.attachments && msg.attachments.length > 0 ? msg.attachments : existing.attachments || [],
+        reactions:
+          msg.reactions && msg.reactions.length > 0 ? msg.reactions : existing.reactions || [],
+        sender: msg.sender?.id ? msg.sender : existing.sender
+      };
+    } else {
+      result.push(msg);
+    }
+  }
+
+  return result.sort((a, b) => {
+    const tA = new Date(a?.created_at || 0).getTime();
+    const tB = new Date(b?.created_at || 0).getTime();
+    const safeA = isNaN(tA) ? 0 : tA;
+    const safeB = isNaN(tB) ? 0 : tB;
+    if (safeA !== safeB) return safeA - safeB;
+    return (a?.id || a?.tempId || '').localeCompare(b?.id || b?.tempId || '');
+  });
+};
+
 export function ChatProvider({ children }) {
   const { user } = useAuth();
   const { socket, connected } = useSocket();
@@ -459,12 +522,12 @@ export function ChatProvider({ children }) {
       setLoadingMessages(true);
     }
 
-    // Carregamento ultrarrápido do cache em memória RAM da VPS (< 2ms)
+    // Carregamento inicial do cache em memória RAM da VPS (< 2ms)
     if (socket && connected) {
       socket.emit('get_conversation_messages_cache', { conversationId: activeConversationId }, (res) => {
         if (res && res.success && Array.isArray(res.messages) && res.messages.length > 0) {
           if (activeConversationIdRef.current === activeConversationId) {
-            setMessages(res.messages);
+            setMessages((prev) => mergeAndDeduplicateMessages(prev, res.messages));
             setLoadingMessages(false);
           }
         }
@@ -595,30 +658,15 @@ export function ChatProvider({ children }) {
                 }
               }
 
-              // Deduplicação defensiva no histórico contra duplicatas antigas do banco
-              const deduplicatedMsgs = [];
-              for (const m of resolvedMsgs) {
-                const isDup = deduplicatedMsgs.some(existing =>
-                  existing.id === m.id ||
-                  (existing.sender_id === m.sender_id &&
-                   existing.content === m.content &&
-                   Math.abs(new Date(existing.created_at).getTime() - new Date(m.created_at).getTime()) < 6000)
-                );
-                if (!isDup) {
-                  deduplicatedMsgs.push(m);
-                }
-              }
-
               setMessages((prev) => {
-                const isSame = prev.length === deduplicatedMsgs.length &&
-                  prev[prev.length - 1]?.id === deduplicatedMsgs[deduplicatedMsgs.length - 1]?.id &&
-                  !prev.some((m) => m.tempId);
-                if (isSame) return prev;
-                const tempMsgs = prev.filter((m) => m.tempId && !deduplicatedMsgs.some((r) => r.id === m.tempId || r.tempId === m.tempId));
-                return [...deduplicatedMsgs, ...tempMsgs];
+                const merged = mergeAndDeduplicateMessages(prev, resolvedMsgs);
+                messagesCacheRef.current.set(activeConversationId, merged);
+                nexusStorage.saveMessages(activeConversationId, merged);
+                try {
+                  localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(merged));
+                } catch (e) {}
+                return merged;
               });
-              messagesCacheRef.current.set(activeConversationId, deduplicatedMsgs);
-              nexusStorage.saveMessages(activeConversationId, deduplicatedMsgs);
 
               // Sincroniza e aquece o cache de RAM na VPS
               if (socket && connected && resolvedMsgs.length > 0) {
@@ -640,14 +688,14 @@ export function ChatProvider({ children }) {
         if (activeConversationIdRef.current !== activeConversationId) return;
         if (res.success && res.messages) {
           setMessages((prev) => {
-            const tempMsgs = prev.filter((m) => m.tempId && !res.messages.some((r) => r.id === m.tempId || r.tempId === m.tempId));
-            return [...res.messages, ...tempMsgs];
+            const merged = mergeAndDeduplicateMessages(prev, res.messages);
+            messagesCacheRef.current.set(activeConversationId, merged);
+            nexusStorage.saveMessages(activeConversationId, merged);
+            try {
+              localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(merged));
+            } catch (cacheErr) {}
+            return merged;
           });
-          messagesCacheRef.current.set(activeConversationId, res.messages);
-          nexusStorage.saveMessages(activeConversationId, res.messages);
-          try {
-            localStorage.setItem(`nexus_msgs_${activeConversationId}`, JSON.stringify(res.messages));
-          } catch (cacheErr) {}
 
           if (socket && connected && res.messages.length > 0) {
             socket.emit('sync_conversation_cache', {
@@ -722,7 +770,7 @@ export function ChatProvider({ children }) {
           socket.emit('get_conversation_messages_cache', { conversationId: activeConversationId }, (res) => {
             if (res && res.success && Array.isArray(res.messages) && res.messages.length > 0) {
               if (activeConversationIdRef.current === activeConversationId) {
-                setMessages(res.messages);
+                setMessages((prev) => mergeAndDeduplicateMessages(prev, res.messages));
               }
             }
           });
@@ -809,47 +857,27 @@ export function ChatProvider({ children }) {
 
           // Se for na conversa ativa e de outro usuário, adicionar à lista de mensagens visíveis
           if (newMsg.conversation_id === currentActive && newMsg.sender_id !== currentUser?.id) {
-            // 1. Verificar se a mensagem já foi renderizada via broadcast instantâneo
             let alreadyRendered = false;
+
+            // 1. Renderização Otimista Imediata em 0ms usando o cache de perfil em memória
+            const cachedProfile = profileCacheRef.current.get(newMsg.sender_id) || {
+              id: newMsg.sender_id,
+              display_name: 'Membro'
+            };
+
+            const initialFormatted = {
+              ...newMsg,
+              sender: cachedProfile,
+              attachments:
+                newMsg.type === 'image' || newMsg.content?.startsWith('http') || newMsg.content?.startsWith('data:image')
+                  ? [{ file_url: newMsg.content, file_name: 'imagem.jpg', file_type: 'image', file_size: 0 }]
+                  : newMsg.attachments || [],
+              reactions: newMsg.reactions || []
+            };
+
             setMessages((prev) => {
-              const existingIdx = prev.findIndex(
-                (m) =>
-                  m.id === newMsg.id ||
-                  (m.tempId && (m.tempId === newMsg.id || m.id === newMsg.id)) ||
-                  (m.sender_id === newMsg.sender_id &&
-                    m.content === newMsg.content &&
-                    Math.abs(new Date(m.created_at).getTime() - new Date(newMsg.created_at).getTime()) < 15000)
-              );
-
-              if (existingIdx !== -1) {
-                alreadyRendered = true;
-                // Reconciliação suave: atualiza o id para o definitivo do banco
-                const next = [...prev];
-                next[existingIdx] = {
-                  ...next[existingIdx],
-                  id: newMsg.id,
-                  status: 'sent'
-                };
-                return next;
-              }
-
-              // 2. Renderização Otimista Imediata em 0ms usando o cache de perfil em memória
-              const cachedProfile = profileCacheRef.current.get(newMsg.sender_id) || {
-                id: newMsg.sender_id,
-                display_name: 'Membro'
-              };
-
-              const initialFormatted = {
-                ...newMsg,
-                sender: cachedProfile,
-                attachments:
-                  newMsg.type === 'image' || newMsg.content?.startsWith('http') || newMsg.content?.startsWith('data:image')
-                    ? [{ file_url: newMsg.content, file_name: 'imagem.jpg', file_type: 'image', file_size: 0 }]
-                    : [],
-                reactions: []
-              };
-
-              const updated = [...prev, initialFormatted];
+              alreadyRendered = prev.some((m) => m.id === newMsg.id || (m.tempId && m.tempId === newMsg.id));
+              const updated = mergeAndDeduplicateMessages(prev, [initialFormatted]);
               nexusStorage.saveMessages(newMsg.conversation_id, updated);
               try {
                 localStorage.setItem(`nexus_msgs_${newMsg.conversation_id}`, JSON.stringify(updated));
@@ -1092,16 +1120,7 @@ export function ChatProvider({ children }) {
         // Se a mensagem for na conversa ativa, renderizar na hora (Sub-50ms)
         if (incoming.conversation_id === currentActive) {
           setMessages((prev) => {
-            if (
-              prev.some(
-                (m) =>
-                  m.id === incoming.id ||
-                  (incoming.tempId && (m.tempId === incoming.tempId || m.id === incoming.tempId))
-              )
-            ) {
-              return prev;
-            }
-            const updated = [...prev, incoming];
+            const updated = mergeAndDeduplicateMessages(prev, [incoming]);
             nexusStorage.saveMessages(incoming.conversation_id, updated);
             try {
               localStorage.setItem(`nexus_msgs_${incoming.conversation_id}`, JSON.stringify(updated));
@@ -1883,29 +1902,14 @@ export function ChatProvider({ children }) {
       });
 
       if (msg.conversation_id === currentActiveId) {
-        setMessages(prev => {
-          const isDuplicate = prev.some(m =>
-            m.id === msg.id ||
-            (m.tempId && (m.tempId === msg.id || m.tempId === msg.tempId)) ||
-            (msg.tempId && (m.id === msg.tempId || m.tempId === msg.tempId)) ||
-            (m.sender_id === msg.sender_id &&
-              m.content === msg.content &&
-              Math.abs(new Date(m.created_at || Date.now()).getTime() - new Date(msg.created_at || Date.now()).getTime()) < 6000)
-          );
-
-          if (isDuplicate) {
-            return prev.map(m =>
-              (m.id === msg.id ||
-                (m.tempId && (m.tempId === msg.id || m.tempId === msg.tempId)) ||
-                (msg.tempId && (m.id === msg.tempId || m.tempId === msg.tempId)) ||
-                (m.sender_id === msg.sender_id &&
-                  m.content === msg.content &&
-                  Math.abs(new Date(m.created_at || Date.now()).getTime() - new Date(msg.created_at || Date.now()).getTime()) < 6000))
-                ? { ...m, ...msg, id: msg.id, status: 'sent' }
-                : m
-            );
-          }
-          return [...prev, msg];
+        setMessages((prev) => {
+          const updated = mergeAndDeduplicateMessages(prev, [msg]);
+          messagesCacheRef.current.set(msg.conversation_id, updated);
+          nexusStorage.saveMessages(msg.conversation_id, updated);
+          try {
+            localStorage.setItem(`nexus_msgs_${msg.conversation_id}`, JSON.stringify(updated));
+          } catch (e) {}
+          return updated;
         });
         if (msg.sender_id !== currentUser?.id) {
           sounds.playReceive();

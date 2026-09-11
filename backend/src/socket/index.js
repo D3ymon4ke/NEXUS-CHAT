@@ -96,39 +96,39 @@ function setupSocketIO(io) {
 
     // --- MENSAGENS ---
     socket.on('send_message', (data) => {
-      handleSendMessage(socket, io, { ...data, senderId: userId });
+      handleSendMessage(socket, io, { ...data, senderId: data?.senderId || userId });
     });
 
     socket.on('edit_message', (data) => {
-      handleEditMessage(socket, io, { ...data, senderId: userId });
+      handleEditMessage(socket, io, { ...data, senderId: data?.senderId || userId });
     });
 
     socket.on('delete_message', (data) => {
-      handleDeleteMessage(socket, io, { ...data, senderId: userId });
+      handleDeleteMessage(socket, io, { ...data, senderId: data?.senderId || userId });
     });
 
     socket.on('clear_conversation', (data) => {
-      handleClearConversation(socket, io, { ...data, userId });
+      handleClearConversation(socket, io, { ...data, userId: data?.userId || userId });
     });
 
     socket.on('delete_conversation', (data) => {
-      handleDeleteConversation(socket, io, { ...data, userId });
+      handleDeleteConversation(socket, io, { ...data, userId: data?.userId || userId });
     });
 
     socket.on('pin_message', (data) => {
-      handlePinMessage(socket, io, { ...data, userId });
+      handlePinMessage(socket, io, { ...data, userId: data?.userId || userId });
     });
 
     socket.on('react_message', (data) => {
-      handleReactMessage(socket, io, { ...data, userId });
+      handleReactMessage(socket, io, { ...data, userId: data?.userId || userId });
     });
 
     socket.on('mark_as_read', (data) => {
-      handleMarkAsRead(socket, io, { ...data, userId });
+      handleMarkAsRead(socket, io, { ...data, userId: data?.userId || userId });
     });
 
     socket.on('mark_as_delivered', (data) => {
-      handleMessageDelivered(socket, io, { ...data, deliveredToUserId: userId });
+      handleMessageDelivered(socket, io, { ...data, deliveredToUserId: data?.deliveredToUserId || userId });
     });
 
     // --- MENSAGENS EFÊMERAS (AUTODESTRUIÇÃO / VISUALIZAÇÃO ÚNICA) ---
