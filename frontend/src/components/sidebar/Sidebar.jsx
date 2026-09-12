@@ -12,6 +12,7 @@ import { ptBR } from 'date-fns/locale';
 import {
   MessageSquarePlus,
   Users,
+  ArrowLeftRight,
   Search,
   Settings,
   ShieldAlert,
@@ -364,6 +365,7 @@ export function Sidebar({
   onOpenNewGroup,
   onOpenSettings,
   onOpenAuth,
+  onOpenAccountSwitcher,
   onOpenShop,
   onOpenWallet,
   onOpenAdmin,
@@ -383,7 +385,8 @@ export function Sidebar({
     stopImpersonating,
     isImpersonating,
     allProfiles,
-    updateProfile
+    updateProfile,
+    savedAccounts
   } = useAuth();
   const {
     conversations,
@@ -821,14 +824,35 @@ export function Sidebar({
             </div>
           </div>
 
-          {/* Botão Configurações */}
-          <button
-            onClick={onOpenSettings}
-            className="p-2 rounded-xl text-slate-400 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 transition-all flex-shrink-0 shadow-sm"
-            title="Configurações & Personalização"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* Botão Alternar Conta / Troca Rápida */}
+            <button
+              type="button"
+              onClick={() => {
+                sounds.playPop();
+                haptics.selection();
+                if (onOpenAccountSwitcher) onOpenAccountSwitcher();
+              }}
+              className="p-2 rounded-xl text-brand-300 hover:text-white bg-brand-600/20 hover:bg-brand-600/35 border border-brand-500/30 hover:border-brand-400 transition-all flex-shrink-0 shadow-sm relative group active:scale-95"
+              title="Alternar de Conta (Troca Rápida)"
+            >
+              <ArrowLeftRight className="w-4 h-4 transition-transform group-hover:rotate-180 duration-300" />
+              {savedAccounts && savedAccounts.length > 1 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-gradient-to-r from-brand-500 to-indigo-600 text-white font-black text-[9px] flex items-center justify-center border border-slate-900 shadow">
+                  {savedAccounts.length}
+                </span>
+              )}
+            </button>
+
+            {/* Botão Configurações */}
+            <button
+              onClick={onOpenSettings}
+              className="p-2 rounded-xl text-slate-400 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 transition-all flex-shrink-0 shadow-sm active:scale-95"
+              title="Configurações & Personalização"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* POPOVER DO SELETOR DE STATUS */}

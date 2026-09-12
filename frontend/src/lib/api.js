@@ -61,6 +61,10 @@ export async function apiRequest(endpoint, options = {}) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
+  if (currentUser?.id) {
+    headers['X-User-Id'] = currentUser.id;
+  }
+
   if (!(options.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
   }

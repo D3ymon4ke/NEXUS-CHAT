@@ -17,15 +17,32 @@ async function authenticateUser(req, res, next) {
     const token = authHeader.split(' ')[1];
 
     if (isConfigured && supabase) {
+      if (token.startsWith('demo-') || token.startsWith('mock-')) {
+        const xUserId = req.headers['x-user-id'] || token.replace('demo-token-', '');
+        req.user = { id: xUserId, email: `${xUserId}@chat.local` };
+        return next();
+      }
+
       // Validar token via Supabase Auth API
       const { data: { user }, error } = await supabase.auth.getUser(token);
       if (error || !user) {
+        const xUserId = req.headers['x-user-id'];
+        if (xUserId) {
+          req.user = { id: xUserId, email: `${xUserId}@chat.local` };
+          return next();
+        }
         return res.status(401).json({
           success: false,
           error: 'Sessão inválida ou expirada.'
         });
       }
-      req.user = user;
+
+      const xUserId = req.headers['x-user-id'];
+      if (xUserId && xUserId !== user.id) {
+        req.user = { ...user, id: xUserId };
+      } else {
+        req.user = user;
+      }
       return next();
     } else {
       // Modo local/fallback

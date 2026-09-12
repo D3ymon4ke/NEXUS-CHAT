@@ -5,6 +5,7 @@ import { ChatProvider, useChat } from './context/ChatContext';
 import { Sidebar } from './components/sidebar/Sidebar';
 import { ChatArea } from './components/chat/ChatArea';
 import { AuthModal } from './components/auth/AuthModal';
+import { AccountSwitcherModal } from './components/auth/AccountSwitcherModal';
 import { NewChatModal } from './components/sidebar/NewChatModal';
 import { NewGroupModal } from './components/sidebar/NewGroupModal';
 import { SettingsModal } from './components/settings/SettingsModal';
@@ -40,6 +41,7 @@ function ChatDashboard() {
   const { coinsAlert } = useSocket();
 
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showAccountSwitcherModal, setShowAccountSwitcherModal] = useState(false);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [showNewGroupModal, setShowNewGroupModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -214,6 +216,7 @@ function ChatDashboard() {
             onOpenNewGroup={() => setShowNewGroupModal(true)}
             onOpenSettings={() => setShowSettingsModal(true)}
             onOpenAuth={() => setShowAuthModal(true)}
+            onOpenAccountSwitcher={() => setShowAccountSwitcherModal(true)}
             onOpenShop={() => setShowShopModal(true)}
             onOpenWallet={() => setShowWalletModal(true)}
             onOpenAdmin={() => setShowAdminModal(true)}
@@ -260,6 +263,15 @@ function ChatDashboard() {
         onOpenTutorial={() => setShowTutorialModal(true)}
       />
 
+      <AccountSwitcherModal
+        isOpen={Boolean(user && showAccountSwitcherModal)}
+        onClose={() => setShowAccountSwitcherModal(false)}
+        onOpenNewLogin={() => {
+          setShowAccountSwitcherModal(false);
+          setShowAuthModal(true);
+        }}
+      />
+
       <NewChatModal
         isOpen={Boolean(user && showNewChatModal)}
         onClose={() => {
@@ -279,6 +291,7 @@ function ChatDashboard() {
       <SettingsModal
         isOpen={Boolean(user && showSettingsModal)}
         onClose={() => setShowSettingsModal(false)}
+        onOpenAccountSwitcher={() => setShowAccountSwitcherModal(true)}
         onOpenProfile={(u) => {
           setShowSettingsModal(false);
           setTargetUserProfile(u || user);

@@ -445,8 +445,20 @@ export function ChatProvider({ children }) {
   }, [user, conversations.length]);
 
   useEffect(() => {
-    // Ao alternar usuário: limpar cache em memória RAM e rascunhos de master identity
-    messagesCacheRef.current.clear();
+    if (!user?.id) return;
+
+    // Ao alternar usuário: restaurar conversas salvas em 0ms
+    try {
+      const stored = localStorage.getItem(`nexus_cached_conversations_${user.id}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setConversations(parsed);
+          setLoadingConversations(false);
+        }
+      }
+    } catch (e) {}
+
     const isCurrentUserAdmin = Boolean(user?.role === 'admin' || user?.is_admin || user?.username?.toLowerCase() === 'damon');
     if (!isCurrentUserAdmin) {
       setMasterIdentities(new Map());
@@ -454,24 +466,101 @@ export function ChatProvider({ children }) {
         sessionStorage.removeItem('nexus_master_identities');
       } catch (e) {}
     }
-    loadConversations();
+    loadConversations(true);
   }, [user?.id, user?.role, loadConversations]);
 
-  // Listener para alternância de conta (Modo Fantasma)
+  // Listener de Ultra Performance para Alternância Instantânea de Conta (0ms)
   useEffect(() => {
-    const handleAccountSwitched = () => {
-      setActiveConversationId(null);
-      setMessages([]);
-      messagesCacheRef.current.clear();
-      setMasterIdentities(new Map());
+    const handleAccountSwitched = async (e) => {
+      const switchedUser = e?.detail || user;
+      const targetUserId = switchedUser?.id;
+      if (!targetUserId) return;
+
+      // 1. CARREGAR CONVERSAS DO NOVO USUÁRIO EM 0ms (DO CACHE PERSISTENTE)
+      let cachedConvs = [];
       try {
-        sessionStorage.removeItem('nexus_master_identities');
-      } catch (e) {}
-      if (loadConversations) loadConversations();
+        const stored = localStorage.getItem(`nexus_cached_conversations_${targetUserId}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            cachedConvs = parsed;
+            setConversations(parsed);
+            setLoadingConversations(false);
+          }
+        }
+      } catch (err) {}
+
+      if (cachedConvs.length === 0) {
+        nexusStorage.getConversations().then((idbConvs) => {
+          if (Array.isArray(idbConvs) && idbConvs.length > 0) {
+            setConversations(idbConvs);
+            setLoadingConversations(false);
+          }
+        });
+      }
+
+      // 2. DEFINIR CONVERSA ATIVA E CARREGAR MENSAGENS EM 0ms
+      const primaryConvId = cachedConvs[0]?.id || BELMONT_ID;
+      setActiveConversationId(primaryConvId);
+
+      // Carregar mensagens instantaneamente (0ms)
+      let hasMessages = false;
+      if (messagesCacheRef.current.has(primaryConvId)) {
+        const memMsgs = messagesCacheRef.current.get(primaryConvId);
+        if (Array.isArray(memMsgs) && memMsgs.length > 0) {
+          setMessages(memMsgs);
+          setLoadingMessages(false);
+          hasMessages = true;
+        }
+      }
+
+      if (!hasMessages) {
+        try {
+          const savedMsgs = localStorage.getItem(`nexus_msgs_${primaryConvId}`);
+          if (savedMsgs) {
+            const parsedMsgs = JSON.parse(savedMsgs);
+            if (Array.isArray(parsedMsgs) && parsedMsgs.length > 0) {
+              messagesCacheRef.current.set(primaryConvId, parsedMsgs);
+              setMessages(parsedMsgs);
+              setLoadingMessages(false);
+              hasMessages = true;
+            }
+          }
+        } catch (err) {}
+      }
+
+      if (!hasMessages) {
+        nexusStorage.getMessages(primaryConvId).then((idbMsgs) => {
+          if (Array.isArray(idbMsgs) && idbMsgs.length > 0) {
+            messagesCacheRef.current.set(primaryConvId, idbMsgs);
+            setMessages(idbMsgs);
+            setLoadingMessages(false);
+          }
+        });
+      }
+
+      // 3. MASTER IDENTITIES
+      const isCurrentUserAdmin = Boolean(
+        switchedUser?.role === 'admin' ||
+        switchedUser?.is_admin ||
+        switchedUser?.username?.toLowerCase() === 'damon'
+      );
+      if (!isCurrentUserAdmin) {
+        setMasterIdentities(new Map());
+        try {
+          sessionStorage.removeItem('nexus_master_identities');
+        } catch (err) {}
+      }
+
+      // 4. ATUALIZAR EM SEGUNDO PLANO (SEM SPINNER NA TELA)
+      if (loadConversations) {
+        loadConversations(true);
+      }
     };
+
     window.addEventListener('nexus_account_switched', handleAccountSwitched);
     return () => window.removeEventListener('nexus_account_switched', handleAccountSwitched);
-  }, [loadConversations]);
+  }, [user, loadConversations]);
 
   // Carregar mensagens quando a conversa ativa mudar
   useEffect(() => {

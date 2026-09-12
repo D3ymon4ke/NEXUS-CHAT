@@ -39,7 +39,7 @@ import {
 } from 'lucide-react';
 import { haptics } from '../../lib/haptics';
 
-export function SettingsModal({ isOpen, onClose, onOpenProfile }) {
+export function SettingsModal({ isOpen, onClose, onOpenProfile, onOpenAccountSwitcher }) {
   const { user, updateProfile, logout, isConfigured } = useAuth();
   const { soundEnabled, toggleSound } = useChat();
 
@@ -915,6 +915,23 @@ export function SettingsModal({ isOpen, onClose, onOpenProfile }) {
                   {testingNotif ? 'Enviando...' : 'Testar Notificação'}
                 </button>
               </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-background-surface/60 border border-slate-800 flex items-center justify-between">
+              <div>
+                <div className="text-xs font-bold text-white">Alternar de Conta</div>
+                <div className="text-[11px] text-slate-400">Entrar em outro usuário salvo com 1 toque</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose?.();
+                  onOpenAccountSwitcher?.();
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-brand-500/20 text-brand-300 border border-brand-500/40 hover:bg-brand-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Alternar
+              </button>
             </div>
 
             <div className="p-4 rounded-2xl bg-background-surface/60 border border-slate-800 flex items-center justify-between">
