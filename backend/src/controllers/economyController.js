@@ -50,6 +50,60 @@ const SHOP_CATALOG = [
     icon: '🌌',
     cssClass: 'border-2 border-purple-400 shadow-[0_0_16px_rgba(192,132,252,0.9)] ring-2 ring-indigo-500'
   },
+  {
+    id: 'frame_matrix_neon',
+    category: 'frames',
+    name: 'Matrix Cibernética',
+    description: 'Borda animada verde com fluxo de dados digital',
+    price: 220,
+    icon: '💻',
+    cssClass: 'border-2 border-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.85)] ring-1 ring-emerald-500/60 animate-pulse'
+  },
+  {
+    id: 'frame_sakura_bloom',
+    category: 'frames',
+    name: 'Pétalas de Sakura',
+    description: 'Aura suave e floral em tons de rosa e cerejeira',
+    price: 260,
+    icon: '🌸',
+    cssClass: 'border-2 border-pink-400 shadow-[0_0_15px_rgba(244,114,182,0.85)] ring-2 ring-rose-300/60'
+  },
+  {
+    id: 'frame_void_vortex',
+    category: 'frames',
+    name: 'Vórtice do Vazio',
+    description: 'Energia escura dimensional em violeta profundo',
+    price: 380,
+    icon: '🌀',
+    cssClass: 'border-2 border-violet-500 shadow-[0_0_16px_rgba(139,92,246,0.9)] ring-2 ring-fuchsia-600/50'
+  },
+  {
+    id: 'frame_electric_storm',
+    category: 'frames',
+    name: 'Tempestade de Raios',
+    description: 'Descarga elétrica azul com relâmpagos pulsantes',
+    price: 320,
+    icon: '⚡',
+    cssClass: 'border-2 border-sky-400 shadow-[0_0_16px_rgba(56,189,248,0.95)] ring-2 ring-blue-500/70'
+  },
+  {
+    id: 'frame_blood_moon',
+    category: 'frames',
+    name: 'Lua de Sangue',
+    description: 'Borda carmesim intensa inspirada em eclipses solares',
+    price: 340,
+    icon: '🩸',
+    cssClass: 'border-2 border-red-600 shadow-[0_0_18px_rgba(220,38,38,0.9)] ring-2 ring-rose-900'
+  },
+  {
+    id: 'frame_golden_emperor',
+    category: 'frames',
+    name: 'Imperador Dourado',
+    description: 'Coroa brilhante com resplendor de ouro maciço',
+    price: 450,
+    icon: '👑',
+    cssClass: 'border-2 border-yellow-300 shadow-[0_0_20px_rgba(253,224,71,0.95)] ring-2 ring-amber-400'
+  },
 
   // --- CORES E TEMAS DE BALÃO DE CHAT ---
   {
@@ -325,14 +379,23 @@ async function buyShopItem(req, res) {
         return res.status(400).json({ success: false, error: 'Você já possui este item!' });
       }
 
-      if ((profile.nexus_coins || 0) < item.price) {
+      // Suporte a preço promocional / rotação da vitrine (com limite seguro de até 65% de desconto)
+      let finalPrice = item.price;
+      if (req.body.price !== undefined && req.body.price !== null) {
+        const clientPrice = Math.round(Number(req.body.price));
+        if (clientPrice > 0 && clientPrice >= Math.floor(item.price * 0.35)) {
+          finalPrice = clientPrice;
+        }
+      }
+
+      if ((profile.nexus_coins || 0) < finalPrice) {
         return res.status(400).json({
           success: false,
-          error: `Nexus Coins insuficientes. Você tem ${profile.nexus_coins || 0} e o item custa ${item.price}.`
+          error: `Nexus Coins insuficientes. Você tem ${profile.nexus_coins || 0} e o item custa ${finalPrice}.`
         });
       }
 
-      const newCoins = profile.nexus_coins - item.price;
+      const newCoins = profile.nexus_coins - finalPrice;
       const newUnlocked = [...unlocked, itemId];
 
       await supabase
@@ -345,9 +408,9 @@ async function buyShopItem(req, res) {
 
       await supabase.from('nexus_transactions').insert({
         user_id: userId,
-        amount: -item.price,
+        amount: -finalPrice,
         type: 'shop_purchase',
-        description: `Compra na Loja: ${item.name}`
+        description: `Compra na Loja: ${item.name}${finalPrice < item.price ? ' (Oferta Rotativa)' : ''}`
       });
 
       return res.json({

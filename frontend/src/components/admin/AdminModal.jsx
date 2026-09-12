@@ -5,6 +5,13 @@ import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { sounds } from '../../lib/sound';
 import { compressImageFile } from '../../lib/imageCompressor';
 import { SHOP_CATALOG, registerDynamicFrames, getFrameAsset, getFrameStyle } from '../../lib/shopCatalog';
+import {
+  calculateFrameRotation,
+  formatRemainingRotationTime,
+  getAdminRotationOffset,
+  forceNextRotation,
+  resetRotationOffset
+} from '../../lib/shopRotation';
 import { MarkdownRenderer } from '../common/MarkdownRenderer';
 import confetti from 'canvas-confetti';
 import {
@@ -58,7 +65,9 @@ import {
   Bell,
   BellRing,
   Megaphone,
-  Smartphone
+  Smartphone,
+  Timer,
+  Clock
 } from 'lucide-react';
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
@@ -158,6 +167,36 @@ export function AdminModal({ isOpen, onClose }) {
   const [newItemIcon, setNewItemIcon] = useState('✨');
   const [newItemCss, setNewItemCss] = useState('');
   const [editingItemId, setEditingItemId] = useState(null);
+  const [newItemIsHighlight, setNewItemIsHighlight] = useState(true);
+
+  // Substate Rotação de Molduras (Ciclos de 3 Dias)
+  const [adminRotationOffset, setAdminRotationOffsetState] = useState(getAdminRotationOffset());
+  const [adminCurrentTime, setAdminCurrentTime] = useState(Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setAdminCurrentTime(Date.now());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const adminFramesPool = [...SHOP_CATALOG.filter((i) => i.category === 'frames'), ...shopItemsList.filter((i) => i.category === 'frames')];
+  const adminRotationData = calculateFrameRotation(adminFramesPool, adminRotationOffset, adminCurrentTime);
+
+  const handleForceRotation = () => {
+    const newOffset = forceNextRotation();
+    setAdminRotationOffsetState(newOffset);
+    sounds.playPop();
+    confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+    setFeedback({ text: `⚡ Vitrine rotacionada com sucesso! Avançado para o Ciclo #${adminRotationData.cycleIndex + 1}.`, type: 'success' });
+  };
+
+  const handleResetRotation = () => {
+    resetRotationOffset();
+    setAdminRotationOffsetState(0);
+    sounds.playPop();
+    setFeedback({ text: 'Calendário natural de rotação de 3 dias restaurado.', type: 'info' });
+  };
 
   // Substate Upload de Molduras & Live Simulator
   const [frameUploadType, setFrameUploadType] = useState('upload'); // 'upload' | 'url' | 'css'
@@ -575,7 +614,9 @@ export function AdminModal({ isOpen, onClose }) {
         icon: newItemIcon.trim() || '✨',
         css_class: frameUploadType === 'css' || newItemCategory !== 'frames' ? (newItemCss.trim() || frameCssClass.trim()) : null,
         image_url: finalImageUrl || (frameUploadType === 'url' ? frameImageUrl : null),
-        is_active: true
+        is_active: true,
+        is_new: newItemIsHighlight,
+        created_at: new Date().toISOString()
       };
 
       if (editingItemId) {
@@ -597,7 +638,11 @@ export function AdminModal({ isOpen, onClose }) {
           if (error) throw error;
         }
 
-        setFeedback({ text: `Moldura / Item "${newItemName}" publicado na Loja com sucesso!`, type: 'success' });
+        if (newItemCategory === 'frames') {
+          setFeedback({ text: `✨ Moldura "${newItemName}" publicada e inserida com prioridade na Rotação da Loja!`, type: 'success' });
+        } else {
+          setFeedback({ text: `Item "${newItemName}" publicado na Loja com sucesso!`, type: 'success' });
+        }
       }
 
       sounds.playPop();
@@ -2169,6 +2214,57 @@ export function AdminModal({ isOpen, onClose }) {
           {/* ABA 1: GERENCIAR MOLDURAS & LOJA NEXUS */}
           {activeTab === 'shop' && (
             <div className="space-y-4 min-w-0">
+              {/* Card de Controle da Rotação de Molduras (Ciclos de 3 Dias & Ofertas Automáticas) */}
+              <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-amber-950/40 via-slate-900 to-indigo-950/40 border border-amber-500/50 shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-start sm:items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-amber-500 text-black flex items-center justify-center font-black shadow-lg shadow-amber-500/30 flex-shrink-0">
+                    <Timer className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-xs sm:text-sm font-extrabold text-amber-300 uppercase tracking-wide">
+                        Motor de Rotação da Loja (72 Horas)
+                      </h3>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                        Ciclo #{adminRotationData.cycleIndex}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 mt-0.5">
+                      Próxima troca automática em: <strong className="text-amber-400 font-mono">{formatRemainingRotationTime(adminRotationData.msRemaining)}</strong>
+                    </p>
+                    <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400 flex-wrap">
+                      <span>Oferta Relâmpago: <strong className="text-rose-400">{adminRotationData.flashDeal?.name || 'Nenhuma'} (-{adminRotationData.flashDeal?.discountPercent || 0}%)</strong></span>
+                      <span>•</span>
+                      <span>Destaque: <strong className="text-yellow-400">{adminRotationData.weeklyDeal?.name || 'Nenhum'} (-{adminRotationData.weeklyDeal?.discountPercent || 0}%)</strong></span>
+                      <span>•</span>
+                      <span>Vitrine: <strong className="text-white">{adminRotationData.rotatingFrames.length} de {adminRotationData.allFramesCount} molduras</strong></span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-start md:self-center flex-wrap flex-shrink-0">
+                  {adminRotationOffset > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleResetRotation}
+                      className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all border border-slate-700 active:scale-95"
+                      title="Voltar ao calendário normal"
+                    >
+                      Restaurar Calendário
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleForceRotation}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black text-xs font-black shadow-lg shadow-amber-500/30 flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95"
+                    title="Avançar o ciclo de rotação agora e sortear novas ofertas e preços"
+                  >
+                    <Zap className="w-3.5 h-3.5 fill-black" />
+                    <span>Forçar Nova Rotação Agora ⚡</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Banner Informativo */}
               <div className="p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-amber-950/60 via-slate-900 to-yellow-950/60 border border-amber-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xl min-w-0 box-border">
                 <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
@@ -2480,6 +2576,22 @@ export function AdminModal({ isOpen, onClose }) {
                         />
                       </div>
                     </div>
+
+                    {/* Checkbox: Destacar na Rotação Atual (Novidade) */}
+                    {newItemCategory === 'frames' && !editingItemId && (
+                      <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 cursor-pointer hover:bg-amber-500/15 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={newItemIsHighlight}
+                          onChange={(e) => setNewItemIsHighlight(e.target.checked)}
+                          className="w-4 h-4 rounded text-amber-500 focus:ring-amber-500 focus:ring-offset-0 bg-slate-900 border-slate-700"
+                        />
+                        <div className="text-[11px] text-slate-200 min-w-0">
+                          <span className="font-extrabold text-amber-300">Destacar como NOVIDADE 🔥</span>
+                          <span className="text-slate-400 ml-1.5">Entra imediatamente na vitrine atual de 3 dias com selo especial</span>
+                        </div>
+                      </label>
+                    )}
                   </div>
 
                   {/* Botão de Envio / Publicação */}

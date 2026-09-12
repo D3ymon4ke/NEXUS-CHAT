@@ -12,7 +12,13 @@ export const FRAME_CSS_STYLES = {
   frame_cyber_neon: 'border-2 border-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.8)] animate-pulse',
   frame_belmont_gold: 'border-2 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.9)] ring-2 ring-amber-500/50',
   frame_inferno: 'border-2 border-rose-500 shadow-[0_0_14px_rgba(244,63,94,0.9)] ring-1 ring-orange-500',
-  frame_galaxy: 'border-2 border-purple-400 shadow-[0_0_16px_rgba(192,132,252,0.9)] ring-2 ring-indigo-500'
+  frame_galaxy: 'border-2 border-purple-400 shadow-[0_0_16px_rgba(192,132,252,0.9)] ring-2 ring-indigo-500',
+  frame_matrix_neon: 'border-2 border-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.85)] ring-1 ring-emerald-500/60 animate-pulse',
+  frame_sakura_bloom: 'border-2 border-pink-400 shadow-[0_0_15px_rgba(244,114,182,0.85)] ring-2 ring-rose-300/60',
+  frame_void_vortex: 'border-2 border-violet-500 shadow-[0_0_16px_rgba(139,92,246,0.9)] ring-2 ring-fuchsia-600/50',
+  frame_electric_storm: 'border-2 border-sky-400 shadow-[0_0_16px_rgba(56,189,248,0.95)] ring-2 ring-blue-500/70',
+  frame_blood_moon: 'border-2 border-red-600 shadow-[0_0_18px_rgba(220,38,38,0.9)] ring-2 ring-rose-900',
+  frame_golden_emperor: 'border-2 border-yellow-300 shadow-[0_0_20px_rgba(253,224,71,0.95)] ring-2 ring-amber-400'
 };
 
 // Cache dinâmico de molduras customizadas cadastradas pelo admin
@@ -177,6 +183,60 @@ export const SHOP_CATALOG = [
     price: 400,
     icon: '🌌',
     cssClass: 'border-2 border-purple-400 shadow-[0_0_16px_rgba(192,132,252,0.9)] ring-2 ring-indigo-500'
+  },
+  {
+    id: 'frame_matrix_neon',
+    category: 'frames',
+    name: 'Matrix Cibernética',
+    description: 'Borda animada verde com fluxo de dados digital',
+    price: 220,
+    icon: '💻',
+    cssClass: 'border-2 border-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.85)] ring-1 ring-emerald-500/60 animate-pulse'
+  },
+  {
+    id: 'frame_sakura_bloom',
+    category: 'frames',
+    name: 'Pétalas de Sakura',
+    description: 'Aura suave e floral em tons de rosa e cerejeira',
+    price: 260,
+    icon: '🌸',
+    cssClass: 'border-2 border-pink-400 shadow-[0_0_15px_rgba(244,114,182,0.85)] ring-2 ring-rose-300/60'
+  },
+  {
+    id: 'frame_void_vortex',
+    category: 'frames',
+    name: 'Vórtice do Vazio',
+    description: 'Energia escura dimensional em violeta profundo',
+    price: 380,
+    icon: '🌀',
+    cssClass: 'border-2 border-violet-500 shadow-[0_0_16px_rgba(139,92,246,0.9)] ring-2 ring-fuchsia-600/50'
+  },
+  {
+    id: 'frame_electric_storm',
+    category: 'frames',
+    name: 'Tempestade de Raios',
+    description: 'Descarga elétrica azul com relâmpagos pulsantes',
+    price: 320,
+    icon: '⚡',
+    cssClass: 'border-2 border-sky-400 shadow-[0_0_16px_rgba(56,189,248,0.95)] ring-2 ring-blue-500/70'
+  },
+  {
+    id: 'frame_blood_moon',
+    category: 'frames',
+    name: 'Lua de Sangue',
+    description: 'Borda carmesim intensa inspirada em eclipses solares',
+    price: 340,
+    icon: '🩸',
+    cssClass: 'border-2 border-red-600 shadow-[0_0_18px_rgba(220,38,38,0.9)] ring-2 ring-rose-900'
+  },
+  {
+    id: 'frame_golden_emperor',
+    category: 'frames',
+    name: 'Imperador Dourado',
+    description: 'Coroa brilhante com resplendor de ouro maciço',
+    price: 450,
+    icon: '👑',
+    cssClass: 'border-2 border-yellow-300 shadow-[0_0_20px_rgba(253,224,71,0.95)] ring-2 ring-amber-400'
   },
 
   // --- PLANOS DE FUNDO DE CONVERSA (WALLPAPERS) ---

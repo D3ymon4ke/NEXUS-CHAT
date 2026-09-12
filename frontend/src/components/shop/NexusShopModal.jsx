@@ -1,7 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { SHOP_CATALOG, WALLPAPER_STYLES, FRAME_ANIMATED_ASSETS, registerDynamicFrames, getFrameAsset, getFrameStyle } from '../../lib/shopCatalog';
+import {
+  calculateFrameRotation,
+  formatRemainingRotationTime,
+  getAdminRotationOffset
+} from '../../lib/shopRotation';
 import { sounds } from '../../lib/sound';
 import confetti from 'canvas-confetti';
 import {
@@ -21,7 +26,11 @@ import {
   Award,
   Gift,
   Coins,
-  RotateCcw
+  RotateCcw,
+  Clock,
+  Tag,
+  Percent,
+  Timer
 } from 'lucide-react';
 
 function getFormattedClaimDate(claimValue) {
@@ -61,6 +70,30 @@ export function NexusShopModal({ isOpen, onClose }) {
   const [claiming, setClaiming] = useState(false);
   const [purchasingId, setPurchasingId] = useState(null);
   const [feedbackMsg, setFeedbackMsg] = useState({ text: '', type: '' });
+
+  // Rotação de Molduras (Ciclos de 3 dias / 72h)
+  const [framesViewMode, setFramesViewMode] = useState('rotation'); // 'rotation' | 'all'
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [adminOffset, setAdminOffset] = useState(getAdminRotationOffset());
+
+  // Ticker em tempo real para a contagem regressiva da rotação da loja
+  useEffect(() => {
+    if (!isOpen) return;
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+
+    const onRotationChanged = () => {
+      setAdminOffset(getAdminRotationOffset());
+      setCurrentTime(Date.now());
+    };
+    window.addEventListener('nexus_shop_rotation_changed', onRotationChanged);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('nexus_shop_rotation_changed', onRotationChanged);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || !user) return;
@@ -241,11 +274,15 @@ export function NexusShopModal({ isOpen, onClose }) {
           unlocked_items: newUnlocked
         }).eq('id', user.id);
 
+        const purchaseDesc = item.discountPercent
+          ? `Compra na Loja: ${item.name} (-${item.discountPercent}% Promoção)`
+          : `Compra do item: ${item.name}`;
+
         await supabase.from('nexus_transactions').insert({
           user_id: user.id,
           amount: -item.price,
           type: 'shop_purchase',
-          description: `Compra do item: ${item.name}`
+          description: purchaseDesc
         });
       }
 
@@ -348,7 +385,26 @@ export function NexusShopModal({ isOpen, onClose }) {
 
   if (!isOpen || !user) return null;
 
-  const filteredItems = catalog.filter((i) => i.category === activeTab);
+  const allFrameItems = useMemo(() => {
+    return catalog.filter((i) => i.category === 'frames');
+  }, [catalog]);
+
+  const rotationData = useMemo(() => {
+    return calculateFrameRotation(allFrameItems, adminOffset, currentTime);
+  }, [allFrameItems, adminOffset, currentTime]);
+
+  const filteredItems = useMemo(() => {
+    if (activeTab === 'frames') {
+      if (framesViewMode === 'rotation') {
+        return rotationData.rotatingFrames;
+      }
+      return allFrameItems.map((f) => {
+        const inRotation = rotationData.rotatingFrames.find((r) => r.id === f.id);
+        return inRotation || f;
+      });
+    }
+    return catalog.filter((i) => i.category === activeTab);
+  }, [activeTab, framesViewMode, rotationData, allFrameItems, catalog]);
 
   // Mapeia TODOS os itens desbloqueados garantindo que nenhum item jamais suma do inventário
   const userInventoryItems = (unlockedItems || [])
@@ -380,7 +436,7 @@ export function NexusShopModal({ isOpen, onClose }) {
   const canClaimDaily = lastClaimDate !== todayStr;
 
   const categories = [
-    { id: 'frames', label: 'Molduras', icon: Sparkles },
+    { id: 'frames', label: 'Molduras', icon: Sparkles, badge: `${rotationData.rotatingFrames.length} ativas` },
     { id: 'wallpapers', label: 'Planos de Fundo', icon: ImageIcon },
     { id: 'bubbles', label: 'Balões de Chat', icon: MessageSquare },
     { id: 'badges', label: 'Badges & Títulos', icon: Shield },
@@ -743,47 +799,223 @@ export function NexusShopModal({ isOpen, onClose }) {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3.5 w-full max-w-full">
-              {filteredItems.map((item) => {
-                const isUnlocked = unlockedItems.includes(item.id);
-                const isEquipped =
-                  equippedFrame === item.id ||
-                  equippedWallpaper === item.id ||
-                  equippedBubble === item.id ||
-                  equippedBadge === item.id ||
-                  equippedNameColor === item.id;
+            <div className="space-y-3 sm:space-y-4">
+              {/* Se estiver na aba de Molduras, exibir o Banner de Rotação de 3 Dias + Card de Oferta Relâmpago */}
+              {activeTab === 'frames' && (
+                <div className="space-y-3">
+                  {/* Banner de Rotação de 3 Dias */}
+                  <div className="p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-amber-950/50 via-slate-900 to-indigo-950/40 border border-amber-500/40 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 backdrop-blur-md">
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-yellow-600 text-black flex items-center justify-center font-black shadow-lg shadow-amber-500/25 flex-shrink-0">
+                        <Timer className="w-5 h-5 animate-pulse" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs sm:text-sm font-extrabold text-white tracking-wide flex items-center gap-1.5 truncate">
+                            <span>Vitrine Rotativa</span>
+                            <span className="text-[10px] font-black px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                              Ciclo #{rotationData.cycleIndex}
+                            </span>
+                          </h4>
+                        </div>
+                        <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">
+                          Molduras e preços atualizados a cada 72h. Próxima rotação em:
+                        </p>
+                      </div>
+                    </div>
 
-                const canAfford = userCoins >= item.price;
+                    <div className="flex items-center gap-2 self-start sm:self-center flex-wrap sm:flex-nowrap">
+                      {/* Timer Regressivo */}
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/40 border border-amber-500/40 text-amber-300 font-extrabold text-xs shadow-inner">
+                        <Clock className="w-3.5 h-3.5 text-amber-400 animate-spin [animation-duration:8s]" />
+                        <span className="tracking-wider">{formatRemainingRotationTime(rotationData.msRemaining)}</span>
+                      </div>
 
-                return (
-                  <div
-                    key={item.id}
-                    className={`p-3 sm:p-4 rounded-2xl sm:rounded-3xl border transition-all flex flex-col justify-between shadow-xl group hover:scale-[1.01] min-w-0 box-border w-full ${
-                      isEquipped
-                        ? 'bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border-emerald-500/60 shadow-emerald-500/10'
-                        : isUnlocked
-                        ? 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
-                        : 'bg-slate-900/80 border-slate-800/80 hover:border-amber-500/40'
-                    }`}
-                  >
-                    <div className="space-y-2 sm:space-y-2.5 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-xl sm:text-2xl shadow group-hover:scale-110 transition-transform flex-shrink-0">
-                          {item.icon}
+                      {/* Alternador: Vitrine Atual vs Coleção Completa */}
+                      <div className="flex bg-slate-950/80 p-0.5 rounded-xl border border-slate-800 text-[11px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setFramesViewMode('rotation')}
+                          className={`px-2.5 py-1 rounded-lg transition-all ${
+                            framesViewMode === 'rotation'
+                              ? 'bg-amber-500 text-black font-extrabold shadow-sm'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          Vitrine ({rotationData.rotatingFrames.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFramesViewMode('all')}
+                          className={`px-2.5 py-1 rounded-lg transition-all ${
+                            framesViewMode === 'all'
+                              ? 'bg-amber-500 text-black font-extrabold shadow-sm'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          Todas ({allFrameItems.length})
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card Destaque: OFERTA RELÂMPAGO DO CICLO (se houver e vitrine ativa) */}
+                  {framesViewMode === 'rotation' && rotationData.flashDeal && !unlockedItems.includes(rotationData.flashDeal.id) && (
+                    <div className="relative overflow-hidden p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-rose-950/70 via-slate-900 to-amber-950/50 border-2 border-rose-500/50 shadow-2xl shadow-rose-950/50 flex flex-col sm:flex-row items-center justify-between gap-3.5 group">
+                      <div className="absolute -top-12 -right-12 w-36 h-36 bg-rose-500/20 rounded-full blur-2xl pointer-events-none" />
+                      
+                      <div className="flex items-center gap-3.5 min-w-0 w-full sm:w-auto">
+                        {/* Avatar com a Moldura da Oferta */}
+                        <div
+                          onClick={() => handlePreviewItem(rotationData.flashDeal)}
+                          className="relative inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0 cursor-pointer hover:scale-105 transition-transform"
+                          title="Clique para testar no provador"
+                        >
+                          <img
+                            src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.id}`}
+                            alt="preview"
+                            className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover shadow-sm bg-slate-900 ${
+                              rotationData.flashDeal.cssClass || (!rotationData.flashDeal.image && !FRAME_ANIMATED_ASSETS[rotationData.flashDeal.id] ? 'border border-slate-700' : '')
+                            }`}
+                          />
+                          {(rotationData.flashDeal.image || FRAME_ANIMATED_ASSETS[rotationData.flashDeal.id]) && (
+                            <img
+                              src={rotationData.flashDeal.image || FRAME_ANIMATED_ASSETS[rotationData.flashDeal.id]}
+                              alt="moldura"
+                              className="absolute -inset-[20%] w-[140%] h-[140%] max-w-none pointer-events-none object-contain z-10 select-none drop-shadow-lg"
+                            />
+                          )}
                         </div>
 
-                        {/* Preço ou Status */}
-                        {isUnlocked ? (
-                          <span className="text-[9px] sm:text-[10px] px-2 sm:px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-extrabold flex items-center gap-1 flex-shrink-0">
-                            <Check className="w-3 h-3" /> Desbloqueado
-                          </span>
-                        ) : (
-                          <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 font-extrabold text-[11px] sm:text-xs shadow-sm flex-shrink-0">
-                            <img src="/nexus-coin.jpg" alt="Moeda" className="w-3.5 h-3.5 rounded-full" />
-                            <span>{item.price} Coins</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black tracking-wider uppercase shadow-sm flex items-center gap-1 animate-pulse">
+                              <Zap className="w-3 h-3 fill-current" /> OFERTA RELÂMPAGO
+                            </span>
+                            <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[9px] font-black border border-amber-500/40">
+                              -{rotationData.flashDeal.discountPercent}% OFF
+                            </span>
                           </div>
-                        )}
+                          <h4 className="text-xs sm:text-sm font-black text-white mt-1 group-hover:text-amber-300 transition-colors truncate">
+                            {rotationData.flashDeal.name}
+                          </h4>
+                          <p className="text-[10px] sm:text-[11px] text-slate-300 truncate">
+                            {rotationData.flashDeal.description}
+                          </p>
+                        </div>
                       </div>
+
+                      {/* Preço e Botão de Ação Imediata */}
+                      <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-800">
+                        <div className="flex flex-col items-start sm:items-end">
+                          <span className="text-[10px] text-slate-400 line-through">
+                            {rotationData.flashDeal.originalPrice} Coins
+                          </span>
+                          <span className="text-sm sm:text-base font-black text-amber-300 flex items-center gap-1">
+                            <img src="/nexus-coin.jpg" alt="Moeda" className="w-4 h-4 rounded-full" />
+                            <span>{rotationData.flashDeal.price} Coins</span>
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handlePreviewItem(rotationData.flashDeal)}
+                            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all"
+                            title="Testar no provador"
+                          >
+                            <Eye className="w-4 h-4 text-amber-400" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleBuyItem(rotationData.flashDeal)}
+                            disabled={userCoins < rotationData.flashDeal.price || purchasingId === rotationData.flashDeal.id}
+                            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-lg transition-all active:scale-95 ${
+                              userCoins >= rotationData.flashDeal.price
+                                ? 'bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 text-black shadow-amber-500/30 hover:scale-105'
+                                : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                            }`}
+                          >
+                            <ShoppingBag className="w-3.5 h-3.5" />
+                            <span>{userCoins >= rotationData.flashDeal.price ? 'Comprar Oferta' : 'Sem Saldo'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3.5 w-full max-w-full">
+                {filteredItems.map((item) => {
+                  const isUnlocked = unlockedItems.includes(item.id);
+                  const isEquipped =
+                    equippedFrame === item.id ||
+                    equippedWallpaper === item.id ||
+                    equippedBubble === item.id ||
+                    equippedBadge === item.id ||
+                    equippedNameColor === item.id;
+
+                  const canAfford = userCoins >= item.price;
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`p-3 sm:p-4 rounded-2xl sm:rounded-3xl border transition-all flex flex-col justify-between shadow-xl group hover:scale-[1.01] min-w-0 box-border w-full ${
+                        isEquipped
+                          ? 'bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border-emerald-500/60 shadow-emerald-500/10'
+                          : isUnlocked
+                          ? 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
+                          : 'bg-slate-900/80 border-slate-800/80 hover:border-amber-500/40'
+                      }`}
+                    >
+                      <div className="space-y-2 sm:space-y-2.5 min-w-0">
+                        <div className="flex items-center justify-between gap-1.5 min-w-0">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-xl sm:text-2xl shadow group-hover:scale-110 transition-transform flex-shrink-0">
+                              {item.icon}
+                            </div>
+                            {item.rotationTag && !isUnlocked && (
+                              <span className={`text-[8px] sm:text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider truncate flex-shrink-0 ${
+                                item.isFlashDeal
+                                  ? 'bg-rose-500/25 text-rose-300 border border-rose-500/50 animate-pulse'
+                                  : item.isNewItem
+                                  ? 'bg-orange-500/25 text-orange-300 border border-orange-500/50'
+                                  : 'bg-amber-500/25 text-amber-300 border border-amber-500/40'
+                              }`}>
+                                {item.rotationTag}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Preço ou Status */}
+                          {isUnlocked ? (
+                            <span className="text-[9px] sm:text-[10px] px-2 sm:px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-extrabold flex items-center gap-1 flex-shrink-0">
+                              <Check className="w-3 h-3" /> Desbloqueado
+                            </span>
+                          ) : (
+                            <div className="flex flex-col items-end flex-shrink-0">
+                              {item.discountPercent > 0 && (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[9px] text-slate-400 line-through">
+                                    {item.originalPrice}
+                                  </span>
+                                  <span className="text-[8px] font-black px-1 rounded bg-rose-500/30 text-rose-300 border border-rose-500/40 animate-pulse">
+                                    -{item.discountPercent}%
+                                  </span>
+                                </div>
+                              )}
+                              <div className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-xl font-extrabold text-[11px] sm:text-xs shadow-sm flex-shrink-0 ${
+                                item.isFlashDeal
+                                  ? 'bg-gradient-to-r from-rose-500/25 via-amber-500/25 to-yellow-500/25 border border-rose-500/40 text-amber-300'
+                                  : 'bg-amber-500/20 border border-amber-500/40 text-amber-300'
+                              }`}>
+                                <img src="/nexus-coin.jpg" alt="Moeda" className="w-3.5 h-3.5 rounded-full" />
+                                <span>{item.price} Coins</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
 
                       {/* Mini Visual Preview do Item no Card */}
                       <div
@@ -882,6 +1114,7 @@ export function NexusShopModal({ isOpen, onClose }) {
                   </div>
                 );
               })}
+              </div>
             </div>
           )}
         </div>
