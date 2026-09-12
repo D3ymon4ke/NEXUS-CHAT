@@ -383,8 +383,6 @@ export function NexusShopModal({ isOpen, onClose }) {
     sounds.playPop();
   };
 
-  if (!isOpen || !user) return null;
-
   const allFrameItems = useMemo(() => {
     return catalog.filter((i) => i.category === 'frames');
   }, [catalog]);
@@ -443,6 +441,8 @@ export function NexusShopModal({ isOpen, onClose }) {
     { id: 'name_colors', label: 'Auras de Nome', icon: Palette },
     { id: 'inventory', label: 'Meu Inventário', icon: Package, badge: userInventoryItems.length }
   ];
+
+  if (!isOpen || !user) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center safe-modal-overlay bg-black/85 backdrop-blur-xl animate-fadeIn select-none overflow-hidden box-border">
