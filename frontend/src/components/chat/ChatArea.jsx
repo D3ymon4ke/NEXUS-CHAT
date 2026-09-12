@@ -8,8 +8,8 @@ import { PinnedBanner } from './PinnedBanner';
 import { ImageViewerModal } from './ImageViewerModal';
 import { WALLPAPER_STYLES } from '../../lib/shopCatalog';
 import { format, isToday, isYesterday } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { ChevronDown, ChevronUp, MessageSquare, ShieldCheck, Sparkles, Search, X, WifiOff } from 'lucide-react';
+import { useMobileKeyboard } from '../../hooks/useMobileKeyboard';
 
 export function ChatArea({ onBack, onOpenProfile }) {
   const { user } = useAuth();
@@ -47,6 +47,9 @@ export function ChatArea({ onBack, onOpenProfile }) {
   const [selectedImage, setSelectedImage] = useState(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
 
+  const { isKeyboardOpen, dismissKeyboard } = useMobileKeyboard();
+  const touchStartYRef = useRef(null);
+
   const messagesEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const isInitialLoadForConvRef = useRef(true);
@@ -63,6 +66,40 @@ export function ChatArea({ onBack, onOpenProfile }) {
       }
     }
     messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
+  };
+
+  // Quando o teclado virtual abre, ancora suavemente as mensagens acima do teclado sem cortes
+  useEffect(() => {
+    if (isKeyboardOpen) {
+      const timer = setTimeout(() => {
+        scrollToBottom(false);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isKeyboardOpen]);
+
+  // Gestos de toque: fechar o teclado ao arrastar/rolar as mensagens para baixo (estilo WhatsApp / Telegram)
+  const handleTouchStart = (e) => {
+    if (e.touches && e.touches.length === 1) {
+      touchStartYRef.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (!isKeyboardOpen || touchStartYRef.current === null) return;
+    if (e.touches && e.touches.length === 1) {
+      const currentY = e.touches[0].clientY;
+      const deltaY = currentY - touchStartYRef.current;
+      // Se arrastar o dedo para baixo mais de 25px enquanto o teclado está aberto, fecha-o suavemente
+      if (deltaY > 25) {
+        dismissKeyboard();
+        touchStartYRef.current = null;
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    touchStartYRef.current = null;
   };
 
   useEffect(() => {
@@ -382,6 +419,9 @@ export function ChatArea({ onBack, onOpenProfile }) {
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         style={{ overflowX: 'hidden', touchAction: 'pan-y' }}
         className="flex-1 min-h-0 min-w-0 w-full max-w-full overflow-y-auto overflow-x-hidden touch-pan-y overscroll-x-none overscroll-contain px-2.5 sm:px-4 py-3 sm:py-4 space-y-1 relative"
       >

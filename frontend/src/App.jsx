@@ -23,11 +23,13 @@ import { CreatePollModal } from './components/polls/CreatePollModal';
 import { TitlePromotionModal } from './components/profile/TitlePromotionModal';
 import { ForceUpdateModal } from './components/common/ForceUpdateModal';
 import { GhostAdminBar } from './components/admin/GhostAdminBar';
+import { useMobileKeyboard } from './hooks/useMobileKeyboard';
 import { apiRequest } from './lib/api';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 import { Toaster } from 'sonner';
 
 function ChatDashboard() {
+  useMobileKeyboard();
   const { user, loading } = useAuth();
   const {
     activeConversation,
@@ -191,7 +193,10 @@ function ChatDashboard() {
   }
 
   return (
-    <div className="fixed inset-0 h-full h-[100dvh] w-full max-w-full flex flex-col bg-background-darker overflow-hidden select-none">
+    <div
+      className="fixed inset-0 w-full max-w-full flex flex-col bg-background-darker overflow-hidden select-none"
+      style={{ height: 'var(--app-height, 100dvh)' }}
+    >
       {/* Barra Flutuante de Modo Fantasma (Ativa quando Administrador personifica qualquer usuário) */}
       <GhostAdminBar />
 

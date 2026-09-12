@@ -8,8 +8,8 @@ import confetti from 'canvas-confetti';
 import { ANIMATED_STICKERS, STICKER_PRICE } from '../../lib/animatedStickers';
 import { compressImageFile, generateBlurPlaceholder } from '../../lib/imageCompressor';
 import { uploadChatMedia } from '../../lib/mediaUploader';
-import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { toast } from 'sonner';
+import { useMobileKeyboard } from '../../hooks/useMobileKeyboard';
 import {
   Send,
   Paperclip,
@@ -52,6 +52,7 @@ export function MessageInput() {
     showPollModal,
     setShowPollModal
   } = useChat();
+  const { isKeyboardOpen } = useMobileKeyboard();
   const [content, setContent] = useState('');
   const [attachments, setAttachments] = useState([]); // Array<{ file_name, file_url, file_type, file_size }>
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -595,7 +596,9 @@ export function MessageInput() {
   };
 
   return (
-    <div className="relative border-t border-slate-800 bg-background-surface/95 backdrop-blur-md p-2 sm:p-3 safe-bottom flex-shrink-0 z-20 w-full max-w-full box-border">
+    <div className={`relative border-t border-slate-800 bg-background-surface/95 backdrop-blur-md p-2 sm:p-3 flex-shrink-0 z-20 w-full max-w-full box-border transition-all duration-100 ${
+      isKeyboardOpen ? 'pb-2' : 'safe-bottom'
+    }`}>
       {/* Banner de Edição de Mensagem */}
       {editingMessage && (
         <div className="mb-2 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-between text-xs animate-fadeIn w-full max-w-full min-w-0 box-border">
@@ -842,6 +845,11 @@ export function MessageInput() {
             value={content}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
+            onFocus={() => {
+              if (window.scrollY !== 0) {
+                window.scrollTo(0, 0);
+              }
+            }}
             placeholder={
               editingMessage
                 ? "Edite sua mensagem..."
