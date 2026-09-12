@@ -253,9 +253,16 @@ function ChatDashboard() {
                 setActiveConversationId(convId);
                 setMobileView('chat');
               }}
+              onOpenConversations={() => {
+                setActiveConversationId(null);
+                setMobileView('sidebar');
+              }}
               onOpenShop={() => setShowShopModal(true)}
               onOpenWallet={() => setShowWalletModal(true)}
-              onBack={handleMobileBack}
+              onBack={() => {
+                setActiveConversationId(null);
+                setMobileView('sidebar');
+              }}
             />
           )}
         </div>

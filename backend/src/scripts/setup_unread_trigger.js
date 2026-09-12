@@ -18,13 +18,23 @@ async function setupUnreadTrigger() {
       CREATE OR REPLACE FUNCTION public.handle_new_message_unread()
       RETURNS TRIGGER AS $$
       BEGIN
-          -- Não incrementar para Belmont Conference se não quiser poluir contagem global ou incrementar se desejado
-          IF NEW.conversation_id != '00000000-0000-0000-0000-000000000001' THEN
-              UPDATE public.conversation_participants
-              SET unread_count = COALESCE(unread_count, 0) + 1
-              WHERE conversation_id = NEW.conversation_id
-                AND user_id != NEW.sender_id;
+          -- Se for mensagem na Belmont Conference, garantir que todos os perfis existam como participantes
+          IF NEW.conversation_id = '00000000-0000-0000-0000-000000000001' THEN
+              INSERT INTO public.conversation_participants (conversation_id, user_id, role, unread_count)
+              SELECT '00000000-0000-0000-0000-000000000001', p.id, 'member', 0
+              FROM public.profiles p
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM public.conversation_participants cp 
+                  WHERE cp.conversation_id = '00000000-0000-0000-0000-000000000001' AND cp.user_id = p.id
+              );
           END IF;
+
+          -- Incrementar unread_count para todos os participantes exceto quem enviou a mensagem
+          -- (incluindo a Belmont Conference)
+          UPDATE public.conversation_participants
+          SET unread_count = COALESCE(unread_count, 0) + 1
+          WHERE conversation_id = NEW.conversation_id
+            AND user_id != NEW.sender_id;
           
           RETURN NEW;
       END;
@@ -35,18 +45,6 @@ async function setupUnreadTrigger() {
           AFTER INSERT ON public.messages
           FOR EACH ROW
           EXECUTE FUNCTION public.handle_new_message_unread();
-
-      -- 3. Calcular e atualizar unread_count para mensagens existentes não lidas
-      -- Se houver mensagens onde o participante não é o sender, marcar como 1 se unread_count for 0
-      UPDATE public.conversation_participants cp
-      SET unread_count = (
-          SELECT COUNT(*)
-          FROM public.messages m
-          WHERE m.conversation_id = cp.conversation_id
-            AND m.sender_id != cp.user_id
-            AND m.created_at >= (NOW() - INTERVAL '2 days')
-      )
-      WHERE cp.conversation_id != '00000000-0000-0000-0000-000000000001';
     `;
 
     await client.query(sql);

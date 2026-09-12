@@ -30,12 +30,12 @@ async function getUserConversations(req, res) {
     const userId = req.user.id;
 
     if (isConfigured && supabase) {
-      // 1. Garantir que o usuário participa da BELMONT CONFERENCE
+      // 1. Garantir que o usuário participa da BELMONT CONFERENCE sem sobrescrever unread_count
       await supabase.from('conversation_participants').upsert({
         conversation_id: BELMONT_CONFERENCE_ID,
         user_id: userId,
         role: 'member'
-      });
+      }, { onConflict: 'conversation_id,user_id', ignoreDuplicates: true });
 
       // 2. Obter IDs das conversas das quais o usuário participa
       const { data: participations, error: partError } = await supabase

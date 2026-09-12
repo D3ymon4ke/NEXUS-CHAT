@@ -129,6 +129,14 @@ export async function apiRequest(endpoint, options = {}) {
         const convIds = (myParticipations || []).map(p => p.conversation_id);
         if (!convIds.includes(BELMONT_ID)) {
           convIds.push(BELMONT_ID);
+          // Garantir participante registrado no Belmont sem apagar dados
+          if (currentUser?.id) {
+            await supabase.from('conversation_participants').upsert({
+              conversation_id: BELMONT_ID,
+              user_id: currentUser.id,
+              role: 'member'
+            }, { onConflict: 'conversation_id,user_id', ignoreDuplicates: true });
+          }
         }
 
         // 2. Buscar todas as conversas e todos os participantes com seus perfis
@@ -239,7 +247,10 @@ export async function apiRequest(endpoint, options = {}) {
         }
 
         const hasBelmont = deduplicated.some(c => c.id === BELMONT_ID);
-        const finalList = hasBelmont ? deduplicated : [belmontRoom, ...deduplicated];
+        const myBelmontPart = (myParticipations || []).find(p => p.conversation_id === BELMONT_ID);
+        const finalList = hasBelmont 
+          ? deduplicated 
+          : [{ ...belmontRoom, unread_count: myBelmontPart?.unread_count || 0 }, ...deduplicated];
 
         return {
           success: true,

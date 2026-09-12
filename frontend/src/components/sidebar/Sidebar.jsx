@@ -200,6 +200,8 @@ const ConversationRow = React.memo(function ConversationRow({
           : isBelmont
           ? isActive
             ? 'bg-gradient-to-r from-amber-950/70 via-slate-900 to-indigo-950/60 border-amber-500/80 shadow-lg shadow-amber-500/10'
+            : hasUnread
+            ? 'bg-gradient-to-r from-amber-950/90 via-yellow-950/50 to-slate-900 border-amber-400 shadow-lg shadow-amber-500/25 ring-1 ring-amber-400/60'
             : 'bg-gradient-to-r from-amber-950/30 via-slate-900/50 to-slate-900/30 border-amber-500/40 hover:border-amber-500/70 shadow-sm'
           : isActive
           ? 'bg-brand-600/20 border-brand-500/60 shadow-sm'
@@ -211,7 +213,13 @@ const ConversationRow = React.memo(function ConversationRow({
       }`}
     >
       {hasUnread && (
-        <span className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-rose-500 via-pink-500 to-red-600 shadow-[0_0_10px_rgba(244,63,94,0.9)] animate-pulse" />
+        <span
+          className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+            isBelmont
+              ? 'bg-gradient-to-b from-amber-400 via-yellow-300 to-amber-500 shadow-[0_0_12px_rgba(251,191,36,0.95)] animate-pulse'
+              : 'bg-gradient-to-b from-rose-500 via-pink-500 to-red-600 shadow-[0_0_10px_rgba(244,63,94,0.9)] animate-pulse'
+          }`}
+        />
       )}
 
       <div className="relative flex-shrink-0">
@@ -222,7 +230,9 @@ const ConversationRow = React.memo(function ConversationRow({
             activeMasterIdentity
               ? 'border-2 border-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.6)]'
               : isBelmont
-              ? 'border-2 border-amber-400'
+              ? hasUnread
+                ? 'border-2 border-amber-300 shadow-[0_0_14px_rgba(251,191,36,0.9)] ring-2 ring-yellow-400/50'
+                : 'border-2 border-amber-400'
               : hasUnread
               ? 'border-2 border-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]'
               : isPinned
@@ -230,10 +240,28 @@ const ConversationRow = React.memo(function ConversationRow({
               : 'border border-slate-700'
           }`}
         />
-        {hasUnread && (
-          <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.2 rounded-full bg-gradient-to-r from-rose-600 to-red-600 text-white text-[10px] font-black border-2 border-slate-950 shadow-lg shadow-rose-600/80 animate-bounce z-10">
-            {conv.unread_count > 99 ? '99+' : conv.unread_count}
-          </span>
+        {/* Badges de não lidas e selos */}
+        {hasUnread ? (
+          isBelmont ? (
+            /* Badge exclusivo Belmont Real */
+            <span
+              title={`${conv.unread_count} mensagens não lidas no Belmont`}
+              className="absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 text-slate-950 text-[10px] font-black border-2 border-slate-950 shadow-[0_0_12px_rgba(251,191,36,0.95)] animate-bounce z-10 flex items-center gap-0.5"
+            >
+              <Crown className="w-2.5 h-2.5 fill-slate-950 flex-shrink-0" />
+              <span>{conv.unread_count > 99 ? '99+' : conv.unread_count}</span>
+            </span>
+          ) : (
+            <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.2 rounded-full bg-gradient-to-r from-rose-600 to-red-600 text-white text-[10px] font-black border-2 border-slate-950 shadow-lg shadow-rose-600/80 animate-bounce z-10">
+              {conv.unread_count > 99 ? '99+' : conv.unread_count}
+            </span>
+          )
+        ) : (
+          isBelmont && (
+            <span className="absolute -top-1 -right-1 p-0.5 bg-amber-500 rounded-full text-black shadow">
+              <Crown className="w-3 h-3" />
+            </span>
+          )
         )}
         {isDirect && !activeMasterIdentity && (
           <span
@@ -241,11 +269,6 @@ const ConversationRow = React.memo(function ConversationRow({
               isOnline ? 'bg-chat-online' : 'bg-slate-500'
             }`}
           />
-        )}
-        {isBelmont && (
-          <span className="absolute -top-1 -right-1 p-0.5 bg-amber-500 rounded-full text-black shadow">
-            <Crown className="w-3 h-3" />
-          </span>
         )}
       </div>
 
@@ -255,7 +278,9 @@ const ConversationRow = React.memo(function ConversationRow({
             <span
               className={`text-xs truncate ${
                 isBelmont
-                  ? 'text-amber-300 font-extrabold tracking-wide'
+                  ? hasUnread
+                    ? 'text-amber-200 font-black tracking-wide drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]'
+                    : 'text-amber-300 font-extrabold tracking-wide'
                   : hasUnread
                   ? 'text-white font-extrabold drop-shadow-[0_0_6px_rgba(244,63,94,0.4)]'
                   : isPinned
@@ -271,13 +296,27 @@ const ConversationRow = React.memo(function ConversationRow({
               </span>
             )}
             {isBelmont && (
-              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-extrabold uppercase">
-                Principal
+              <span
+                className={`text-[9px] px-1.5 py-0.2 rounded font-extrabold uppercase ${
+                  hasUnread
+                    ? 'bg-amber-400 text-slate-950 border border-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.8)] animate-pulse'
+                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                }`}
+              >
+                {hasUnread ? 'Novo Aviso' : 'Principal'}
               </span>
             )}
           </div>
           {timeString && (
-            <span className={`text-[10px] font-medium ${hasUnread ? 'text-rose-300 font-bold' : isPinned ? 'text-amber-300/80' : 'text-slate-500'}`}>
+            <span className={`text-[10px] font-medium ${
+              hasUnread 
+                ? isBelmont 
+                  ? 'text-amber-300 font-bold' 
+                  : 'text-rose-300 font-bold' 
+                : isPinned 
+                ? 'text-amber-300/80' 
+                : 'text-slate-500'
+            }`}>
               {timeString}
             </span>
           )}
@@ -295,7 +334,11 @@ const ConversationRow = React.memo(function ConversationRow({
         <div className="flex items-center justify-between gap-1.5">
           <p
             className={`text-[11px] truncate max-w-[155px] sm:max-w-[170px] ${
-              hasUnread ? 'text-rose-200 font-semibold' : 'text-slate-400'
+              hasUnread
+                ? isBelmont
+                  ? 'text-amber-200 font-bold'
+                  : 'text-rose-200 font-semibold'
+                : 'text-slate-400'
             }`}
           >
             {activeAction ? (
@@ -328,9 +371,16 @@ const ConversationRow = React.memo(function ConversationRow({
 
           <div className="flex items-center gap-1">
             {hasUnread && (
-              <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-500 via-red-500 to-pink-500 text-white text-[10px] font-black min-w-[22px] text-center shadow-lg shadow-rose-600/50 animate-pulse border border-rose-300/80 flex-shrink-0">
-                {conv.unread_count > 99 ? '99+' : conv.unread_count}
-              </span>
+              isBelmont ? (
+                <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 text-slate-950 text-[10px] font-black min-w-[24px] text-center shadow-lg shadow-amber-500/50 animate-pulse border border-yellow-200 flex items-center gap-1 flex-shrink-0">
+                  <Crown className="w-2.5 h-2.5 fill-slate-950 flex-shrink-0" />
+                  <span>{conv.unread_count > 99 ? '99+' : conv.unread_count}</span>
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-500 via-red-500 to-pink-500 text-white text-[10px] font-black min-w-[22px] text-center shadow-lg shadow-rose-600/50 animate-pulse border border-rose-300/80 flex-shrink-0">
+                  {conv.unread_count > 99 ? '99+' : conv.unread_count}
+                </span>
+              )
             )}
 
             <button

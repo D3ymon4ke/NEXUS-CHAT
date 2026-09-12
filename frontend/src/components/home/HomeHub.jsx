@@ -148,15 +148,18 @@ const DEFAULT_FALLBACK_PATCHES = [
   }
 ];
 
-export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet, onBack }) {
+export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWallet, onBack }) {
   const { user } = useAuth();
-  const { setActiveConversationId } = useChat();
+  const { conversations, setActiveConversationId } = useChat();
 
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
   const [patchNotes, setPatchNotes] = useState(DEFAULT_FALLBACK_PATCHES);
   const [hubPolls, setHubPolls] = useState([]);
   const [loadingPolls, setLoadingPolls] = useState(false);
   const [showCreatePollModal, setShowCreatePollModal] = useState(false);
+
+  const belmontConv = (conversations || []).find((c) => c.id === BELMONT_ID || c.is_permanent);
+  const belmontUnreadCount = belmontConv?.unread_count || 0;
 
   const isAdmin = user?.role === 'admin' || user?.username === 'damon';
 
@@ -223,9 +226,14 @@ export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet, onBack }) {
     }
   };
 
-  const handleEnterBelmont = () => {
-    setActiveConversationId(BELMONT_ID);
-    if (onOpenChat) onOpenChat(BELMONT_ID);
+  const handleGoToConversations = () => {
+    // Redireciona para a lista de conversas sem forçar a abertura automática do Belmont
+    setActiveConversationId(null);
+    if (onOpenConversations) {
+      onOpenConversations();
+    } else if (onBack) {
+      onBack();
+    }
   };
 
   const currentTip = PLATFORM_TIPS[currentTipIndex] || PLATFORM_TIPS[0];
@@ -322,10 +330,20 @@ export function HomeHub({ onOpenChat, onOpenShop, onOpenWallet, onBack }) {
             {/* Ações de Acesso Rápido em Linha Compacta */}
             <div className="grid grid-cols-3 sm:flex sm:items-center gap-1.5 sm:gap-2 w-full md:w-auto">
               <button
-                onClick={handleEnterBelmont}
-                className="col-span-1 sm:flex-initial px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 text-black font-extrabold text-xs shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-1 active:scale-95 whitespace-nowrap"
+                onClick={handleGoToConversations}
+                className="col-span-1 sm:flex-initial px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 text-black font-extrabold text-xs shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap relative group"
+                title="Acessar lista de conversas e escolher onde entrar"
               >
-                <Crown className="w-3.5 h-3.5 flex-shrink-0" /> <span className="truncate">Belmont</span>
+                <Crown className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate">Belmont</span>
+                {belmontUnreadCount > 0 && (
+                  <span
+                    title={`${belmontUnreadCount} novas mensagens`}
+                    className="px-1.5 py-0.2 rounded-full bg-slate-950 text-amber-300 text-[10px] font-black border border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)] animate-bounce flex items-center"
+                  >
+                    <span>{belmontUnreadCount > 99 ? '99+' : belmontUnreadCount}</span>
+                  </span>
+                )}
               </button>
               {onOpenShop && (
                 <button
