@@ -37,6 +37,29 @@ async function handleSendMessage(socket, io, data) {
       return;
     }
 
+    // Verificar se a sala está com trava ativada (Somente Administradores podem falar)
+    if (isConfigured && supabase) {
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('is_admin_only')
+        .eq('id', conversationId)
+        .maybeSingle();
+
+      if (conv?.is_admin_only) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role, username')
+          .eq('id', senderId)
+          .maybeSingle();
+
+        const isAdmin = profile?.role === 'admin' || profile?.username?.toLowerCase() === 'damon';
+        if (!isAdmin) {
+          socket.emit('error_message', { message: 'Esta sala está com a trava ativada. Apenas administradores podem enviar mensagens.' });
+          return;
+        }
+      }
+    }
+
     const messageId = data.id || uuidv4();
     const createdAt = new Date().toISOString();
 

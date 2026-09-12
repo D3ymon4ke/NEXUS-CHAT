@@ -1295,12 +1295,24 @@ export function ChatProvider({ children }) {
         const { conversationId } = eventPayload?.payload || {};
         if (conversationId) {
           nexusStorage.clearMessages(conversationId);
+          try {
+            localStorage.removeItem(`nexus_msgs_${conversationId}`);
+          } catch (e) {}
           if (conversationId === activeConversationIdRef.current) {
             setMessages([]);
-            try {
-              localStorage.removeItem(`nexus_msgs_${conversationId}`);
-            } catch (e) {}
           }
+          setConversations((prev) =>
+            prev.map((c) => (c.id === conversationId ? { ...c, last_message: null, unread_count: 0 } : c))
+          );
+        }
+      })
+      .on('broadcast', { event: 'conversation_lock_toggled' }, (eventPayload) => {
+        const { conversationId } = eventPayload?.payload || {};
+        const isAdminOnly = Boolean(eventPayload?.payload?.is_admin_only ?? eventPayload?.payload?.isAdminOnly);
+        if (conversationId) {
+          setConversations((prev) =>
+            prev.map((c) => (c.id === conversationId ? { ...c, is_admin_only: isAdminOnly } : c))
+          );
         }
       })
       .on('broadcast', { event: 'messages_read' }, (eventPayload) => {
@@ -1977,6 +1989,9 @@ export function ChatProvider({ children }) {
       }
 
       nexusStorage.clearMessages(targetConvId);
+      try {
+        localStorage.removeItem(`nexus_msgs_${targetConvId}`);
+      } catch (e) {}
 
       setConversations(prev =>
         prev.map(c => c.id === targetConvId ? { ...c, last_message: null, unread_count: 0 } : c)
@@ -1993,7 +2008,14 @@ export function ChatProvider({ children }) {
         }).catch(() => {});
       }
 
-      // 1. Supabase
+      // 1. API Backend (Limpa PostgreSQL, Cache em RAM da VPS e emite Socket.IO / Supabase)
+      try {
+        await apiRequest(`/conversations/${targetConvId}/messages`, { method: 'DELETE' });
+      } catch (apiErr) {
+        console.warn('Fallback API clear messages:', apiErr);
+      }
+
+      // 2. Supabase direto como redundância
       if (isSupabaseConfigured && supabase) {
         try {
           await supabase.from('messages').delete().eq('conversation_id', targetConvId);
@@ -2006,13 +2028,6 @@ export function ChatProvider({ children }) {
         }
       }
 
-      // 2. API Backend
-      try {
-        await apiRequest(`/conversations/${targetConvId}/messages`, { method: 'DELETE' });
-      } catch (apiErr) {
-        console.warn('Fallback API clear messages:', apiErr);
-      }
-
       // 3. Socket.IO
       if (socket && connected) {
         socket.emit('clear_conversation', { conversationId: targetConvId });
@@ -2021,6 +2036,38 @@ export function ChatProvider({ children }) {
       return { success: true };
     } catch (err) {
       console.error('Erro ao limpar conversa:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  // Alternar modo somente admin da conversa (travar / destravar sala)
+  const toggleAdminOnly = async (conversationId) => {
+    const targetConvId = conversationId || activeConversationId;
+    if (!targetConvId) return { success: false, error: 'ID da conversa não fornecido.' };
+
+    try {
+      sounds.playPop();
+
+      // Otimista
+      setConversations(prev => prev.map(c => {
+        if (c.id === targetConvId) {
+          return { ...c, is_admin_only: !c.is_admin_only };
+        }
+        return c;
+      }));
+
+      const res = await apiRequest(`/conversations/${targetConvId}/toggle-admin-only`, {
+        method: 'POST'
+      });
+
+      if (res && res.success) {
+        const newStatus = Boolean(res.is_admin_only ?? res.isAdminOnly);
+        setConversations(prev => prev.map(c => c.id === targetConvId ? { ...c, is_admin_only: newStatus } : c));
+        return { success: true, is_admin_only: newStatus, isAdminOnly: newStatus };
+      }
+      return { success: false, error: res?.error || 'Erro ao alterar trava da sala' };
+    } catch (err) {
+      console.error('Erro ao alternar trava da sala:', err);
       return { success: false, error: err.message };
     }
   };
@@ -2242,11 +2289,23 @@ export function ChatProvider({ children }) {
     };
 
     const handleConvCleared = (data) => {
-      const { conversationId } = data;
+      const { conversationId } = data || {};
+      if (!conversationId) return;
+      nexusStorage.clearMessages(conversationId);
+      try {
+        localStorage.removeItem(`nexus_msgs_${conversationId}`);
+      } catch (e) {}
       if (conversationId === activeConversationIdRef.current) {
         setMessages([]);
       }
       setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, last_message: null, unread_count: 0 } : c));
+    };
+
+    const handleConvLockToggled = (data) => {
+      const { conversationId } = data || {};
+      const isAdminOnly = Boolean(data?.is_admin_only ?? data?.isAdminOnly);
+      if (!conversationId) return;
+      setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, is_admin_only: isAdminOnly } : c));
     };
 
     const handleConvDeleted = (data) => {
@@ -2304,6 +2363,7 @@ export function ChatProvider({ children }) {
     socket.on('conversation_message_edited', handleMsgEdited);
     socket.on('message_deleted', handleMsgDeleted);
     socket.on('conversation_cleared', handleConvCleared);
+    socket.on('conversation_lock_toggled', handleConvLockToggled);
     socket.on('conversation_deleted', handleConvDeleted);
     socket.on('conversation_removed', handleConvDeleted);
 
@@ -2324,6 +2384,7 @@ export function ChatProvider({ children }) {
       socket.off('conversation_message_edited', handleMsgEdited);
       socket.off('message_deleted', handleMsgDeleted);
       socket.off('conversation_cleared', handleConvCleared);
+      socket.off('conversation_lock_toggled', handleConvLockToggled);
       socket.off('conversation_deleted', handleConvDeleted);
       socket.off('conversation_removed', handleConvDeleted);
     };
@@ -2630,6 +2691,7 @@ export function ChatProvider({ children }) {
         deleteMessage,
         deleteConversation,
         clearConversation,
+        toggleAdminOnly,
         pinMessage,
         reactToMessage,
         startDirectChat,

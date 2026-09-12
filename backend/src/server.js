@@ -64,6 +64,26 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', server: 'nexus-chat-backend', uptime: process.uptime(), timestamp: new Date().toISOString() });
 });
 
+// --- Configuração do Socket.IO ---
+const io = new Server(server, {
+  cors: {
+    origin: '*', // Permite conexão do cliente frontend
+    methods: ['GET', 'POST', 'DELETE', 'PUT'],
+    credentials: true
+  },
+  pingTimeout: 60000,
+  pingInterval: 25000
+});
+
+// Inicializa a lógica de WebSocket
+setupSocketIO(io);
+
+// Injeta io em todas as requisições da API
+app.use((req, res, next) => {
+  req.io = io;
+  next();
+});
+
 // Rate Limiter Geral para API
 app.use('/api', apiLimiter);
 
@@ -83,20 +103,6 @@ app.get('/', (req, res) => {
 // --- Middlewares de Erro e 404 ---
 app.use(notFoundHandler);
 app.use(errorHandler);
-
-// --- Configuração do Socket.IO ---
-const io = new Server(server, {
-  cors: {
-    origin: '*', // Permite conexão do cliente frontend
-    methods: ['GET', 'POST'],
-    credentials: true
-  },
-  pingTimeout: 60000,
-  pingInterval: 25000
-});
-
-// Inicializa a lógica de WebSocket
-setupSocketIO(io);
 
 // Inicia o servidor HTTP e WebSocket
 server.listen(PORT, () => {

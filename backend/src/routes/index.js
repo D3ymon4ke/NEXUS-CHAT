@@ -56,6 +56,7 @@ router.post('/conversations/direct', authenticateUser, conversationController.ge
 router.post('/conversations/group', authenticateUser, conversationController.createGroupConversation);
 router.delete('/conversations/:conversationId', authenticateUser, conversationController.deleteConversation);
 router.delete('/conversations/:conversationId/messages', authenticateUser, conversationController.clearConversationMessages);
+router.post('/conversations/:conversationId/toggle-admin-only', authenticateUser, conversationController.toggleConversationAdminOnly);
 
 // --- Message Routes ---
 router.get('/conversations/:conversationId/messages', authenticateUser, messageController.getConversationMessages);

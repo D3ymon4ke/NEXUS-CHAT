@@ -74,6 +74,7 @@ export function MessageInput() {
   const isDirectChat = Boolean(activeConversation && !isGroup);
   const isAdminUser = Boolean(user?.is_admin || user?.role === 'admin' || user?.username === 'damon');
   const isGroupAdmin = Boolean(isGroup && (isAdminUser || activeConversation?.created_by === user?.id));
+  const isRoomLocked = Boolean(activeConversation?.is_admin_only && !isAdminUser);
 
   // Resetar modo fantasma se trocar para um grupo
   useEffect(() => {
@@ -595,10 +596,34 @@ export function MessageInput() {
     }
   };
 
+  if (isRoomLocked) {
+    return (
+      <div className={`relative border-t border-slate-800 bg-background-surface/95 backdrop-blur-md p-3 sm:p-4 flex-shrink-0 z-20 w-full max-w-full box-border ${
+        isKeyboardOpen ? 'pb-2' : 'safe-bottom'
+      }`}>
+        <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs sm:text-sm font-medium text-center shadow-inner">
+          <Lock className="w-4 h-4 text-amber-400 flex-shrink-0" />
+          <span>Apenas administradores podem enviar mensagens nesta sala no momento.</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`relative border-t border-slate-800 bg-background-surface/95 backdrop-blur-md p-2 sm:p-3 flex-shrink-0 z-20 w-full max-w-full box-border transition-all duration-100 ${
       isKeyboardOpen ? 'pb-2' : 'safe-bottom'
     }`}>
+      {/* Banner Informativo para Admin quando a sala está com trava ativada */}
+      {activeConversation?.is_admin_only && isAdminUser && (
+        <div className="mb-2 px-3 py-1.5 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-between text-xs animate-fadeIn w-full max-w-full min-w-0 box-border">
+          <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+            <Lock className="w-3.5 h-3.5 text-rose-400 flex-shrink-0" />
+            <span className="font-bold text-rose-300 flex-shrink-0">Sala Travada:</span>
+            <span className="text-slate-300 truncate min-w-0">Você está enviando mensagens como Administrador.</span>
+          </div>
+        </div>
+      )}
+
       {/* Banner de Edição de Mensagem */}
       {editingMessage && (
         <div className="mb-2 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-between text-xs animate-fadeIn w-full max-w-full min-w-0 box-border">

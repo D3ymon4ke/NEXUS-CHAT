@@ -113,6 +113,7 @@ export async function apiRequest(endpoint, options = {}) {
           description: 'Sala principal oficial, permanente e aberta para todos os membros.',
           avatar_url: '/belmont-logo.jpg',
           is_permanent: true,
+          is_admin_only: false,
           unread_count: 0,
           last_message: {
             content: 'Bem-vindo à Belmont Conference! 👑',
@@ -206,7 +207,8 @@ export async function apiRequest(endpoint, options = {}) {
               direct_user: directUser,
               last_message: lastMsg || null,
               unread_count: myPart?.unread_count || 0,
-              is_pinned: Boolean(myPart?.is_pinned)
+              is_pinned: Boolean(myPart?.is_pinned),
+              is_admin_only: Boolean(conv.is_admin_only)
             };
           })
         );

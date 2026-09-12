@@ -123,7 +123,7 @@ const PUSH_NOTIFICATION_PRESETS = [
 
 export function AdminModal({ isOpen, onClose }) {
   const { user, realAdminUser, impersonateUser, stopImpersonating, isImpersonating } = useAuth();
-  const { loadConversations, clearMessages } = useChat();
+  const { loadConversations, clearMessages, clearConversation, conversations, toggleAdminOnly } = useChat();
 
   const isAdmin = Boolean(
     realAdminUser?.role === 'admin' ||
@@ -131,6 +131,9 @@ export function AdminModal({ isOpen, onClose }) {
     user?.role === 'admin' ||
     user?.username?.toLowerCase() === 'damon'
   );
+
+  const belmontConv = (conversations || []).find(c => c.id === BELMONT_ID);
+  const isBelmontLocked = Boolean(belmontConv?.is_admin_only);
 
   const [activeTab, setActiveTab] = useState('shop'); // 'stats' | 'shop' | 'promotions' | 'chat_master' | 'users' | 'patches' | 'cleanup' | 'broadcast'
   const [stats, setStats] = useState(null);
@@ -471,17 +474,42 @@ export function AdminModal({ isOpen, onClose }) {
 
     try {
       setActionLoading(true);
-      if (isSupabaseConfigured && supabase) {
+      if (clearConversation) {
+        await clearConversation(BELMONT_ID);
+      } else if (isSupabaseConfigured && supabase) {
         await supabase.from('messages').delete().eq('conversation_id', BELMONT_ID);
       }
 
       if (clearMessages) clearMessages();
       sounds.playPop();
-      setFeedback({ text: 'Todas as mensagens da Belmont Conference foram limpas com sucesso!', type: 'success' });
+      setFeedback({ text: 'Todas as mensagens da Belmont Conference foram limpas com sucesso no banco e servidor!', type: 'success' });
       loadAdminData();
       if (loadConversations) loadConversations();
     } catch (err) {
       setFeedback({ text: 'Erro ao limpar mensagens da Belmont Conference.', type: 'error' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleToggleBelmontLock = async () => {
+    try {
+      setActionLoading(true);
+      const res = await toggleAdminOnly?.(BELMONT_ID);
+      if (res?.success) {
+        sounds.playPop();
+        setFeedback({
+          text: res.is_admin_only
+            ? '🔒 Sala Belmont CONFERENCE travada! Apenas administradores podem falar.'
+            : '🔓 Sala Belmont CONFERENCE destravada! Aberta para todos os membros falarem.',
+          type: 'success'
+        });
+        if (loadConversations) loadConversations();
+      } else {
+        setFeedback({ text: res?.error || 'Erro ao alternar modo da Belmont.', type: 'error' });
+      }
+    } catch (err) {
+      setFeedback({ text: 'Erro ao alternar trava da Belmont.', type: 'error' });
     } finally {
       setActionLoading(false);
     }
@@ -3208,6 +3236,43 @@ export function AdminModal({ isOpen, onClose }) {
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${actionLoading ? 'animate-spin' : ''}`} />
                     <span>{actionLoading ? 'Disparando...' : '🚀 Disparar Atualização Global'}</span>
+                  </button>
+                </div>
+
+                <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between shadow-xl min-w-0 box-border">
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5">
+                        <span>🔒</span> Trava Belmont (Somente Admin)
+                      </h4>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                        isBelmontLocked
+                          ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                          : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      }`}>
+                        {isBelmontLocked ? 'Travada' : 'Aberta'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] sm:text-xs text-slate-400 mt-1 leading-relaxed">
+                      {isBelmontLocked
+                        ? 'Atualmente apenas administradores podem falar na Belmont Conference.'
+                        : 'Atualmente todos os membros podem enviar mensagens normalmente.'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleToggleBelmontLock}
+                    disabled={actionLoading}
+                    className={`mt-4 w-full py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-white text-xs font-bold shadow-lg transition-all active:scale-95 ${
+                      isBelmontLocked
+                        ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/30'
+                        : 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/30'
+                    }`}
+                  >
+                    {actionLoading
+                      ? 'Processando...'
+                      : isBelmontLocked
+                      ? '🔓 Destravar Sala (Liberar para Todos)'
+                      : '🔒 Travar Sala (Somente Admin Falar)'}
                   </button>
                 </div>
 

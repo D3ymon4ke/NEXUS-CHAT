@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useChat } from '../../context/ChatContext';
+import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 import {
   ChevronLeft,
@@ -13,6 +14,7 @@ import {
   Volume2,
   Crown,
   Lock,
+  Unlock,
   Trash2,
   Eraser,
   AlertTriangle,
@@ -24,11 +26,13 @@ import {
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
 
 export function ChatHeader({ onBack, onSearchToggle, isSearching, onOpenProfile }) {
+  const { user } = useAuth();
   const {
     activeConversation,
     typingUsers = [],
     deleteConversation,
     clearConversation,
+    toggleAdminOnly,
     isConversationPinned,
     togglePinConversation
   } = useChat();
@@ -38,6 +42,8 @@ export function ChatHeader({ onBack, onSearchToggle, isSearching, onOpenProfile 
   const [actionLoading, setActionLoading] = useState(false);
 
   if (!activeConversation) return null;
+
+  const isAdmin = Boolean(user?.is_admin || user?.role === 'admin' || user?.username?.toLowerCase() === 'damon');
 
   const isBelmont = activeConversation.id === BELMONT_ID || activeConversation.name === 'BELMONT CONFERENCE' || activeConversation.is_permanent;
   const isGroup = activeConversation.type === 'group' || isBelmont;
@@ -150,6 +156,12 @@ export function ChatHeader({ onBack, onSearchToggle, isSearching, onOpenProfile 
                   Grupo
                 </span>
               ) : null}
+              {activeConversation.is_admin_only && (
+                <span className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1 flex-shrink-0 font-semibold animate-pulse">
+                  <Lock className="w-2.5 h-2.5 text-rose-400" />
+                  <span>Somente Admin</span>
+                </span>
+              )}
             </div>
 
             {/* Indicador de Ações Ricas (Telegram Style) ou Subtítulo */}
@@ -186,13 +198,17 @@ export function ChatHeader({ onBack, onSearchToggle, isSearching, onOpenProfile 
               </div>
             ) : (
               <p className={`text-[11px] sm:text-xs truncate ${
-                isBelmont
+                activeConversation.is_admin_only
+                  ? 'text-rose-400 font-semibold'
+                  : isBelmont
                   ? 'text-amber-400/80 font-medium'
                   : isOnline
                   ? 'text-chat-online font-medium'
                   : 'text-slate-400'
               }`}>
-                {subtitle}
+                {activeConversation.is_admin_only
+                  ? '🔒 Sala travada: apenas administradores falam'
+                  : subtitle}
               </p>
             )}
           </div>
@@ -200,6 +216,40 @@ export function ChatHeader({ onBack, onSearchToggle, isSearching, onOpenProfile 
 
         {/* Direita: Ações Rápidas */}
         <div className="flex items-center gap-0.5 sm:gap-1 text-slate-400 flex-shrink-0">
+          {/* Botão de Trava de Sala para Administradores */}
+          {isAdmin && (
+            <button
+              onClick={async () => {
+                setActionLoading(true);
+                try {
+                  await toggleAdminOnly(activeConversation.id);
+                } finally {
+                  setActionLoading(false);
+                }
+              }}
+              disabled={actionLoading}
+              className={`p-1.5 sm:px-2.5 sm:py-1 rounded-xl transition-all flex items-center gap-1 text-xs font-semibold ${
+                activeConversation.is_admin_only
+                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/50 hover:bg-rose-500/30'
+                  : 'hover:text-slate-200 hover:bg-background-surface text-slate-400'
+              }`}
+              title={activeConversation.is_admin_only ? "Sala travada para Somente Admin. Clique para destravar." : "Destravada. Clique para travar (Somente Admin falar)."}
+              aria-label="Alternar trava da sala"
+            >
+              {activeConversation.is_admin_only ? (
+                <>
+                  <Lock className="w-3.5 h-3.5 text-rose-400" />
+                  <span className="hidden sm:inline text-[11px]">Travada</span>
+                </>
+              ) : (
+                <>
+                  <Unlock className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="hidden sm:inline text-[11px]">Destravada</span>
+                </>
+              )}
+            </button>
+          )}
+
           <button
             onClick={() => alert('Chamada de Voz em desenvolvimento para próxima release!')}
             className="hidden sm:flex p-2 rounded-xl hover:text-slate-200 hover:bg-background-surface transition-colors"
@@ -243,16 +293,41 @@ export function ChatHeader({ onBack, onSearchToggle, isSearching, onOpenProfile 
                   className="fixed inset-0 z-20"
                   onClick={() => setShowMenu(false)}
                 />
-                <div className="absolute right-0 top-full mt-2 w-52 sm:w-56 max-w-[calc(100vw-1.5rem)] bg-background-surface/95 border border-slate-700/80 rounded-2xl shadow-2xl py-1.5 z-30 text-xs animate-fadeIn backdrop-blur-md">
+                <div className="absolute right-0 top-full mt-2 w-56 sm:w-60 max-w-[calc(100vw-1.5rem)] bg-background-surface/95 border border-slate-700/80 rounded-2xl shadow-2xl py-1.5 z-30 text-xs animate-fadeIn backdrop-blur-md">
                   <div className="px-3 py-2 border-b border-slate-800 text-slate-400 text-[11px]">
                     {isBelmont ? (
                       <div className="flex items-center gap-1.5 text-amber-300 font-semibold truncate">
-                        <Lock className="w-3.5 h-3.5 flex-shrink-0" /> Sala Permanente Protegida
+                        <Lock className="w-3.5 h-3.5 flex-shrink-0" /> Sala Permanente Belmont
                       </div>
                     ) : (
                       <span className="font-semibold text-slate-300">Opções da Conversa</span>
                     )}
                   </div>
+
+                  {/* Trava de Sala para Administradores */}
+                  {isAdmin && (
+                    <button
+                      onClick={async () => {
+                        setShowMenu(false);
+                        await toggleAdminOnly(activeConversation.id);
+                      }}
+                      className={`w-full px-3 py-2 text-left flex items-center gap-2 transition-colors ${
+                        activeConversation.is_admin_only
+                          ? 'text-emerald-300 hover:bg-emerald-500/10'
+                          : 'text-amber-300 hover:bg-amber-500/10'
+                      }`}
+                    >
+                      {activeConversation.is_admin_only ? (
+                        <>
+                          <Unlock className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" /> Destravar sala (Liberar para todos)
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="w-3.5 h-3.5 text-rose-400 flex-shrink-0" /> Travar sala (Somente Admin falar)
+                        </>
+                      )}
+                    </button>
+                  )}
 
                   {/* Fixar / Desafixar Conversa */}
                   <button

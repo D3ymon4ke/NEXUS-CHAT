@@ -1,6 +1,6 @@
 const { supabase, isConfigured } = require('../config/supabase');
 const { v4: uuidv4 } = require('uuid');
-const { getCachedMessages } = require('../utils/messageCache');
+const { getCachedMessages, clearConversationCache } = require('../utils/messageCache');
 
 const BELMONT_CONFERENCE_ID = '00000000-0000-0000-0000-000000000001';
 const BELMONT_CONFERENCE_LOGO = '/belmont-logo.jpg';
@@ -12,6 +12,7 @@ const BELMONT_ROOM_DEFAULT = {
   description: 'Sala principal oficial de conferência e avisos gerais. Canal permanente para todos os membros.',
   avatar_url: BELMONT_CONFERENCE_LOGO,
   is_permanent: true,
+  is_admin_only: false,
   unread_count: 0,
   last_message: {
     id: 'msg-belmont-welcome',
@@ -114,7 +115,7 @@ async function getUserConversations(req, res) {
             is_permanent: isBelmont || conv.is_permanent,
             unread_count: myParticipation?.unread_count || 0,
             is_muted: myParticipation?.is_muted || false,
-            last_message: lastMsg || (isBelmont ? BELMONT_ROOM_DEFAULT.last_message : null),
+            last_message: lastMsg || null,
             direct_user: directUser
           };
         })
@@ -429,8 +430,11 @@ async function clearConversationMessages(req, res) {
       return res.status(400).json({ success: false, error: 'ID da conversa é obrigatório.' });
     }
 
+    // 1. Limpa o cache de RAM da VPS imediatamente
+    clearConversationCache(conversationId);
+
     if (isConfigured && supabase) {
-      // Excluir todas as mensagens da conversa
+      // 2. Excluir todas as mensagens da conversa no PostgreSQL
       const { error: clearErr } = await supabase
         .from('messages')
         .delete()
@@ -441,27 +445,133 @@ async function clearConversationMessages(req, res) {
         return res.status(500).json({ success: false, error: clearErr.message });
       }
 
-      // Resetar unread_count dos participantes
+      // 3. Resetar unread_count dos participantes
       await supabase
         .from('conversation_participants')
         .update({ unread_count: 0 })
         .eq('conversation_id', conversationId);
 
-      return res.json({
-        success: true,
-        message: 'Todas as mensagens foram limpas com sucesso.',
-        conversationId
+      // 4. Broadcast instantâneo via Supabase Realtime
+      supabase.channel('chat_global_messages_listener').send({
+        type: 'broadcast',
+        event: 'instant_clear_conversation',
+        payload: {
+          conversationId,
+          clearedBy: currentUserId,
+          clearedAt: new Date().toISOString()
+        }
+      }).catch(() => {});
+    }
+
+    // 5. Broadcast instantâneo via Socket.IO
+    if (req.io) {
+      req.io.to(`conversation:${conversationId}`).emit('conversation_cleared', {
+        conversationId,
+        clearedBy: currentUserId,
+        clearedAt: new Date().toISOString()
+      });
+      req.io.emit('conversation_cleared', {
+        conversationId,
+        clearedBy: currentUserId,
+        clearedAt: new Date().toISOString()
+      });
+      req.io.emit('conversation_updated', {
+        conversationId,
+        lastMessage: null,
+        unreadCountDelta: 0
       });
     }
 
     return res.json({
       success: true,
-      message: 'Mensagens limpas com sucesso (modo local).',
+      message: 'Todas as mensagens foram limpas com sucesso.',
       conversationId
     });
   } catch (error) {
     console.error('Erro em clearConversationMessages:', error);
     return res.status(500).json({ success: false, error: 'Erro ao limpar mensagens da conversa.' });
+  }
+}
+
+/**
+ * Alterna a trava da sala para permitir falar somente administradores (ou abrir para todos)
+ */
+async function toggleConversationAdminOnly(req, res) {
+  try {
+    const user = req.user;
+    const { conversationId } = req.params;
+
+    const isAdmin = user?.role === 'admin' || user?.username?.toLowerCase() === 'damon';
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, error: 'Apenas administradores podem alterar a trava da sala.' });
+    }
+
+    if (!conversationId) {
+      return res.status(400).json({ success: false, error: 'ID da conversa é obrigatório.' });
+    }
+
+    let nextState = true;
+
+    if (isConfigured && supabase) {
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('is_admin_only')
+        .eq('id', conversationId)
+        .single();
+
+      nextState = !Boolean(conv?.is_admin_only);
+
+      await supabase
+        .from('conversations')
+        .update({ is_admin_only: nextState, updated_at: new Date().toISOString() })
+        .eq('id', conversationId);
+
+      // Broadcast Supabase
+      supabase.channel('chat_global_messages_listener').send({
+        type: 'broadcast',
+        event: 'conversation_lock_toggled',
+        payload: {
+          conversationId,
+          is_admin_only: nextState,
+          isAdminOnly: nextState,
+          toggledBy: user.id
+        }
+      }).catch(() => {});
+    }
+
+    // Broadcast WebSocket
+    if (req.io) {
+      req.io.to(`conversation:${conversationId}`).emit('conversation_lock_toggled', {
+        conversationId,
+        is_admin_only: nextState,
+        isAdminOnly: nextState,
+        toggledBy: user.id
+      });
+      req.io.emit('conversation_lock_toggled', {
+        conversationId,
+        is_admin_only: nextState,
+        isAdminOnly: nextState,
+        toggledBy: user.id
+      });
+      req.io.emit('conversation_updated', {
+        conversationId,
+        is_admin_only: nextState,
+        isAdminOnly: nextState
+      });
+    }
+
+    return res.json({
+      success: true,
+      conversationId,
+      is_admin_only: nextState,
+      isAdminOnly: nextState,
+      message: nextState
+        ? 'Sala travada: Agora somente administradores podem falar.'
+        : 'Sala destravada: Aberta para todos os membros falarem.'
+    });
+  } catch (error) {
+    console.error('Erro em toggleConversationAdminOnly:', error);
+    return res.status(500).json({ success: false, error: 'Erro ao alterar trava da conversa.' });
   }
 }
 
@@ -471,6 +581,7 @@ module.exports = {
   createGroupConversation,
   deleteConversation,
   clearConversationMessages,
+  toggleConversationAdminOnly,
   BELMONT_CONFERENCE_ID,
   BELMONT_CONFERENCE_LOGO
 };
