@@ -180,7 +180,10 @@ export function AdminModal({ isOpen, onClose }) {
     return () => clearInterval(interval);
   }, []);
 
-  const adminFramesPool = [...SHOP_CATALOG.filter((i) => i.category === 'frames'), ...shopItemsList.filter((i) => i.category === 'frames')];
+  const adminFramesPool = [
+    ...SHOP_CATALOG.filter((i) => i.category === 'frames'),
+    ...(shopItems || []).filter((i) => i.category === 'frames')
+  ];
   const adminRotationData = calculateFrameRotation(adminFramesPool, adminRotationOffset, adminCurrentTime);
 
   const handleForceRotation = () => {
