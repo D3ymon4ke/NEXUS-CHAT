@@ -3,8 +3,12 @@
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
+      "source": "/api/send-push",
+      "destination": "/api/send-push"
+    },
+    {
       "source": "/api/(.*)",
-      "destination": "/api/$1"
+      "destination": "https://187-127-40-228.sslip.io:5000/api/$1"
     },
     {
       "source": "/(.*)",

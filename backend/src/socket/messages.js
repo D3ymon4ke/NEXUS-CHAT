@@ -125,7 +125,7 @@ async function handleSendMessage(socket, io, data) {
         .eq('id', conversationId);
     }
 
-    // Emissão única e desduplicada para conversa e salas de usuários (Socket.IO deduplica por socket ao passar array)
+    // Emissão única e desduplicada para conversa e salas de usuários
     if (isConfigured && supabase) {
       supabase
         .from('conversation_participants')
@@ -138,25 +138,36 @@ async function handleSendMessage(socket, io, data) {
               if (p.user_id) targetRooms.add(`user:${p.user_id}`);
             });
           }
-          io.to(Array.from(targetRooms)).emit('new_message', formattedMessage);
+          const roomsArray = Array.from(targetRooms);
+          io.to(roomsArray).emit('new_message', formattedMessage);
+          io.to(roomsArray).emit('conversation_updated', {
+            conversationId,
+            lastMessage: formattedMessage,
+            unreadCountDelta: 1,
+            senderId
+          });
         })
         .catch(() => {
           io.to(`conversation:${conversationId}`).emit('new_message', formattedMessage);
+          io.to(`conversation:${conversationId}`).emit('conversation_updated', {
+            conversationId,
+            lastMessage: formattedMessage,
+            unreadCountDelta: 1,
+            senderId
+          });
         });
     } else {
       io.to(`conversation:${conversationId}`).emit('new_message', formattedMessage);
+      io.to(`conversation:${conversationId}`).emit('conversation_updated', {
+        conversationId,
+        lastMessage: formattedMessage,
+        unreadCountDelta: 1,
+        senderId
+      });
     }
 
     // Recompensa de Economia: +5 Nexus Coins por mensagem enviada (cooldown de 5s para evitar spam)
     handleMessageCoinReward(senderId, socket, io);
-
-    // 3. Emite notificação global de nova mensagem para quem não está na sala ativa
-    io.emit('conversation_updated', {
-      conversationId,
-      lastMessage: formattedMessage,
-      unreadCountDelta: 1,
-      senderId
-    });
 
     // Dispara Web Push em background para membros offline através da VPS (Item 7)
     sendPushForNewMessage(conversationId, formattedMessage, senderId).catch((pushErr) => {

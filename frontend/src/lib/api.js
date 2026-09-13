@@ -2,10 +2,14 @@ import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
 
+const defaultApiUrl = isHttps 
+  ? 'https://187-127-40-228.sslip.io:5000/api'
+  : 'http://187.127.40.228:5000/api';
+
 const API_BASE_URL = 
   import.meta.env.VITE_API_URL || 
   import.meta.env.NEXT_PUBLIC_API_URL || 
-  (isHttps ? '/api' : 'http://187.127.40.228:5000/api');
+  defaultApiUrl;
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -17,26 +21,30 @@ export async function apiRequest(endpoint, options = {}) {
   const url = `${API_BASE_URL}${cleanEndpoint}`;
 
   let token = null;
-  let currentUser = null;
+  let currentUser = options.user || null;
 
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const sessionRes = await supabase.auth.getSession();
-      const session = sessionRes.data?.session;
-      token = session?.access_token;
-      currentUser = session?.user;
-      if (!currentUser) {
-        const { data: userData } = await supabase.auth.getUser();
-        currentUser = userData?.user;
-      }
-    } catch (e) {}
-  }
-
+  // 1. Prioridade máxima: Usuário ativo na aplicação (salvo na troca de contas ou localStorage)
   if (!currentUser) {
     try {
       const savedUser = localStorage.getItem('nexus_cached_user') || localStorage.getItem('nexus_user');
       if (savedUser) {
         currentUser = JSON.parse(savedUser);
+      }
+    } catch (e) {}
+  }
+
+  // 2. Token de sessão e fallback via Supabase Auth
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const sessionRes = await supabase.auth.getSession();
+      const session = sessionRes.data?.session;
+      token = session?.access_token;
+      if (!currentUser) {
+        currentUser = session?.user;
+      }
+      if (!currentUser) {
+        const { data: userData } = await supabase.auth.getUser();
+        currentUser = userData?.user;
       }
     } catch (e) {}
   }

@@ -228,6 +228,7 @@ export function ChatProvider({ children }) {
   const activeConversationIdRef = useRef(activeConversationId);
   const pinnedConversationIdsRef = useRef(pinnedConversationIds);
   const userRef = useRef(user);
+  const conversationsRef = useRef(conversations);
 
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
@@ -240,6 +241,10 @@ export function ChatProvider({ children }) {
   useEffect(() => {
     userRef.current = user;
   }, [user]);
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
 
   // Sincronizar pinos locais e inscrever no Web Push quando o usuário mudar
   useEffect(() => {
@@ -402,16 +407,17 @@ export function ChatProvider({ children }) {
     return conversationId === BELMONT_ID || pinnedConversationIds.includes(conversationId);
   }, [pinnedConversationIds]);
 
-  // Carregar conversas do usuário
+  // Carregar conversas do usuário (estável e sem dependência circular)
   const loadConversations = useCallback(async (isSilent = true) => {
-    if (!user) return;
+    const currentUser = userRef.current;
+    if (!currentUser?.id) return;
     try {
       // SWR: Apenas exibe spinner se o usuário não tiver NENHUMA conversa na memória
-      if (conversations.length === 0 && !isSilent) {
+      if ((!conversationsRef.current || conversationsRef.current.length === 0) && !isSilent) {
         setLoadingConversations(true);
       }
-      const res = await apiRequest('/conversations');
-      if (res.success && res.conversations) {
+      const res = await apiRequest('/conversations', { user: currentUser });
+      if (res && res.success && Array.isArray(res.conversations)) {
         // Pré-carregar perfis no cache em memória para renderização instantânea em 0ms
         res.conversations.forEach((c) => {
           if (c.direct_user?.id) {
@@ -425,7 +431,7 @@ export function ChatProvider({ children }) {
           }
         });
 
-        const currentPins = getStoredPins(user?.id);
+        const currentPins = getStoredPins(currentUser?.id);
         const sorted = sortConversationsList(res.conversations, currentPins);
         setConversations(sorted);
 
@@ -434,7 +440,7 @@ export function ChatProvider({ children }) {
         nexusStorage.saveProfiles(Array.from(profileCacheRef.current.values()));
 
         try {
-          localStorage.setItem(`nexus_cached_conversations_${user.id}`, JSON.stringify(sorted));
+          localStorage.setItem(`nexus_cached_conversations_${currentUser.id}`, JSON.stringify(sorted));
         } catch (e) {}
       }
     } catch (err) {
@@ -442,7 +448,7 @@ export function ChatProvider({ children }) {
     } finally {
       setLoadingConversations(false);
     }
-  }, [user, conversations.length]);
+  }, []);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -944,11 +950,6 @@ export function ChatProvider({ children }) {
               return c;
             });
 
-            // Se a conversa não estava na lista (ex: primeiro contato), recarrega via API
-            if (!found && loadConversations) {
-              loadConversations();
-            }
-
             return sortConversationsList(next, pinnedConversationIdsRef.current);
           });
 
@@ -1210,7 +1211,6 @@ export function ChatProvider({ children }) {
             }
             return c;
           });
-          if (!found && loadConversations) loadConversations();
           return sortConversationsList(next, pinnedConversationIdsRef.current);
         });
 
@@ -2156,10 +2156,8 @@ export function ChatProvider({ children }) {
       // Atualiza a lista de conversas e reordena imediatamente para o topo (estilo WhatsApp/Telegram)
       setConversations(prev => {
         const isCurrentActive = msg.conversation_id === currentActiveId;
-        let found = false;
         const next = prev.map(c => {
           if (c.id === msg.conversation_id) {
-            found = true;
             return {
               ...c,
               last_message: msg,
@@ -2169,7 +2167,6 @@ export function ChatProvider({ children }) {
           }
           return c;
         });
-        if (!found && loadConversations) loadConversations(true);
         return sortConversationsList(next, pinnedConversationIdsRef.current);
       });
 
@@ -2200,28 +2197,24 @@ export function ChatProvider({ children }) {
       const isCurrentActive = conversationId === currentActiveId;
 
       setConversations((prev) => {
-        let found = false;
         const next = prev.map((c) => {
           if (c.id === conversationId) {
-            found = true;
             return {
               ...c,
-              last_message: lastMessage || c.last_message,
-              unread_count: isCurrentActive ? 0 : (c.unread_count || 0) + 1,
+              last_message: lastMessage !== undefined ? lastMessage : c.last_message,
+              ...(data.is_admin_only !== undefined ? { is_admin_only: Boolean(data.is_admin_only) } : {}),
+              ...(data.isAdminOnly !== undefined ? { is_admin_only: Boolean(data.isAdminOnly) } : {}),
+              unread_count: isCurrentActive || data.unreadCountDelta === 0 ? 0 : (c.unread_count || 0) + (data.unreadCountDelta || 1),
               updated_at: lastMessage?.created_at || new Date().toISOString()
             };
           }
           return c;
         });
 
-        if (!found && loadConversations) {
-          loadConversations(true);
-        }
-
         return sortConversationsList(next, pinnedConversationIdsRef.current);
       });
 
-      if (!isCurrentActive && senderId !== userRef.current?.id) {
+      if (!isCurrentActive && senderId && senderId !== userRef.current?.id) {
         sounds.playReceive();
       }
     };
@@ -2235,10 +2228,7 @@ export function ChatProvider({ children }) {
       if (conversationId === activeConversationIdRef.current) {
         setMessages(prev =>
           prev.map(m => {
-            const isTarget =
-              (messageId && m.id === messageId) ||
-              (tempId && (m.tempId === tempId || m.id === tempId));
-            if (isTarget && m.status !== 'read') {
+            if ((m.id === messageId || (tempId && m.tempId === tempId)) && m.status === 'sent') {
               return { ...m, status: 'delivered' };
             }
             return m;
@@ -2388,7 +2378,7 @@ export function ChatProvider({ children }) {
       socket.off('conversation_deleted', handleConvDeleted);
       socket.off('conversation_removed', handleConvDeleted);
     };
-  }, [socket, connected, loadConversations]);
+  }, [socket, connected]);
 
   const emitUserAction = useCallback((action = 'typing') => {
     if (!activeConversationId || !user) return;

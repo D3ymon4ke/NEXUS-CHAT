@@ -7,7 +7,8 @@ const SSH_CONFIG = {
   port: 22,
   username: 'root',
   password: 'E08059900pe@',
-  readyTimeout: 15000
+  readyTimeout: 45000,
+  keepaliveInterval: 5000
 };
 
 const REMOTE_DIR = '/root/nexus-chat-backend';
