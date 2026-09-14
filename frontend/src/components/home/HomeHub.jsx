@@ -148,7 +148,7 @@ const DEFAULT_FALLBACK_PATCHES = [
   }
 ];
 
-export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWallet, onBack }) {
+export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWallet, onOpenCasino, onBack }) {
   const { user } = useAuth();
   const { conversations, setActiveConversationId } = useChat();
 
@@ -328,10 +328,10 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
             </div>
 
             {/* Ações de Acesso Rápido em Linha Compacta */}
-            <div className="grid grid-cols-3 sm:flex sm:items-center gap-1.5 sm:gap-2 w-full md:w-auto">
+            <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 sm:gap-2 w-full md:w-auto">
               <button
                 onClick={handleGoToConversations}
-                className="col-span-1 sm:flex-initial px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 text-black font-extrabold text-xs shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap relative group"
+                className="px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 text-black font-extrabold text-xs shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap relative group"
                 title="Acessar lista de conversas e escolher onde entrar"
               >
                 <Crown className="w-3.5 h-3.5 flex-shrink-0" />
@@ -345,6 +345,14 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
                   </span>
                 )}
               </button>
+              {onOpenCasino && (
+                <button
+                  onClick={onOpenCasino}
+                  className="px-3 sm:px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-900/60 to-slate-900/90 hover:from-purple-800/80 text-white font-bold text-xs border border-purple-500/50 backdrop-blur-sm transition-all flex items-center justify-center gap-1 active:scale-95 shadow-md shadow-purple-500/20"
+                >
+                  <span className="text-xs">🎰</span> <span className="truncate">Cassino</span>
+                </button>
+              )}
               {onOpenShop && (
                 <button
                   onClick={onOpenShop}
@@ -364,6 +372,42 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
             </div>
           </div>
         </div>
+
+        {/* BANNER DESTAQUE CASSINO NEXUS */}
+        {onOpenCasino && (
+          <div
+            onClick={onOpenCasino}
+            className="cursor-pointer p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-purple-950/70 via-slate-900/90 to-amber-950/70 border border-amber-500/40 hover:border-amber-400/80 shadow-2xl relative overflow-hidden group transition-all active:scale-[0.99] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          >
+            <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+            <div className="flex items-center gap-3 relative z-10">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-xl shadow-lg shadow-amber-500/30 group-hover:scale-105 transition-transform flex-shrink-0">
+                🎰
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm sm:text-base font-black text-white tracking-wide">CASSINO NEXUS</h3>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/25 text-amber-300 border border-amber-400/50 text-[10px] font-black uppercase shadow animate-pulse">
+                    Novo • Mines, Roleta & Double
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 truncate mt-0.5">
+                  Multiplique suas Nexus Coins com probabilidades equilibradas e saque na hora!
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenCasino();
+              }}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 text-black font-extrabold text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all flex items-center justify-center gap-1.5 flex-shrink-0 relative z-10"
+            >
+              <span>Entrar no Cassino</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* 2. SEÇÃO DE ENQUETES DA COMUNIDADE & VOTAÇÕES OFICIAIS 🗳️ */}
         <div className="space-y-3 min-w-0">

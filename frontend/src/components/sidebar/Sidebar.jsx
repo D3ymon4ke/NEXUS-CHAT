@@ -418,6 +418,7 @@ export function Sidebar({
   onOpenAccountSwitcher,
   onOpenShop,
   onOpenWallet,
+  onOpenCasino,
   onOpenAdmin,
   onOpenFriends,
   onOpenCreateStory,
@@ -986,6 +987,18 @@ export function Sidebar({
             <img src="/nexus-coin.jpg" alt="Moeda" className="w-3.5 h-3.5 rounded-full ring-1 ring-amber-400/50" />
             <span className="text-xs font-extrabold group-hover:text-white">Loja</span>
           </button>
+
+          {/* Botão Cassino */}
+          {onOpenCasino && (
+            <button
+              onClick={onOpenCasino}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-900/40 via-purple-800/30 to-amber-900/30 border border-purple-500/50 text-amber-300 hover:scale-105 transition-all shadow-sm active:scale-95 group flex-shrink-0"
+              title="Abrir Cassino Nexus (Mines, Roleta, Double)"
+            >
+              <span className="text-xs">🎰</span>
+              <span className="text-xs font-extrabold group-hover:text-white">Cassino</span>
+            </button>
+          )}
 
           {/* Botão Tutorial / Ajuda */}
           {onOpenTutorial && (

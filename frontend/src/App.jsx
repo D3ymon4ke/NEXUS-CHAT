@@ -11,6 +11,7 @@ import { NewGroupModal } from './components/sidebar/NewGroupModal';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { NexusShopModal } from './components/shop/NexusShopModal';
 import { NexusWalletModal } from './components/wallet/NexusWalletModal';
+import { NexusCasinoModal } from './components/casino/NexusCasinoModal';
 import { AdminModal } from './components/admin/AdminModal';
 import { HomeHub } from './components/home/HomeHub';
 import { UserProfileModal } from './components/profile/UserProfileModal';
@@ -49,6 +50,7 @@ function ChatDashboard() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showShopModal, setShowShopModal] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
+  const [showCasinoModal, setShowCasinoModal] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [showCreateStoryModal, setShowCreateStoryModal] = useState(false);
@@ -71,6 +73,7 @@ function ChatDashboard() {
       setShowNewGroupModal(false);
       setShowShopModal(false);
       setShowWalletModal(false);
+      setShowCasinoModal(false);
       setShowAdminModal(false);
       setShowFriendsModal(false);
       setShowCreateStoryModal(false);
@@ -224,6 +227,7 @@ function ChatDashboard() {
             onOpenAccountSwitcher={() => setShowAccountSwitcherModal(true)}
             onOpenShop={() => setShowShopModal(true)}
             onOpenWallet={() => setShowWalletModal(true)}
+            onOpenCasino={() => setShowCasinoModal(true)}
             onOpenAdmin={() => setShowAdminModal(true)}
             onOpenFriends={() => setShowFriendsModal(true)}
             onOpenCreateStory={() => setShowCreateStoryModal(true)}
@@ -259,6 +263,7 @@ function ChatDashboard() {
               }}
               onOpenShop={() => setShowShopModal(true)}
               onOpenWallet={() => setShowWalletModal(true)}
+              onOpenCasino={() => setShowCasinoModal(true)}
               onBack={() => {
                 setActiveConversationId(null);
                 setMobileView('sidebar');
@@ -318,6 +323,11 @@ function ChatDashboard() {
       <NexusWalletModal
         isOpen={Boolean(user && showWalletModal)}
         onClose={() => setShowWalletModal(false)}
+      />
+
+      <NexusCasinoModal
+        isOpen={Boolean(user && showCasinoModal)}
+        onClose={() => setShowCasinoModal(false)}
       />
 
       <AdminModal

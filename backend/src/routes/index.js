@@ -12,6 +12,7 @@ const messageController = require('../controllers/messageController');
 const uploadController = require('../controllers/uploadController');
 const economyController = require('../controllers/economyController');
 const walletController = require('../controllers/walletController');
+const casinoController = require('../controllers/casinoController');
 const adminController = require('../controllers/adminController');
 const pushController = require('../controllers/pushController');
 
@@ -42,6 +43,14 @@ router.post('/economy/equip', authenticateUser, economyController.equipShopItem)
 // --- Wallet Routes ---
 router.get('/wallet', authenticateUser, walletController.getWalletDetails);
 router.post('/wallet/transfer', authenticateUser, walletController.transferCoins);
+
+// --- Casino Routes (Mines, Wheel, Double) ---
+router.get('/casino/config', authenticateUser, casinoController.getCasinoConfig);
+router.post('/casino/mines/start', authenticateUser, casinoController.startMines);
+router.post('/casino/mines/reveal', authenticateUser, casinoController.revealMinesTile);
+router.post('/casino/mines/cashout', authenticateUser, casinoController.cashoutMines);
+router.post('/casino/wheel/spin', authenticateUser, casinoController.spinWheel);
+router.post('/casino/double/play', authenticateUser, casinoController.playDouble);
 
 // --- Admin Routes (Damon / Role Admin) ---
 router.get('/admin/stats', authenticateUser, adminController.requireAdmin, adminController.getAdminStats);
