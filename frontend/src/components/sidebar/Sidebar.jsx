@@ -468,6 +468,34 @@ export function Sidebar({
   const [superDmTargetConv, setSuperDmTargetConv] = useState('');
   const [superDmIdentityUser, setSuperDmIdentityUser] = useState('');
   const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const [hasNewHubPost, setHasNewHubPost] = useState(false);
+
+  useEffect(() => {
+    const checkNewHubPost = async () => {
+      try {
+        if (!isSupabaseConfigured || !supabase) {
+          setHasNewHubPost(true);
+          return;
+        }
+        const { data } = await supabase
+          .from('patch_notes')
+          .select('created_at')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (data && data.created_at) {
+          const diff = Date.now() - new Date(data.created_at).getTime();
+          setHasNewHubPost(diff >= 0 && diff < 24 * 60 * 60 * 1000);
+        } else {
+          setHasNewHubPost(true);
+        }
+      } catch (err) {
+        setHasNewHubPost(true);
+      }
+    };
+    checkNewHubPost();
+  }, []);
 
   // Estados de Context Menu e Confirmação de Exclusão/Limpeza
   const [contextMenu, setContextMenu] = useState(null); // { conv, x, y }
@@ -1337,9 +1365,17 @@ export function Sidebar({
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-white truncate">Página Inicial</span>
-                <span className="text-[9px] px-1.5 py-0.2 rounded bg-brand-500/20 text-brand-300 font-bold uppercase">
-                  Hub
-                </span>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {hasNewHubPost && (
+                    <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-500/25 text-emerald-300 border border-emerald-400/50 font-black uppercase flex items-center gap-1 shadow-[0_0_8px_rgba(52,211,153,0.6)] animate-pulse">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                      Novo
+                    </span>
+                  )}
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-brand-500/20 text-brand-300 font-bold uppercase">
+                    Hub
+                  </span>
+                </div>
               </div>
               <p className="text-[11px] text-slate-400 truncate mt-0.5">Patch notes, clima & dicas da plataforma</p>
             </div>

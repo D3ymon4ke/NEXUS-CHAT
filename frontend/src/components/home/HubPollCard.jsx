@@ -141,6 +141,14 @@ export function HubPollCard({
     }
   };
 
+  const isWithin24Hours = (dateStr) => {
+    if (!dateStr) return false;
+    const t = new Date(dateStr).getTime();
+    if (isNaN(t)) return false;
+    const diffMs = Date.now() - t;
+    return diffMs >= 0 && diffMs < 24 * 60 * 60 * 1000;
+  };
+
   return (
     <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-slate-900/95 via-slate-900/85 to-indigo-950/40 border border-slate-700/80 shadow-xl relative overflow-hidden transition-all hover:border-slate-600/80 min-w-0 box-border">
       {/* Topbar da Enquete */}
@@ -151,6 +159,12 @@ export function HubPollCard({
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
+              {isWithin24Hours(poll?.created_at) && (
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-gradient-to-r from-emerald-500 to-teal-400 text-black border border-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.7)] animate-pulse flex items-center gap-1 flex-shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-black animate-ping" />
+                  NOVO • 24H
+                </span>
+              )}
               <span className="text-[9px] px-2 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-extrabold uppercase">
                 {isClosed ? 'Encerrada' : 'Enquete Oficial'}
               </span>

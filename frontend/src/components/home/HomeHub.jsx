@@ -248,6 +248,16 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
 
   const currentTip = PLATFORM_TIPS[currentTipIndex] || PLATFORM_TIPS[0];
 
+  const isWithin24Hours = (dateStr) => {
+    if (!dateStr) return false;
+    const t = new Date(dateStr).getTime();
+    if (isNaN(t)) return false;
+    const diffMs = Date.now() - t;
+    return diffMs >= 0 && diffMs < 24 * 60 * 60 * 1000;
+  };
+
+  const hasRecentPatches = (patchNotes || []).some((p) => isWithin24Hours(p.created_at));
+
   return (
     <div className="flex-1 flex flex-col h-full bg-gradient-to-b from-background-darker via-background-dark to-background-darker overflow-y-auto relative select-none box-border">
       {/* Background Decorativo Glow */}
@@ -542,6 +552,12 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
                 <h2 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wider truncate">
                   Notas de Atualização & Patch Notes
                 </h2>
+                {hasRecentPatches && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-extrabold uppercase flex items-center gap-1 animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                    Novo
+                  </span>
+                )}
               </div>
               <span className="text-[10px] text-slate-500 flex-shrink-0">Oficial Damon</span>
             </div>
@@ -550,6 +566,8 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
             <div className="space-y-2.5 sm:space-y-3 max-h-[520px] overflow-y-auto pr-1">
               {patchNotes.map((patch) => {
                 const badgeStyle = BADGE_COLORS[patch.tag] || 'bg-slate-700 text-slate-300 border-slate-600';
+                const isNew = isWithin24Hours(patch.created_at);
+
                 return (
                   <div
                     key={patch.id}
@@ -561,6 +579,12 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
                   >
                     <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1.5">
                       <div className="flex items-center gap-1.5 flex-wrap">
+                        {isNew && (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black bg-gradient-to-r from-emerald-500 to-teal-400 text-black border border-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.8)] animate-pulse flex items-center gap-1 flex-shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-black" />
+                            NOVO • 24H
+                          </span>
+                        )}
                         <span className={`px-2 py-0.2 rounded-full text-[9px] sm:text-[10px] font-extrabold border uppercase ${badgeStyle}`}>
                           {patch.tag}
                         </span>
