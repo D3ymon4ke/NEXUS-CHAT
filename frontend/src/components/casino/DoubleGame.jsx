@@ -1,8 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { apiRequest } from '../../lib/api';
 import { sounds } from '../../lib/sound';
 import confetti from 'canvas-confetti';
-import { Sparkles, CircleDot, Flame, Award } from 'lucide-react';
+import { Sparkles, CircleDot } from 'lucide-react';
 
 const TILES = [
   { number: 0, color: 'gold', multiplier: 14 },
@@ -22,16 +22,48 @@ const TILES = [
   { number: 14, color: 'black', multiplier: 2 }
 ];
 
-// Fita estendida (repetida 6 vezes) para animação contínua de rolagem
-const EXTENDED_TILES = [...TILES, ...TILES, ...TILES, ...TILES, ...TILES, ...TILES];
+// Fita estendida com 120 slots (8 ciclos completos de 15 números)
+const TOTAL_SLOTS = 120;
+const EXTENDED_TILES = Array.from({ length: TOTAL_SLOTS }, (_, i) => ({
+  ...TILES[i % 15],
+  slotIndex: i
+}));
+
+// Dimensões exatas em pixels
+const TILE_WIDTH = 56; // w-14 = 56px
+const TILE_GAP = 8; // gap-2 = 8px
+const STEP = TILE_WIDTH + TILE_GAP; // 64px por item
 
 export function DoubleGame({ betAmount, userBalance, onBalanceUpdate }) {
   const [selectedChoice, setSelectedChoice] = useState('red'); // 'red' | 'black' | 'gold'
   const [isRolling, setIsRolling] = useState(false);
+  const [currentSlotIndex, setCurrentSlotIndex] = useState(0); // Começa no slot 0 (Dourado 0)
   const [rollOffset, setRollOffset] = useState(0);
+  const [transitionDuration, setTransitionDuration] = useState(0);
   const [resultMessage, setResultMessage] = useState(null);
   const [resultType, setResultType] = useState(null);
-  const trackRef = useRef(null);
+  const containerRef = useRef(null);
+
+  // Calcula o offset exato em pixels para centralizar o slot sob a agulha amarela
+  const computeOffsetForIndex = (index) => {
+    const containerWidth = containerRef.current ? containerRef.current.clientWidth : 360;
+    // O centro do slot 'index' a partir da borda esquerda do trilho (sem padding):
+    const slotCenter = index * STEP + TILE_WIDTH / 2;
+    // Para alinhar o centro do slot com o centro do container:
+    return containerWidth / 2 - slotCenter;
+  };
+
+  // Inicializa o alinhamento no slot 0
+  useEffect(() => {
+    const alignInitial = () => {
+      setTransitionDuration(0);
+      setRollOffset(computeOffsetForIndex(currentSlotIndex));
+    };
+
+    alignInitial();
+    window.addEventListener('resize', alignInitial);
+    return () => window.removeEventListener('resize', alignInitial);
+  }, [currentSlotIndex]);
 
   const handlePlayDouble = async () => {
     if (isRolling) return;
@@ -52,30 +84,37 @@ export function DoubleGame({ betAmount, userBalance, onBalanceUpdate }) {
       });
 
       if (res.success) {
-        // Largura de cada quadrado na fita = 56px + 8px gap = 64px
-        const tileSize = 64;
-        const targetTileNumber = res.winningNumber;
+        const winningNumber = res.winningNumber;
+        const currentNorm = currentSlotIndex % 15;
 
-        // Encontrar índice na repetição 4 (para garantir rolagem longa e bonita)
-        const targetIndex = 15 * 3 + targetTileNumber;
-        // Centralizar o quadrado no centro da viewport de 320px (offset - 160 + halfTile)
-        const centerOffset = targetIndex * tileSize + tileSize / 2 - 160;
+        // Rolar sempre para a FRENTE: 4 voltas completas (60 slots) + distância até o número sorteado
+        const forwardDistance = ((winningNumber - currentNorm + 15) % 15) + 4 * 15;
+        const targetSlot = currentSlotIndex + forwardDistance;
 
-        setRollOffset(-centerOffset);
+        // Adiciona um micro-jitter sutil (dentro de +-8px do centro do slot de 56px) para naturalidade
+        const jitter = Math.floor((Math.random() - 0.5) * 12);
+        const finalOffset = computeOffsetForIndex(targetSlot) + jitter;
 
-        // Som de tique durante o rolamento
+        // Ativa a transição suave de rolagem
+        setTransitionDuration(4200);
+        setRollOffset(finalOffset);
+
+        // Som de tique durante a rolagem
         const interval = setInterval(() => {
           sounds.playWheelTick?.();
-        }, 140);
+        }, 130);
 
         setTimeout(() => {
           clearInterval(interval);
           setIsRolling(false);
 
+          // Atualiza slot atual
+          setCurrentSlotIndex(targetSlot);
+
           if (res.isWinner) {
             sounds.playBigWin?.();
             confetti({ particleCount: 75, spread: 70, origin: { y: 0.6 } });
-            setResultMessage(`VOCÊ GANHOU! +${res.payout} moedas no ${res.winningColor.toUpperCase()} (${res.multiplier}x)!`);
+            setResultMessage(`VOCÊ GANHOU! Saiu número ${res.winningNumber} (${res.winningColor.toUpperCase()}) • +${res.payout} moedas!`);
             setResultType('win');
           } else {
             sounds.playExplosion?.();
@@ -86,7 +125,15 @@ export function DoubleGame({ betAmount, userBalance, onBalanceUpdate }) {
           if (onBalanceUpdate && res.currentBalance !== undefined) {
             onBalanceUpdate(res.currentBalance);
           }
-        }, 4000);
+
+          // Normaliza o índice de forma invisível para não estourar os 120 slots
+          setTimeout(() => {
+            const normalized = targetSlot % 15;
+            setTransitionDuration(0);
+            setCurrentSlotIndex(normalized);
+            setRollOffset(computeOffsetForIndex(normalized));
+          }, 600);
+        }, 4200);
       } else {
         setIsRolling(false);
         setResultMessage(res.error || 'Erro ao jogar Double.');
@@ -103,25 +150,38 @@ export function DoubleGame({ betAmount, userBalance, onBalanceUpdate }) {
     <div className="flex flex-col items-center w-full max-w-md mx-auto space-y-4 select-none">
       {/* Fita Deslizante do Double com Marcador Central */}
       <div className="w-full relative py-2">
-        {/* Marcador Central Indicador */}
-        <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-1.5 bg-amber-400 z-20 shadow-[0_0_12px_rgba(251,191,36,1)] rounded-full pointer-events-none" />
+        {/* Marcador Central Indicador (Agulha Amarela Luminosa) */}
+        <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-1.5 bg-amber-400 z-30 shadow-[0_0_14px_rgba(251,191,36,1)] rounded-full pointer-events-none" />
 
         {/* Viewport da Fita */}
-        <div className="w-full h-20 rounded-2xl bg-slate-950/90 border border-slate-800 shadow-inner overflow-hidden relative flex items-center">
+        <div
+          ref={containerRef}
+          className="w-full h-20 rounded-2xl bg-slate-950/90 border border-slate-800 shadow-inner overflow-hidden relative flex items-center"
+        >
+          {/* Trilho Deslizante sem padding lateral para alinhamento matemático exato */}
           <div
-            ref={trackRef}
-            className="flex items-center gap-2 pl-4 transition-transform duration-[4000ms] ease-[cubic-bezier(0.12,0.88,0.25,1)]"
-            style={{ transform: `translateX(${rollOffset}px)` }}
+            className="flex items-center gap-2"
+            style={{
+              transform: `translateX(${rollOffset}px)`,
+              transition:
+                transitionDuration > 0
+                  ? `transform ${transitionDuration}ms cubic-bezier(0.12, 0.88, 0.25, 1)`
+                  : 'none'
+            }}
           >
-            {EXTENDED_TILES.map((tile, i) => {
+            {EXTENDED_TILES.map((tile) => {
               let bg = 'bg-slate-800 border-slate-700 text-white';
-              if (tile.color === 'red') bg = 'bg-gradient-to-b from-rose-600 to-red-800 border-rose-500 text-white shadow-rose-600/30';
-              if (tile.color === 'black') bg = 'bg-gradient-to-b from-slate-800 to-slate-950 border-slate-700 text-slate-200';
-              if (tile.color === 'gold') bg = 'bg-gradient-to-b from-amber-400 to-yellow-600 border-amber-300 text-black shadow-amber-500/50';
+              if (tile.color === 'red') {
+                bg = 'bg-gradient-to-b from-rose-600 to-red-800 border-rose-500 text-white shadow-rose-600/30';
+              } else if (tile.color === 'black') {
+                bg = 'bg-gradient-to-b from-slate-800 to-slate-950 border-slate-700 text-slate-200';
+              } else if (tile.color === 'gold') {
+                bg = 'bg-gradient-to-b from-amber-400 to-yellow-600 border-amber-300 text-black shadow-amber-500/50';
+              }
 
               return (
                 <div
-                  key={i}
+                  key={tile.slotIndex}
                   className={`w-14 h-14 rounded-xl border flex items-center justify-center font-black text-base shadow flex-shrink-0 ${bg}`}
                 >
                   {tile.color === 'gold' ? '👑' : tile.number}
@@ -134,11 +194,14 @@ export function DoubleGame({ betAmount, userBalance, onBalanceUpdate }) {
 
       {/* Seletor de Cores de Aposta (Vermelho 2x | Dourado 14x | Preto 2x) */}
       <div className="grid grid-cols-3 gap-2 w-full">
-        {/* Vermelho */}
+        {/* Vermelho (2x) */}
         <button
           type="button"
           disabled={isRolling}
-          onClick={() => setSelectedChoice('red')}
+          onClick={() => {
+            setSelectedChoice('red');
+            sounds.playPop?.();
+          }}
           className={`p-3 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${
             selectedChoice === 'red'
               ? 'bg-rose-600 border-rose-400 shadow-lg shadow-rose-600/40 text-white ring-2 ring-rose-400/50 scale-102'
@@ -153,7 +216,10 @@ export function DoubleGame({ betAmount, userBalance, onBalanceUpdate }) {
         <button
           type="button"
           disabled={isRolling}
-          onClick={() => setSelectedChoice('gold')}
+          onClick={() => {
+            setSelectedChoice('gold');
+            sounds.playPop?.();
+          }}
           className={`p-3 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${
             selectedChoice === 'gold'
               ? 'bg-gradient-to-r from-amber-400 to-yellow-500 border-amber-200 shadow-lg shadow-amber-500/50 text-black ring-2 ring-amber-300 scale-102 font-black'
@@ -164,11 +230,14 @@ export function DoubleGame({ betAmount, userBalance, onBalanceUpdate }) {
           <span className="text-sm font-black px-2 py-0.5 rounded-lg bg-black/40 text-amber-300">14x</span>
         </button>
 
-        {/* Preto */}
+        {/* Preto (2x) */}
         <button
           type="button"
           disabled={isRolling}
-          onClick={() => setSelectedChoice('black')}
+          onClick={() => {
+            setSelectedChoice('black');
+            sounds.playPop?.();
+          }}
           className={`p-3 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${
             selectedChoice === 'black'
               ? 'bg-slate-800 border-slate-500 shadow-lg shadow-slate-800/60 text-white ring-2 ring-slate-400 scale-102'

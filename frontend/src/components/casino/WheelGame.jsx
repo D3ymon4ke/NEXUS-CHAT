@@ -44,13 +44,12 @@ export function WheelGame({ betAmount, userBalance, onBalanceUpdate }) {
         const sliceAngle = 45;
         const targetIndex = res.sliceIndex;
 
-        // O ponteiro fica no topo (270 graus ou 0 graus com offset).
-        // Calculamos graus extras para centralizar a fatia exatamente no ponteiro superior:
+        // O centro da fatia (medido no sentido horário a partir do topo às 12h)
         const sliceCenterAngle = targetIndex * sliceAngle + sliceAngle / 2;
-        // Queremos que essa fatia pare no topo (270 graus ou ajustado para ponteiro)
-        const targetStopAngle = (360 - sliceCenterAngle + 270) % 360;
+        // Para alinhar exatamente sob o ponteiro às 12h girando no sentido horário:
+        const targetStopAngle = (360 - sliceCenterAngle + 360) % 360;
 
-        // Adicionar 5 a 8 voltas completas para o efeito visual de desaceleração
+        // Adicionar 6 voltas completas (360 * 6) para a desaceleração realista
         const fullSpins = 360 * 6;
         const currentNormalized = rotationDegrees % 360;
         const delta = (targetStopAngle - currentNormalized + 360) % 360;
