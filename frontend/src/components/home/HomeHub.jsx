@@ -87,14 +87,24 @@ const BADGE_COLORS = {
 
 const DEFAULT_FALLBACK_PATCHES = [
   {
+    id: 'p-today-casino-v320',
+    tag: 'NOVIDADE',
+    title: '🎰 Grande Inauguração: Cassino Nexus, Mines, Roleta e Double!',
+    version: 'v3.2.0',
+    content: '### 🎲 O Cassino Oficial Nexus Chegou!\n\nAproveite suas **Nexus Coins** em uma experiência de minigames solo completa, com visual dark-neon premium e foco total em dispositivos móveis:\n\n- 💎 **Mines (Campo Minado)**: Escolha de 1 a 10 minas, multiplique suas moedas a cada diamante e use o botão de **Sacar (Cash Out)** na hora certa!\n- 🎡 **Roleta da Fortuna (Lucky Wheel)**: Física realista de rotação com ponteiro sonoro e fatias de até **10x de Jackpot**!\n- 🎯 **Double (Roleta de Cores)**: Fita horizontal de 15 slots (Vermelho 2x, Preto 2x, Dourado Nexus 14x) com alinhamento milimétrico.\n- 🛡️ **Matemática Justa & Proteção Econômica**: Sorteios 100% no servidor com RTP balanceado (~96%), limites por rodada e extrato completo na Carteira.\n- ⚡ **Melhorias de Estabilidade no Chat**: Lista de conversas otimizada, limpeza de mensagens via VPS e modo somente admin na Belmont Conference.',
+    author_name: 'Damon',
+    is_pinned: true,
+    created_at: new Date().toISOString()
+  },
+  {
     id: 'p-today-v312',
     tag: 'PATCH',
     title: '⚡ Atualização Forçada & Safe Area Mobile Imersiva',
     version: 'v3.1.2',
     content: '### 🚀 Melhorias de Altura, Entalhes e Atualização Remota!\n\n- 📱 **Correção de Altura & Notch Mobile**: Loja, Carteira, Hub e Modais agora respeitam perfeitamente a Dynamic Island e a barra de status do iOS e Android.\n- ⚡ **Atualização Remota Forçada**: O Admin agora pode emitir ordens de atualização em tempo real com limpeza de cache instantânea.\n- 🧹 **Renovação de Cache & PWA**: Atualização garantida sem deslogar o usuário ou perder configurações.',
     author_name: 'Damon',
-    is_pinned: true,
-    created_at: new Date().toISOString()
+    is_pinned: false,
+    created_at: new Date(Date.now() - 3600000).toISOString()
   },
   {
     id: 'p-today',
