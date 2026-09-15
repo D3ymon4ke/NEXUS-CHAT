@@ -5,6 +5,7 @@ import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { WeatherWidget } from './WeatherWidget';
 import { HubPollCard } from './HubPollCard';
 import { CreateHubPollModal } from './CreateHubPollModal';
+import { CreatePatchNoteModal } from './CreatePatchNoteModal';
 import GradientWaves from '../common/GradientWaves';
 import { MarkdownRenderer } from '../common/MarkdownRenderer';
 import {
@@ -28,7 +29,9 @@ import {
   Compass,
   CheckCircle2,
   Vote,
-  Plus
+  Plus,
+  Trash2,
+  Pin
 } from 'lucide-react';
 
 const BELMONT_ID = '00000000-0000-0000-0000-000000000001';
@@ -163,7 +166,10 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
   const { conversations, setActiveConversationId } = useChat();
 
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
-  const [patchNotes, setPatchNotes] = useState(DEFAULT_FALLBACK_PATCHES);
+  const [patchNotes, setPatchNotes] = useState([]);
+  const [loadingPatches, setLoadingPatches] = useState(true);
+  const [patchFilter, setPatchFilter] = useState('all'); // 'all' | 'novidades' | 'patches' | 'pinned'
+  const [showCreatePatchModal, setShowCreatePatchModal] = useState(false);
   const [hubPolls, setHubPolls] = useState([]);
   const [loadingPolls, setLoadingPolls] = useState(false);
   const [showCreatePollModal, setShowCreatePollModal] = useState(false);
@@ -181,38 +187,92 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
     return () => clearInterval(timer);
   }, []);
 
-  // Carregar Patch Notes & Enquetes do Hub do Supabase
+  // Carregar Patch Notes & Enquetes do Hub do Supabase com Realtime
   useEffect(() => {
     loadPatches();
     loadHubPolls();
+
+    if (!isSupabaseConfigured || !supabase) return;
+
+    const patchChannel = supabase
+      .channel('hub_patch_notes_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'patch_notes' },
+        (payload) => {
+          if (payload.eventType === 'INSERT' && payload.new) {
+            setPatchNotes((prev) => [payload.new, ...prev.filter((p) => p.id !== payload.new.id)]);
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            setPatchNotes((prev) => prev.filter((p) => p.id !== payload.old.id));
+          } else if (payload.eventType === 'UPDATE' && payload.new) {
+            setPatchNotes((prev) =>
+              prev.map((p) => (p.id === payload.new.id ? payload.new : p))
+            );
+          } else {
+            loadPatches();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(patchChannel);
+    };
   }, []);
 
   const loadPatches = async () => {
-    if (!isSupabaseConfigured || !supabase) return;
+    if (!isSupabaseConfigured || !supabase) {
+      setPatchNotes(DEFAULT_FALLBACK_PATCHES);
+      setLoadingPatches(false);
+      return;
+    }
     try {
-      const { data } = await supabase
+      setLoadingPatches(true);
+      const { data, error } = await supabase
         .from('patch_notes')
         .select('*')
         .order('is_pinned', { ascending: false })
         .order('created_at', { ascending: false });
 
-      if (data && data.length > 0) {
-        // Mesclar notas do banco com notas padrão do sistema, evitando duplicatas por título/versão
-        const dbTitles = new Set(data.map(p => (p.title || '').trim().toLowerCase()));
-        const missingFallbacks = DEFAULT_FALLBACK_PATCHES.filter(
-          fb => !dbTitles.has((fb.title || '').trim().toLowerCase())
-        );
-        
-        // Colocar primeiro as notas com destaque (is_pinned) e mais recentes
-        const merged = [...data, ...missingFallbacks].sort((a, b) => {
-          if (a.is_pinned !== b.is_pinned) return b.is_pinned ? 1 : -1;
-          return new Date(b.created_at || 0) - new Date(a.created_at || 0);
-        });
-
-        setPatchNotes(merged);
+      if (!error && Array.isArray(data)) {
+        // Usa estritamente os dados do banco - o que for apagado permanece apagado!
+        setPatchNotes(data);
+      } else if (error) {
+        console.warn('Erro ao carregar patch notes do banco:', error);
       }
     } catch (err) {
-      console.warn('Usando patch notes locais:', err);
+      console.warn('Usando patch notes locais por falha de rede:', err);
+      setPatchNotes(DEFAULT_FALLBACK_PATCHES);
+    } finally {
+      setLoadingPatches(false);
+    }
+  };
+
+  const handleDeletePatch = async (patchId) => {
+    if (!window.confirm('Deseja excluir esta nota de atualização do Hub?')) return;
+    try {
+      setPatchNotes((prev) => prev.filter((p) => p.id !== patchId));
+      if (isSupabaseConfigured && supabase) {
+        await supabase.from('patch_notes').delete().eq('id', patchId);
+      }
+    } catch (err) {
+      console.error('Erro ao excluir patch note:', err);
+      loadPatches();
+    }
+  };
+
+  const handleTogglePinPatch = async (patchId, currentPinned) => {
+    try {
+      const nextState = !currentPinned;
+      setPatchNotes((prev) =>
+        prev.map((p) => (p.id === patchId ? { ...p, is_pinned: nextState } : p))
+      );
+      if (isSupabaseConfigured && supabase) {
+        await supabase.from('patch_notes').update({ is_pinned: nextState }).eq('id', patchId);
+      }
+    } catch (err) {
+      console.error('Erro ao alternar destaque:', err);
+      loadPatches();
     }
   };
 
@@ -546,7 +606,8 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
 
           {/* COLUNA DIREITA: FEED DE PATCH NOTES (7 COLUNAS) */}
           <div className="lg:col-span-7 space-y-2.5 sm:space-y-3 min-w-0">
-            <div className="flex items-center justify-between px-1">
+            {/* Topbar da Seção com Ações de Admin */}
+            <div className="flex flex-wrap items-center justify-between gap-2 px-1">
               <div className="flex items-center gap-1.5 min-w-0">
                 <FileText className="w-4 h-4 text-amber-400 flex-shrink-0" />
                 <h2 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wider truncate">
@@ -559,60 +620,154 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
                   </span>
                 )}
               </div>
-              <span className="text-[10px] text-slate-500 flex-shrink-0">Oficial Damon</span>
+
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {isAdmin && (
+                  <button
+                    onClick={() => setShowCreatePatchModal(true)}
+                    className="px-2.5 sm:px-3 py-1 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-extrabold text-[11px] sm:text-xs flex items-center gap-1 shadow-md shadow-amber-500/20 active:scale-95 transition-all"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> <span>Nova Notícia</span>
+                  </button>
+                )}
+                <span className="text-[10px] text-slate-500 hidden sm:inline">Oficial Damon</span>
+              </div>
             </div>
 
-            {/* Lista de Patch Notes em Cards Estilizados */}
+            {/* Filtros de Categoria */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 px-1">
+              {[
+                { id: 'all', label: 'Todas' },
+                { id: 'novidades', label: 'Novidades' },
+                { id: 'patches', label: 'Patches' },
+                { id: 'pinned', label: '📌 Destaques' }
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setPatchFilter(f.id)}
+                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold whitespace-nowrap transition-all ${
+                    patchFilter === f.id
+                      ? 'bg-amber-500 text-black font-black shadow-sm'
+                      : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Lista de Patch Notes Filtrada */}
             <div className="space-y-2.5 sm:space-y-3 max-h-[520px] overflow-y-auto pr-1">
-              {patchNotes.map((patch) => {
-                const badgeStyle = BADGE_COLORS[patch.tag] || 'bg-slate-700 text-slate-300 border-slate-600';
-                const isNew = isWithin24Hours(patch.created_at);
+              {loadingPatches ? (
+                <div className="p-8 rounded-2xl bg-slate-900/60 border border-slate-800 flex items-center justify-center gap-2 text-xs text-slate-400">
+                  <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                  <span>Carregando notas oficiais...</span>
+                </div>
+              ) : patchNotes.filter((patch) => {
+                  if (patchFilter === 'novidades') return patch.tag === 'NOVIDADE';
+                  if (patchFilter === 'patches') return patch.tag === 'PATCH' || patch.tag === 'ATUALIZAÇÃO';
+                  if (patchFilter === 'pinned') return Boolean(patch.is_pinned);
+                  return true;
+                }).length === 0 ? (
+                <div className="p-8 rounded-2xl sm:rounded-3xl bg-slate-900/60 border border-slate-800 text-center space-y-3">
+                  <p className="text-xs text-slate-400">Nenhuma nota de atualização encontrada nesta categoria.</p>
+                  {isAdmin && (
+                    <button
+                      onClick={() => setShowCreatePatchModal(true)}
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-500 text-black font-extrabold text-xs shadow hover:bg-amber-400 transition-all inline-flex items-center gap-1.5"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Publicar Notícia Agora</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                patchNotes
+                  .filter((patch) => {
+                    if (patchFilter === 'novidades') return patch.tag === 'NOVIDADE';
+                    if (patchFilter === 'patches') return patch.tag === 'PATCH' || patch.tag === 'ATUALIZAÇÃO';
+                    if (patchFilter === 'pinned') return Boolean(patch.is_pinned);
+                    return true;
+                  })
+                  .map((patch) => {
+                    const badgeStyle = BADGE_COLORS[patch.tag] || 'bg-slate-700 text-slate-300 border-slate-600';
+                    const isNew = isWithin24Hours(patch.created_at);
 
-                return (
-                  <div
-                    key={patch.id}
-                    className={`p-4 sm:p-5 rounded-2xl sm:rounded-3xl border transition-all min-w-0 box-border ${
-                      patch.is_pinned
-                        ? 'bg-gradient-to-br from-slate-900/95 via-slate-900/90 to-amber-950/20 border-amber-500/40 shadow-lg shadow-amber-500/5'
-                        : 'bg-background-surface/80 border-slate-800 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1.5">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {isNew && (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black bg-gradient-to-r from-emerald-500 to-teal-400 text-black border border-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.8)] animate-pulse flex items-center gap-1 flex-shrink-0">
-                            <span className="w-1.5 h-1.5 rounded-full bg-black" />
-                            NOVO • 24H
-                          </span>
-                        )}
-                        <span className={`px-2 py-0.2 rounded-full text-[9px] sm:text-[10px] font-extrabold border uppercase ${badgeStyle}`}>
-                          {patch.tag}
-                        </span>
-                        {patch.version && (
-                          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400">
-                            {patch.version}
-                          </span>
-                        )}
-                        {patch.is_pinned && (
-                          <span className="text-[9px] sm:text-[10px] text-amber-400 font-bold flex items-center gap-0.5">
-                            📌 Destaque
-                          </span>
-                        )}
+                    return (
+                      <div
+                        key={patch.id}
+                        className={`p-4 sm:p-5 rounded-2xl sm:rounded-3xl border transition-all min-w-0 box-border group relative ${
+                          patch.is_pinned
+                            ? 'bg-gradient-to-br from-slate-900/95 via-slate-900/90 to-amber-950/20 border-amber-500/40 shadow-lg shadow-amber-500/5'
+                            : 'bg-background-surface/80 border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {isNew && (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black bg-gradient-to-r from-emerald-500 to-teal-400 text-black border border-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.8)] animate-pulse flex items-center gap-1 flex-shrink-0">
+                                <span className="w-1.5 h-1.5 rounded-full bg-black" />
+                                NOVO • 24H
+                              </span>
+                            )}
+                            <span className={`px-2 py-0.2 rounded-full text-[9px] sm:text-[10px] font-extrabold border uppercase ${badgeStyle}`}>
+                              {patch.tag}
+                            </span>
+                            {patch.version && (
+                              <span className="text-[10px] sm:text-[11px] font-bold text-slate-400">
+                                {patch.version}
+                              </span>
+                            )}
+                            {patch.is_pinned && (
+                              <span className="text-[9px] sm:text-[10px] text-amber-400 font-bold flex items-center gap-0.5">
+                                📌 Destaque
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] sm:text-[10px] text-slate-500 flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {new Date(patch.created_at).toLocaleDateString('pt-BR')} • {patch.author_name}
+                            </span>
+
+                            {/* Controles do Administrador */}
+                            {isAdmin && (
+                              <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  type="button"
+                                  onClick={() => handleTogglePinPatch(patch.id, patch.is_pinned)}
+                                  className={`p-1 rounded-lg border text-xs transition-colors ${
+                                    patch.is_pinned
+                                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                                      : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                                  }`}
+                                  title={patch.is_pinned ? 'Remover Destaque' : 'Fixar no Topo'}
+                                >
+                                  <Pin className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePatch(patch.id)}
+                                  className="p-1 rounded-lg bg-rose-500/15 text-rose-300 border border-rose-500/30 hover:bg-rose-500/25 transition-colors"
+                                  title="Excluir Nota de Atualização"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <h3 className="text-xs sm:text-sm font-bold text-white mb-1.5">{patch.title}</h3>
+                        <MarkdownRenderer
+                          content={patch.content}
+                          className="text-[11px] sm:text-xs text-slate-300"
+                        />
                       </div>
-                      <span className="text-[9px] sm:text-[10px] text-slate-500 flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {new Date(patch.created_at).toLocaleDateString('pt-BR')} • {patch.author_name}
-                      </span>
-                    </div>
-
-                    <h3 className="text-xs sm:text-sm font-bold text-white mb-1.5">{patch.title}</h3>
-                    <MarkdownRenderer
-                      content={patch.content}
-                      className="text-[11px] sm:text-xs text-slate-300"
-                    />
-                  </div>
-                );
-              })}
+                    );
+                  })
+              )}
             </div>
           </div>
         </div>
@@ -625,6 +780,16 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
         currentUser={user}
         onPollCreated={(newPoll) => {
           setHubPolls((prev) => [newPoll, ...prev]);
+        }}
+      />
+
+      {/* Modal de Criação de Notícias / Patch Notes para o Admin */}
+      <CreatePatchNoteModal
+        isOpen={showCreatePatchModal}
+        onClose={() => setShowCreatePatchModal(false)}
+        currentUser={user}
+        onPatchCreated={(newPatch) => {
+          setPatchNotes((prev) => [newPatch, ...prev]);
         }}
       />
     </div>
