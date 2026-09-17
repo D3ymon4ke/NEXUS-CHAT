@@ -601,10 +601,268 @@ async function equipShopItem(req, res) {
   }
 }
 
+const FRAME_THEMES = {
+  night_terrors: {
+    id: 'night_terrors',
+    name: 'Night Terrors',
+    collectorTitle: 'Pesadelo Vivo 👁️',
+    itemIds: ['frame_dentes', 'frame_espectro', 'frame_olho_abismo']
+  },
+  dark_folklore: {
+    id: 'dark_folklore',
+    name: 'Dark Folklore',
+    collectorTitle: 'Lenda Folclórica 🥀',
+    itemIds: ['frame_chifres_demoniacos', 'frame_damas_da_noite', 'frame_mariposa_fantasma']
+  },
+  fall_floragers: {
+    id: 'fall_floragers',
+    name: 'Fall Floragers',
+    collectorTitle: 'Guardião Silvestre 🌸',
+    itemIds: ['frame_coelho_primavera', 'frame_florescer', 'frame_primavera']
+  }
+};
+
+/**
+ * Presenteia um amigo com um item da Loja Nexus
+ */
+async function giftShopItem(req, res) {
+  try {
+    const senderId = req.user.id;
+    const { recipientId, itemId, message } = req.body;
+
+    if (!recipientId) {
+      return res.status(400).json({ success: false, error: 'Destinatário não especificado.' });
+    }
+
+    if (recipientId === senderId) {
+      return res.status(400).json({ success: false, error: 'Você não pode presentear a si mesmo. Use o botão Comprar!' });
+    }
+
+    let item = SHOP_CATALOG.find(i => i.id === itemId);
+
+    if (isConfigured && supabase) {
+      if (!item) {
+        const { data: dbItem } = await supabase.from('shop_items').select('*').eq('id', itemId).single();
+        if (dbItem) {
+          item = {
+            id: dbItem.id,
+            name: dbItem.name,
+            price: dbItem.price,
+            category: dbItem.category,
+            image: dbItem.image_url || dbItem.image,
+            icon: dbItem.icon || '🎁'
+          };
+        }
+      }
+
+      if (!item) {
+        return res.status(404).json({ success: false, error: 'Item não encontrado no catálogo.' });
+      }
+
+      const { data: senderProfile, error: senderErr } = await supabase
+        .from('profiles')
+        .select('nexus_coins, display_name, username')
+        .eq('id', senderId)
+        .single();
+
+      if (senderErr || !senderProfile) {
+        return res.status(500).json({ success: false, error: 'Perfil do remetente não encontrado.' });
+      }
+
+      const { data: recipientProfile, error: recipientErr } = await supabase
+        .from('profiles')
+        .select('nexus_coins, unlocked_items, display_name, username')
+        .eq('id', recipientId)
+        .single();
+
+      if (recipientErr || !recipientProfile) {
+        return res.status(404).json({ success: false, error: 'Destinatário não encontrado.' });
+      }
+
+      const recipientUnlocked = recipientProfile.unlocked_items || [];
+      if (recipientUnlocked.includes(itemId)) {
+        return res.status(400).json({
+          success: false,
+          error: `${recipientProfile.display_name || recipientProfile.username || 'Este usuário'} já possui este item!`
+        });
+      }
+
+      const itemPrice = item.price;
+      if ((senderProfile.nexus_coins || 0) < itemPrice) {
+        return res.status(400).json({
+          success: false,
+          error: `Saldo insuficiente! Você tem ${senderProfile.nexus_coins || 0} e o presente custa ${itemPrice} Nexus Coins.`
+        });
+      }
+
+      const newSenderCoins = senderProfile.nexus_coins - itemPrice;
+      await supabase
+        .from('profiles')
+        .update({ nexus_coins: newSenderCoins })
+        .eq('id', senderId);
+
+      const newRecipientUnlocked = [...recipientUnlocked, itemId];
+      await supabase
+        .from('profiles')
+        .update({ unlocked_items: newRecipientUnlocked })
+        .eq('id', recipientId);
+
+      const senderName = senderProfile.display_name || senderProfile.username || 'Alguém';
+      const recipientName = recipientProfile.display_name || recipientProfile.username || 'Amigo';
+
+      await supabase.from('nexus_transactions').insert([
+        {
+          user_id: senderId,
+          amount: -itemPrice,
+          type: 'shop_gift_sent',
+          description: `Presente enviado para ${recipientName}: ${item.name}`
+        },
+        {
+          user_id: recipientId,
+          amount: 0,
+          type: 'shop_gift_received',
+          description: `Presente recebido de ${senderName}: ${item.name}`
+        }
+      ]);
+
+      try {
+        await supabase.from('user_gifts').insert({
+          sender_id: senderId,
+          recipient_id: recipientId,
+          gift_id: itemId,
+          gift_name: item.name,
+          gift_icon: item.icon || '🎁',
+          rarity: 'epic',
+          price: itemPrice,
+          quantity: 1,
+          message: message ? message.trim() : `Presente da Loja Nexus: ${item.name}!`
+        });
+      } catch (errG) {
+        console.warn('Registro em user_gifts opcional não inserido:', errG.message);
+      }
+
+      return res.json({
+        success: true,
+        message: `🎁 Você presenteou ${recipientName} com "${item.name}" com sucesso!`,
+        senderCoins: newSenderCoins,
+        item
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: `🎁 Presente enviado com sucesso!`,
+      senderCoins: 100
+    });
+  } catch (error) {
+    console.error('Erro em giftShopItem:', error);
+    return res.status(500).json({ success: false, error: 'Erro ao processar envio de presente.' });
+  }
+}
+
+/**
+ * Compra o pacote completo de um tema com 25% de desconto automático,
+ * abatendo proporcionalmente os itens que o usuário já possui.
+ */
+async function buyThemeBundle(req, res) {
+  try {
+    const userId = req.user.id;
+    const { themeId } = req.body;
+
+    const theme = FRAME_THEMES[themeId];
+    if (!theme) {
+      return res.status(404).json({ success: false, error: 'Coleção temática não encontrada.' });
+    }
+
+    if (isConfigured && supabase) {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('nexus_coins, unlocked_items, custom_title')
+        .eq('id', userId)
+        .single();
+
+      if (error || !profile) {
+        return res.status(500).json({ success: false, error: 'Erro ao carregar perfil do usuário.' });
+      }
+
+      const unlocked = profile.unlocked_items || [];
+      const unownedIds = theme.itemIds.filter(id => !unlocked.includes(id));
+
+      if (unownedIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Você já possui todas as peças desta coleção!'
+        });
+      }
+
+      const unownedItems = unownedIds.map(id => {
+        return SHOP_CATALOG.find(i => i.id === id) || { id, price: 400, name: id };
+      });
+
+      const originalTotal = unownedItems.reduce((sum, i) => sum + (i.price || 0), 0);
+      const discountedPrice = Math.round(originalTotal * 0.75); // 25% OFF
+
+      if ((profile.nexus_coins || 0) < discountedPrice) {
+        return res.status(400).json({
+          success: false,
+          error: `Saldo insuficiente. O pacote custa ${discountedPrice} NC e você possui ${profile.nexus_coins || 0} NC.`
+        });
+      }
+
+      const newCoins = profile.nexus_coins - discountedPrice;
+      const newUnlocked = Array.from(new Set([...unlocked, ...unownedIds]));
+
+      const updatePayload = {
+        nexus_coins: newCoins,
+        unlocked_items: newUnlocked
+      };
+
+      const ownsAllNow = theme.itemIds.every(id => newUnlocked.includes(id));
+      if (ownsAllNow && theme.collectorTitle) {
+        updatePayload.custom_title = theme.collectorTitle;
+      }
+
+      await supabase
+        .from('profiles')
+        .update(updatePayload)
+        .eq('id', userId);
+
+      await supabase.from('nexus_transactions').insert({
+        user_id: userId,
+        amount: -discountedPrice,
+        type: 'shop_bundle_purchase',
+        description: `Pacote Completo: ${theme.name} (${unownedIds.length} itens com 25% OFF)`
+      });
+
+      return res.json({
+        success: true,
+        message: `🎉 Pacote "${theme.name}" desbloqueado com 25% de desconto!`,
+        totalCoins: newCoins,
+        unlockedItems: newUnlocked,
+        completedTheme: ownsAllNow ? theme : null,
+        itemsAdded: unownedIds
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: `🎉 Pacote "${theme.name}" desbloqueado!`,
+      totalCoins: 300,
+      unlockedItems: theme.itemIds
+    });
+  } catch (error) {
+    console.error('Erro em buyThemeBundle:', error);
+    return res.status(500).json({ success: false, error: 'Erro ao processar compra de pacote.' });
+  }
+}
+
 module.exports = {
   getShopCatalog,
   claimDailyReward,
   buyShopItem,
   equipShopItem,
-  SHOP_CATALOG
+  giftShopItem,
+  buyThemeBundle,
+  SHOP_CATALOG,
+  FRAME_THEMES
 };

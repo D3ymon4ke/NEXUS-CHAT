@@ -43,6 +43,7 @@ import {
   SlidersHorizontal,
   CheckCircle2
 } from 'lucide-react';
+import { ShopGiftModal } from './ShopGiftModal';
 
 function getFormattedClaimDate(claimValue) {
   if (!claimValue) return null;
@@ -70,6 +71,9 @@ export function NexusShopModal({ isOpen, onClose }) {
   const [equippedBubble, setEquippedBubble] = useState(user?.equipped_bubble || 'default');
   const [equippedBadge, setEquippedBadge] = useState(user?.equipped_badge || 'none');
   const [equippedNameColor, setEquippedNameColor] = useState(user?.equipped_name_color || 'default');
+
+  // Item selecionado para presentear um amigo via ShopGiftModal
+  const [giftTargetItem, setGiftTargetItem] = useState(null);
 
   // Preview Temporário de Itens no Provador Virtual
   const [previewFrameItem, setPreviewFrameItem] = useState(null);
@@ -322,6 +326,133 @@ export function NexusShopModal({ isOpen, onClose }) {
       setFeedbackMsg({ text: 'Erro ao realizar compra.', type: 'error' });
     } finally {
       setPurchasingId(null);
+    }
+  };
+
+  // Cálculo inteligente dos pacotes temáticos com 25% de desconto e abatimento proporcional
+  const getThemeBundleDetails = (theme) => {
+    if (!theme) return null;
+    const themeItemIds = theme.itemIds || [];
+    const themeItems = themeItemIds.map(
+      (id) => catalog.find((i) => i.id === id) || { id, price: 400, name: id }
+    );
+    const ownedItems = themeItems.filter((i) => unlockedItems.includes(i.id));
+    const unownedItems = themeItems.filter((i) => !unlockedItems.includes(i.id));
+    const ownedCount = ownedItems.length;
+    const totalCount = themeItems.length;
+    const isCompleted = totalCount > 0 && ownedCount === totalCount;
+    const progressPercent = totalCount > 0 ? Math.round((ownedCount / totalCount) * 100) : 0;
+    const originalPrice = unownedItems.reduce((acc, curr) => acc + (curr.price || 0), 0);
+    const bundlePrice = Math.round(originalPrice * 0.75); // 25% OFF
+    const savings = originalPrice - bundlePrice;
+
+    return {
+      theme,
+      themeItems,
+      ownedItems,
+      unownedItems,
+      ownedCount,
+      totalCount,
+      isCompleted,
+      progressPercent,
+      originalPrice,
+      bundlePrice,
+      savings
+    };
+  };
+
+  const handleBuyBundle = async (theme, bundle) => {
+    if (!bundle || bundle.unownedItems.length === 0) {
+      setFeedbackMsg({ text: 'Você já possui todas as molduras desta coleção!', type: 'success' });
+      return;
+    }
+
+    if (userCoins < bundle.bundlePrice) {
+      sounds.playError?.();
+      setFeedbackMsg({
+        text: `Saldo insuficiente! Faltam ${bundle.bundlePrice - userCoins} Nexus Coins para o Pacote.`,
+        type: 'error'
+      });
+      return;
+    }
+
+    const bundleKey = `bundle_${theme.id}`;
+    try {
+      setPurchasingId(bundleKey);
+      const newCoins = userCoins - bundle.bundlePrice;
+      const unownedIds = bundle.unownedItems.map((i) => i.id);
+      const newUnlocked = Array.from(new Set([...unlockedItems, ...unownedIds]));
+
+      const willComplete = newUnlocked.filter((id) => (theme.itemIds || []).includes(id)).length === (theme.itemIds || []).length;
+
+      setUserCoins(newCoins);
+      setUnlockedItems(newUnlocked);
+
+      if (isSupabaseConfigured && supabase && user) {
+        const updatePayload = {
+          nexus_coins: newCoins,
+          unlocked_items: newUnlocked
+        };
+        if (willComplete && theme.collectorBadge) {
+          updatePayload.custom_title = theme.collectorBadge;
+        }
+
+        await supabase.from('profiles').update(updatePayload).eq('id', user.id);
+
+        await supabase.from('nexus_transactions').insert({
+          user_id: user.id,
+          amount: -bundle.bundlePrice,
+          type: 'shop_bundle_purchase',
+          description: `Pacote Completo: ${theme.name} (${unownedIds.length} itens com 25% OFF)`
+        });
+      }
+
+      if (updateProfile) {
+        updateProfile({
+          nexus_coins: newCoins,
+          unlocked_items: newUnlocked,
+          ...(willComplete && theme.collectorBadge ? { custom_title: theme.collectorBadge } : {})
+        });
+      }
+
+      sounds.playPop();
+      confetti({
+        particleCount: 150,
+        spread: 90,
+        origin: { y: 0.55 },
+        colors: ['#fbbf24', '#f59e0b', '#ec4899', '#a855f7', '#38bdf8']
+      });
+
+      const completionText = willComplete ? ` 🏆 Coleção 100% Completa! Título "${theme.collectorBadge}" conquistado!` : '';
+      setFeedbackMsg({
+        text: `🎉 Pacote "${theme.name}" adquirido com sucesso (-25% OFF)!${completionText}`,
+        type: 'success'
+      });
+    } catch (err) {
+      console.error('Erro ao comprar pacote:', err);
+      setFeedbackMsg({ text: 'Erro ao processar compra do pacote.', type: 'error' });
+    } finally {
+      setPurchasingId(null);
+    }
+  };
+
+  const handleEquipCollectorTitle = async (theme) => {
+    if (!theme?.collectorBadge) return;
+    try {
+      if (isSupabaseConfigured && supabase && user) {
+        await supabase.from('profiles').update({ custom_title: theme.collectorBadge }).eq('id', user.id);
+      }
+      if (updateProfile) {
+        updateProfile({ custom_title: theme.collectorBadge });
+      }
+      sounds.playPop();
+      confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
+      setFeedbackMsg({
+        text: `🏆 Título de Colecionador "${theme.collectorBadge}" equipado no seu perfil!`,
+        type: 'success'
+      });
+    } catch (err) {
+      setFeedbackMsg({ text: 'Erro ao equipar título.', type: 'error' });
     }
   };
 
@@ -939,24 +1070,128 @@ export function NexusShopModal({ isOpen, onClose }) {
                   )}
 
                   {/* Banner do Tema Específico Selecionado (Night Terrors / Dark Folklore / Fall Floragers) */}
-                  {currentThemeMeta && (
-                    <div className="relative overflow-hidden rounded-2xl border border-slate-800 shadow-xl bg-slate-950 aspect-[4.2/1] sm:aspect-[4.8/1]">
-                      <img
-                        src={currentThemeMeta.banner}
-                        alt={currentThemeMeta.name}
-                        className="w-full h-full object-cover object-center"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent p-3 sm:p-4 flex flex-col justify-end">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 uppercase shadow">
-                            {currentThemeMeta.badge}
-                          </span>
+                  {currentThemeMeta && (() => {
+                    const bundle = getThemeBundleDetails(currentThemeMeta);
+                    return (
+                      <div className="space-y-2.5">
+                        {/* Banner Panorâmico Cinemático */}
+                        <div className="relative overflow-hidden rounded-2xl border border-slate-800 shadow-xl bg-slate-950 aspect-[4.2/1] sm:aspect-[4.8/1]">
+                          <img
+                            src={currentThemeMeta.banner}
+                            alt={currentThemeMeta.name}
+                            className="w-full h-full object-cover object-center"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent p-3 sm:p-4 flex flex-col justify-end">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 uppercase shadow">
+                                {currentThemeMeta.badge}
+                              </span>
+                              {bundle?.isCompleted && (
+                                <span className="text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3" /> Coleção Completa
+                                </span>
+                              )}
+                            </div>
+                            <h2 className="text-xs sm:text-base font-black text-white mt-1">{currentThemeMeta.name}</h2>
+                            <p className="text-[10px] sm:text-xs text-slate-300 line-clamp-1">{currentThemeMeta.description}</p>
+                          </div>
                         </div>
-                        <h2 className="text-xs sm:text-base font-black text-white mt-1">{currentThemeMeta.name}</h2>
-                        <p className="text-[10px] sm:text-xs text-slate-300 line-clamp-1">{currentThemeMeta.description}</p>
+
+                        {/* Card de Gamificação de Colecionador & Pacote com 25% OFF */}
+                        {bundle && (
+                          <div className="p-3 sm:p-4 rounded-2xl bg-gradient-to-r from-slate-900/90 via-slate-900 to-slate-950 border border-slate-800/90 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-3.5">
+                            {/* Progresso de Coleção */}
+                            <div className="space-y-1.5 flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-1.5 text-xs font-black text-white">
+                                  <Crown className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                                  <span>Coleção de Maestria:</span>
+                                  <span className="text-amber-300 font-extrabold">
+                                    {bundle.ownedCount}/{bundle.totalCount} ({bundle.progressPercent}%)
+                                  </span>
+                                </div>
+                                {bundle.isCompleted ? (
+                                  <span className="text-[10px] text-emerald-400 font-black bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                                    100% Concluído ✨
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 font-medium">
+                                    Faltam {bundle.unownedItems.length} {bundle.unownedItems.length === 1 ? 'moldura' : 'molduras'}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Barra de Progresso com degradê temático */}
+                              <div className="w-full h-2.5 rounded-full bg-slate-950 border border-slate-800 overflow-hidden shadow-inner">
+                                <div
+                                  className="h-full bg-gradient-to-r from-amber-500 via-rose-500 to-purple-600 transition-all duration-700 rounded-full"
+                                  style={{ width: `${bundle.progressPercent}%` }}
+                                />
+                              </div>
+
+                              {/* Recompensa de Conclusão / Título */}
+                              <div className="flex items-center justify-between gap-2 pt-0.5">
+                                <div className="flex items-center gap-1.5 text-[11px] text-slate-300 truncate">
+                                  <Sparkles className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                                  <span className="text-slate-400">Título Exclusivo:</span>
+                                  <span className="font-bold text-amber-300 truncate">"{currentThemeMeta.collectorBadge}"</span>
+                                </div>
+
+                                {bundle.isCompleted && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEquipCollectorTitle(currentThemeMeta)}
+                                    className="text-[10px] font-black px-2.5 py-1 rounded-xl bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40 transition-all flex items-center gap-1 shrink-0 active:scale-95 shadow"
+                                    title="Equipar título no perfil"
+                                  >
+                                    <Crown className="w-3 h-3" />
+                                    <span>Equipar Título</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Botão de Compra de Pacote (Bundle com 25% de Desconto) */}
+                            {!bundle.isCompleted && (
+                              <div className="pt-2 md:pt-0 border-t md:border-t-0 border-slate-800/80 flex items-center justify-between md:justify-end gap-3 flex-shrink-0">
+                                <div className="text-left md:text-right">
+                                  <div className="flex items-center md:justify-end gap-1.5">
+                                    <span className="text-[10px] text-slate-400 line-through">
+                                      {bundle.originalPrice} NC
+                                    </span>
+                                    <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                      -25% OFF
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center md:justify-end gap-1 font-black text-xs sm:text-sm text-amber-300">
+                                    <img src="/nexus-coin.jpg" alt="Moeda" className="w-3.5 h-3.5 rounded-full" />
+                                    <span>{bundle.bundlePrice} NC</span>
+                                    <span className="text-[10px] text-emerald-400 font-bold ml-1 hidden sm:inline">
+                                      (-{bundle.savings} NC)
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleBuyBundle(currentThemeMeta, bundle)}
+                                  disabled={userCoins < bundle.bundlePrice || purchasingId === `bundle_${currentThemeMeta.id}`}
+                                  className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-lg flex-shrink-0 active:scale-95 ${
+                                    userCoins >= bundle.bundlePrice
+                                      ? 'bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 text-white hover:brightness-110 shadow-purple-600/25'
+                                      : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                                  }`}
+                                >
+                                  <Package className="w-3.5 h-3.5" />
+                                  <span>Comprar Pacote</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Banner do Tema em Destaque do Ciclo (quando na Vitrine Rotativa) */}
                   {framesViewMode === 'rotation' && rotationData.featuredTheme && (
@@ -1182,11 +1417,22 @@ export function NexusShopModal({ isOpen, onClose }) {
                       {/* Ações do Card */}
                       <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center gap-1.5">
                         <button
+                          type="button"
                           onClick={() => handlePreviewItem(item)}
                           className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all flex-shrink-0"
                           title="Testar no provador"
                         >
                           <Eye className="w-3.5 h-3.5 text-amber-400" />
+                        </button>
+
+                        {/* Botão de Presentear Amigo */}
+                        <button
+                          type="button"
+                          onClick={() => setGiftTargetItem(item)}
+                          className="p-1.5 rounded-xl bg-pink-500/15 hover:bg-pink-500/25 text-pink-400 border border-pink-500/30 text-xs font-bold transition-all flex-shrink-0 active:scale-95"
+                          title={`Presentear um amigo com "${item.name}"`}
+                        >
+                          <Gift className="w-3.5 h-3.5 text-pink-400" />
                         </button>
 
                         {isEquipped ? (
@@ -1224,6 +1470,24 @@ export function NexusShopModal({ isOpen, onClose }) {
             </div>
           )}
         </div>
+
+        {/* Modal de Presentear Amigos */}
+        <ShopGiftModal
+          isOpen={Boolean(giftTargetItem)}
+          onClose={() => setGiftTargetItem(null)}
+          item={giftTargetItem}
+          currentUser={user}
+          onGiftSent={({ newCoins, recipientName, item: giftedItem }) => {
+            setUserCoins(newCoins);
+            if (updateProfile) {
+              updateProfile({ nexus_coins: newCoins });
+            }
+            setFeedbackMsg({
+              text: `🎁 Você presenteou ${recipientName} com "${giftedItem.name}"!`,
+              type: 'success'
+            });
+          }}
+        />
       </div>
     </div>
   );

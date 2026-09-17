@@ -4,28 +4,40 @@ export const FRAME_THEMES = [
     id: 'night_terrors',
     name: 'Night Terrors',
     badge: 'Night Terrors 👁️',
+    collectorTitle: 'Pesadelo Vivo',
+    collectorBadge: 'Pesadelo Vivo 👁️',
+    collectorIcon: '👁️',
     description: 'Entidades abissais que espreitam na calada da noite, mandíbulas famintas e olhares hipnóticos.',
     banner: '/frames/night_terrors/banner.png',
     accentColor: 'from-purple-950/80 via-slate-900 to-rose-950/70',
-    borderColor: 'border-purple-500/50'
+    borderColor: 'border-purple-500/50',
+    itemIds: ['frame_dentes', 'frame_espectro', 'frame_olho_abismo']
   },
   {
     id: 'dark_folklore',
     name: 'Dark Folklore',
     badge: 'Dark Folklore 🦋',
+    collectorTitle: 'Lenda Folclórica',
+    collectorBadge: 'Lenda Folclórica 🥀',
+    collectorIcon: '🥀',
     description: 'Lendas sombrias e místicas da floresta negra, mariposas etéreas e damas da meia-noite.',
     banner: '/frames/dark_folklore/banner.png',
     accentColor: 'from-slate-950 via-emerald-950/40 to-slate-900',
-    borderColor: 'border-emerald-500/50'
+    borderColor: 'border-emerald-500/50',
+    itemIds: ['frame_chifres_demoniacos', 'frame_damas_da_noite', 'frame_mariposa_fantasma']
   },
   {
     id: 'fall_floragers',
     name: 'Fall Floragers',
     badge: 'Fall Floragers 🌸',
+    collectorTitle: 'Guardião Silvestre',
+    collectorBadge: 'Guardião Silvestre 🌸',
+    collectorIcon: '🌸',
     description: 'Espíritos guardiões silvestres da colheita e primavera, botões desabrochando e pétalas mágicas.',
     banner: '/frames/fall_floragers/banner.png',
     accentColor: 'from-amber-950/50 via-slate-900 to-emerald-950/40',
-    borderColor: 'border-amber-500/50'
+    borderColor: 'border-amber-500/50',
+    itemIds: ['frame_coelho_primavera', 'frame_florescer', 'frame_primavera']
   }
 ];
 

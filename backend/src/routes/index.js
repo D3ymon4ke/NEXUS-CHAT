@@ -39,6 +39,8 @@ router.get('/economy/shop', authenticateUser, economyController.getShopCatalog);
 router.post('/economy/claim-daily', authenticateUser, economyController.claimDailyReward);
 router.post('/economy/buy', authenticateUser, economyController.buyShopItem);
 router.post('/economy/equip', authenticateUser, economyController.equipShopItem);
+router.post('/economy/gift', authenticateUser, economyController.giftShopItem);
+router.post('/economy/buy-bundle', authenticateUser, economyController.buyThemeBundle);
 
 // --- Wallet Routes ---
 router.get('/wallet', authenticateUser, walletController.getWalletDetails);
