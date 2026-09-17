@@ -90,6 +90,16 @@ const BADGE_COLORS = {
 
 const DEFAULT_FALLBACK_PATCHES = [
   {
+    id: 'p-today-shop-v330',
+    tag: 'NOVIDADE',
+    title: '✨ Grandes Novidades na Loja: Coleções Temáticas de Molduras & Banners!',
+    version: 'v3.3.0',
+    content: '### 🎨 3 Novas Coleções Oficiais de Molduras Animadas!\n\nA Loja Nexus acaba de receber uma grande atualização com 9 novas molduras animadas exclusivas e banners temáticos:\n\n- 👁️ **Night Terrors**: Mandíbula do Pesadelo, Olho do Abismo e Espectro dos Pesadelos.\n- 🦋 **Dark Folklore**: Chifres Demoníacos, Damas da Noite e Mariposa Fantasma.\n- 🌸 **Fall Floragers**: Coelho da Primavera, Florescer Místico e Primavera Silvestre.\n\nExperimente todas as molduras no **Provador Virtual** em tempo real e aproveite a rotação viva da Loja a cada 72h!',
+    author_name: 'Damon',
+    is_pinned: true,
+    created_at: new Date().toISOString()
+  },
+  {
     id: 'p-today-casino-v320',
     tag: 'NOVIDADE',
     title: '🎰 Grande Inauguração: Cassino Nexus, Mines, Roleta e Double!',
@@ -453,39 +463,102 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
           </div>
         </div>
 
-        {/* BANNER DESTAQUE CASSINO NEXUS */}
-        {onOpenCasino && (
+        {/* BANNER DESTAQUE: ATUALIZAÇÃO DA LOJA - NOVAS MOLDURAS DISPONÍVEIS */}
+        {onOpenShop && (
           <div
-            onClick={onOpenCasino}
-            className="cursor-pointer p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-purple-950/70 via-slate-900/90 to-amber-950/70 border border-amber-500/40 hover:border-amber-400/80 shadow-2xl relative overflow-hidden group transition-all active:scale-[0.99] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+            onClick={onOpenShop}
+            className="cursor-pointer p-3.5 sm:p-4 md:p-5 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-purple-950/80 via-slate-900/95 to-amber-950/80 border border-amber-500/40 hover:border-amber-400/80 shadow-2xl relative overflow-hidden group transition-all active:scale-[0.99] space-y-3 sm:space-y-3.5"
           >
-            <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
-            <div className="flex items-center gap-3 relative z-10">
-              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-xl shadow-lg shadow-amber-500/30 group-hover:scale-105 transition-transform flex-shrink-0">
-                🎰
+            {/* Efeitos de Glow no fundo */}
+            <div className="absolute -top-12 -right-12 w-64 h-64 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-12 -left-12 w-64 h-64 bg-purple-500/15 rounded-full blur-3xl pointer-events-none" />
+
+            {/* Cabeçalho do Banner */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 relative z-10">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 flex items-center justify-center text-lg sm:text-xl shadow-lg shadow-amber-500/30 group-hover:scale-105 transition-transform flex-shrink-0 text-black font-black">
+                  ✨
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                    <h3 className="text-xs sm:text-sm md:text-base font-black text-white tracking-wide uppercase">
+                      NOVAS MOLDURAS DISPONÍVEIS
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-500/25 text-amber-300 border border-amber-400/50 text-[9px] sm:text-[10px] font-black uppercase shadow animate-pulse flex items-center gap-1">
+                      <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-yellow-300" /> Loja Nexus
+                    </span>
+                  </div>
+                  <p className="text-[11px] sm:text-xs text-slate-300 truncate mt-0.5">
+                    3 novas coleções temáticas e 9 molduras animadas exclusivas chegaram ao Nexus Chat!
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-sm sm:text-base font-black text-white tracking-wide">CASSINO NEXUS</h3>
-                  <span className="px-2 py-0.5 rounded-full bg-amber-500/25 text-amber-300 border border-amber-400/50 text-[10px] font-black uppercase shadow animate-pulse">
-                    Novo • Mines, Roleta & Double
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenShop();
+                }}
+                className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 text-black font-extrabold text-xs shadow-lg shadow-amber-500/25 active:scale-95 transition-all flex items-center justify-center gap-1.5 flex-shrink-0 relative z-10 self-start sm:self-auto"
+              >
+                <span>Explorar na Loja</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Grade dos 3 Banners das Coleções Temáticas: / / / */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 relative z-10 pt-0.5">
+              {/* Banner 1: Night Terrors */}
+              <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-purple-500/50 shadow-md group/banner bg-slate-950 aspect-[4.2/1] sm:aspect-[3.6/1]">
+                <img
+                  src="/frames/night_terrors/banner.png"
+                  alt="Night Terrors"
+                  className="w-full h-full object-cover object-center group-hover/banner:scale-105 transition-transform duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent p-2 sm:p-2.5 flex items-end justify-between">
+                  <span className="text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-lg bg-purple-600/90 text-white shadow-md border border-purple-400/50 backdrop-blur-sm">
+                    👁️ Night Terrors
+                  </span>
+                  <span className="text-[8px] sm:text-[9px] text-purple-200 font-bold bg-black/60 px-1.5 py-0.5 rounded backdrop-blur-sm">
+                    3 Molduras
                   </span>
                 </div>
-                <p className="text-xs text-slate-300 truncate mt-0.5">
-                  Multiplique suas Nexus Coins com probabilidades equilibradas e saque na hora!
-                </p>
+              </div>
+
+              {/* Banner 2: Dark Folklore */}
+              <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-emerald-500/50 shadow-md group/banner bg-slate-950 aspect-[4.2/1] sm:aspect-[3.6/1]">
+                <img
+                  src="/frames/dark_folklore/banner.png"
+                  alt="Dark Folklore"
+                  className="w-full h-full object-cover object-center group-hover/banner:scale-105 transition-transform duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent p-2 sm:p-2.5 flex items-end justify-between">
+                  <span className="text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-lg bg-emerald-600/90 text-black shadow-md border border-emerald-400/50 backdrop-blur-sm font-extrabold">
+                    🦋 Dark Folklore
+                  </span>
+                  <span className="text-[8px] sm:text-[9px] text-emerald-200 font-bold bg-black/60 px-1.5 py-0.5 rounded backdrop-blur-sm">
+                    3 Molduras
+                  </span>
+                </div>
+              </div>
+
+              {/* Banner 3: Fall Floragers */}
+              <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-amber-500/50 shadow-md group/banner bg-slate-950 aspect-[4.2/1] sm:aspect-[3.6/1]">
+                <img
+                  src="/frames/fall_floragers/banner.png"
+                  alt="Fall Floragers"
+                  className="w-full h-full object-cover object-center group-hover/banner:scale-105 transition-transform duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent p-2 sm:p-2.5 flex items-end justify-between">
+                  <span className="text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-lg bg-amber-500/90 text-black shadow-md border border-amber-300/50 backdrop-blur-sm font-extrabold">
+                    🌸 Fall Floragers
+                  </span>
+                  <span className="text-[8px] sm:text-[9px] text-amber-200 font-bold bg-black/60 px-1.5 py-0.5 rounded backdrop-blur-sm">
+                    3 Molduras
+                  </span>
+                </div>
               </div>
             </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenCasino();
-              }}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 text-black font-extrabold text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all flex items-center justify-center gap-1.5 flex-shrink-0 relative z-10"
-            >
-              <span>Entrar no Cassino</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
           </div>
         )}
 
