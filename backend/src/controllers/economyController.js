@@ -14,6 +14,130 @@ const SHOP_CATALOG = [
     image: '/frames/beta.gif',
     isAnimated: true
   },
+  // --- COLEÇÃO NIGHT TERRORS ---
+  {
+    id: 'frame_dentes',
+    category: 'frames',
+    name: 'Mandíbula do Pesadelo',
+    description: 'Presas aterradoras que cercam seu avatar com uma mordida sombria',
+    price: 420,
+    icon: '🦷',
+    image: '/frames/night_terrors/dentes.gif',
+    isAnimated: true
+  },
+  {
+    id: 'frame_espectro',
+    category: 'frames',
+    name: 'Espectro dos Pesadelos',
+    description: 'Entidade espectral que emerge dos terrores noturnos com distorção dimensional',
+    price: 350,
+    icon: '👁️‍🗨️',
+    image: '/frames/night_terrors/espectro.gif',
+    isAnimated: true
+  },
+  {
+    id: 'frame_olho_abismo',
+    category: 'frames',
+    name: 'Olho do Abismo',
+    description: 'Olhares cósmicos hipnóticos que fitam a escuridão absoluta do vácuo',
+    price: 450,
+    icon: '👁️',
+    image: '/frames/night_terrors/olho_abismo.gif',
+    isAnimated: true
+  },
+  // --- COLEÇÃO DARK FOLKLORE ---
+  {
+    id: 'frame_chifres_demoniacos',
+    category: 'frames',
+    name: 'Chifres Demoníacos',
+    description: 'Chifres ancestrais corrompidos emitindo fumaça e poder místico',
+    price: 390,
+    icon: '😈',
+    image: '/frames/dark_folklore/chifres_demoniacos.gif',
+    isAnimated: true
+  },
+  {
+    id: 'frame_damas_da_noite',
+    category: 'frames',
+    name: 'Damas da Noite',
+    description: 'Flores noturnas encantadas com pétalas sombrias e névoa envenenada',
+    price: 410,
+    icon: '🥀',
+    image: '/frames/dark_folklore/damas_da_noite.gif',
+    isAnimated: true
+  },
+  {
+    id: 'frame_mariposa_fantasma',
+    category: 'frames',
+    name: 'Mariposa Fantasma',
+    description: 'Mariposas bioluminescentes que dançam ao redor do avatar guiando espíritos',
+    price: 440,
+    icon: '🦋',
+    image: '/frames/dark_folklore/mariposa_fantasma.gif',
+    isAnimated: true
+  },
+  // --- COLEÇÃO FALL FLORAGERS ---
+  {
+    id: 'frame_coelho_primavera',
+    category: 'frames',
+    name: 'Coelho da Primavera',
+    description: 'Espírito sagrado dos bosques com orelhas mágicas e folhas vivas',
+    price: 360,
+    icon: '🐰',
+    image: '/frames/fall_floragers/coelho_primavera.gif',
+    isAnimated: true
+  },
+  {
+    id: 'frame_florescer',
+    category: 'frames',
+    name: 'Florescer Místico',
+    description: 'Encanto primaveril com botões de flores e pólen místico cintilante',
+    price: 390,
+    icon: '🌸',
+    image: '/frames/fall_floragers/florescer.gif',
+    isAnimated: true
+  },
+  {
+    id: 'frame_primavera',
+    category: 'frames',
+    name: 'Primavera Silvestre',
+    description: 'Aura suave da floresta com folhagens vivas e pétalas douradas fluindo',
+    price: 370,
+    icon: '🍃',
+    image: '/frames/fall_floragers/primavera.gif',
+    isAnimated: true
+  },
+  // --- MOLDURAS ANIMADAS CLÁSSICAS ---
+  {
+    id: 'frame_espirito',
+    category: 'frames',
+    name: 'Espírito Espectral',
+    description: 'Moldura mística animada com aura de espíritos e almas',
+    price: 350,
+    icon: '👻',
+    image: '/frames/Espirito.gif',
+    isAnimated: true
+  },
+  {
+    id: 'frame_rosas',
+    category: 'frames',
+    name: 'Rosas Carmesim',
+    description: 'Moldura animada de rosas góticas flutuantes',
+    price: 300,
+    icon: '🌹',
+    image: '/frames/Rosas.gif',
+    isAnimated: true
+  },
+  {
+    id: 'frame_fogo',
+    category: 'frames',
+    name: 'Chamas Infernais',
+    description: 'Moldura animada de fogo ardente em alta definição',
+    price: 280,
+    icon: '🔥',
+    image: '/frames/fogo.gif',
+    isAnimated: true
+  },
   {
     id: 'frame_cyber_neon',
     category: 'frames',

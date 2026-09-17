@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
-import { SHOP_CATALOG, WALLPAPER_STYLES, FRAME_ANIMATED_ASSETS, registerDynamicFrames, getFrameAsset, getFrameStyle } from '../../lib/shopCatalog';
+import { SHOP_CATALOG, WALLPAPER_STYLES, FRAME_ANIMATED_ASSETS, FRAME_THEMES, registerDynamicFrames, getFrameAsset, getFrameStyle } from '../../lib/shopCatalog';
 import {
   calculateFrameRotation,
   formatRemainingRotationTime,
@@ -152,20 +152,27 @@ export function NexusShopModal({ isOpen, onClose }) {
 
         if (customItems && customItems.length > 0) {
           registerDynamicFrames(customItems);
-          const formattedCustom = customItems.map(ci => ({
-            id: ci.id,
-            category: ci.category,
-            name: ci.name,
-            description: ci.description,
-            price: ci.price,
-            icon: ci.icon || '✨',
-            cssClass: ci.css_class || '',
-            imageUrl: ci.image_url,
-            image: ci.image_url || getFrameAsset(ci.id) || null
-          }));
-          const existingIds = new Set(formattedCustom.map(i => i.id));
-          const baseFiltered = SHOP_CATALOG.filter(i => !existingIds.has(i.id));
-          setCatalog([...baseFiltered, ...formattedCustom]);
+          const catalogMap = new Map(SHOP_CATALOG.map(item => [item.id, { ...item }]));
+          customItems.forEach(ci => {
+            const existing = catalogMap.get(ci.id) || {};
+            catalogMap.set(ci.id, {
+              ...existing,
+              id: ci.id,
+              category: ci.category,
+              name: ci.name || existing.name,
+              description: ci.description || existing.description,
+              price: typeof ci.price === 'number' ? ci.price : existing.price,
+              icon: ci.icon || existing.icon || '✨',
+              cssClass: ci.css_class || existing.cssClass || '',
+              imageUrl: ci.image_url || existing.image || null,
+              image: ci.image_url || existing.image || getFrameAsset(ci.id) || null,
+              theme: existing.theme || null,
+              themeName: existing.themeName || null,
+              themeBanner: existing.themeBanner || null,
+              isAnimated: existing.isAnimated || Boolean(ci.image_url || getFrameAsset(ci.id))
+            });
+          });
+          setCatalog(Array.from(catalogMap.values()));
         }
       } catch (err) {
         console.error('Erro ao buscar dados remotos da loja:', err);
@@ -395,6 +402,14 @@ export function NexusShopModal({ isOpen, onClose }) {
     if (activeTab === 'frames') {
       if (framesViewMode === 'rotation') {
         return rotationData.rotatingFrames;
+      }
+      if (framesViewMode === 'night_terrors' || framesViewMode === 'dark_folklore' || framesViewMode === 'fall_floragers') {
+        return allFrameItems
+          .filter((f) => f.theme === framesViewMode)
+          .map((f) => {
+            const inRotation = rotationData.rotatingFrames.find((r) => r.id === f.id);
+            return inRotation || f;
+          });
       }
       return allFrameItems.map((f) => {
         const inRotation = rotationData.rotatingFrames.find((r) => r.id === f.id);
@@ -803,61 +818,188 @@ export function NexusShopModal({ isOpen, onClose }) {
               {/* Se estiver na aba de Molduras, exibir o Banner de Rotação de 3 Dias + Card de Oferta Relâmpago */}
               {activeTab === 'frames' && (
                 <div className="space-y-3">
-                  {/* Banner de Rotação de 3 Dias */}
-                  <div className="p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-amber-950/50 via-slate-900 to-indigo-950/40 border border-amber-500/40 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 backdrop-blur-md">
-                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-yellow-600 text-black flex items-center justify-center font-black shadow-lg shadow-amber-500/25 flex-shrink-0">
-                        <Timer className="w-5 h-5 animate-pulse" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-xs sm:text-sm font-extrabold text-white tracking-wide flex items-center gap-1.5 truncate">
-                            <span>Vitrine Rotativa</span>
-                            <span className="text-[10px] font-black px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                              Ciclo #{rotationData.cycleIndex}
-                            </span>
-                          </h4>
+                  {/* Seletor de Coleções e Modo de Visualização */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setFramesViewMode('rotation')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
+                        framesViewMode === 'rotation'
+                          ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-extrabold shadow-md shadow-amber-500/20'
+                          : 'bg-slate-900/90 text-slate-300 hover:bg-slate-800 border border-slate-800'
+                      }`}
+                    >
+                      <Zap className="w-3.5 h-3.5 text-amber-400 fill-current" />
+                      <span>Vitrine Rotativa ({rotationData.rotatingFrames.length})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFramesViewMode('night_terrors')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
+                        framesViewMode === 'night_terrors'
+                          ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-extrabold shadow-md shadow-purple-500/25 border border-purple-400'
+                          : 'bg-slate-900/90 text-slate-300 hover:bg-slate-800 border border-slate-800'
+                      }`}
+                    >
+                      <span>👁️ Night Terrors</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFramesViewMode('dark_folklore')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
+                        framesViewMode === 'dark_folklore'
+                          ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-extrabold shadow-md shadow-emerald-500/25 border border-emerald-400'
+                          : 'bg-slate-900/90 text-slate-300 hover:bg-slate-800 border border-slate-800'
+                      }`}
+                    >
+                      <span>🦋 Dark Folklore</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFramesViewMode('fall_floragers')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
+                        framesViewMode === 'fall_floragers'
+                          ? 'bg-gradient-to-r from-amber-600 to-rose-600 text-white font-extrabold shadow-md shadow-amber-500/25 border border-amber-400'
+                          : 'bg-slate-900/90 text-slate-300 hover:bg-slate-800 border border-slate-800'
+                      }`}
+                    >
+                      <span>🌸 Fall Floragers</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFramesViewMode('all')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
+                        framesViewMode === 'all'
+                          ? 'bg-slate-700 text-white font-extrabold shadow-md border border-slate-600'
+                          : 'bg-slate-900/90 text-slate-400 hover:bg-slate-800 border border-slate-800'
+                      }`}
+                    >
+                      <span>Todas as Molduras ({allFrameItems.length})</span>
+                    </button>
+                  </div>
+
+                  {/* Banner de Rotação de 3 Dias (Exibido na Vitrine Rotativa) */}
+                  {framesViewMode === 'rotation' && (
+                    <div className="p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-amber-950/50 via-slate-900 to-indigo-950/40 border border-amber-500/40 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 backdrop-blur-md">
+                      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-yellow-600 text-black flex items-center justify-center font-black shadow-lg shadow-amber-500/25 flex-shrink-0">
+                          <Timer className="w-5 h-5 animate-pulse" />
                         </div>
-                        <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">
-                          Molduras e preços atualizados a cada 72h. Próxima rotação em:
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs sm:text-sm font-extrabold text-white tracking-wide flex items-center gap-1.5 truncate">
+                              <span>Vitrine Rotativa</span>
+                              <span className="text-[10px] font-black px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                Ciclo #{rotationData.cycleIndex}
+                              </span>
+                            </h4>
+                          </div>
+                          <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">
+                            Molduras e preços atualizados a cada 72h determinísticas. Próxima troca em:
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-start sm:self-center flex-wrap sm:flex-nowrap">
+                        {/* Timer Regressivo */}
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/40 border border-amber-500/40 text-amber-300 font-extrabold text-xs shadow-inner">
+                          <Clock className="w-3.5 h-3.5 text-amber-400 animate-spin [animation-duration:8s]" />
+                          <span className="tracking-wider">{formatRemainingRotationTime(rotationData.msRemaining)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Banner do Tema da Vitrine Ativa */}
+                  {framesViewMode === 'rotation' && rotationData.featuredTheme && (
+                    <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-amber-500/30 shadow-xl bg-slate-950 group">
+                      <img
+                        src={rotationData.featuredTheme.banner}
+                        alt={rotationData.featuredTheme.name}
+                        className="w-full h-24 sm:h-32 md:h-36 object-cover object-center group-hover:scale-[1.02] transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent p-3 sm:p-4 flex flex-col justify-end">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500 text-black text-[9px] sm:text-[10px] font-black uppercase shadow">
+                            {rotationData.featuredTheme.badge || 'Coleção do Ciclo ⭐'}
+                          </span>
+                          <span className="text-[9px] sm:text-[10px] text-amber-300 font-bold hidden sm:inline">
+                            Presença garantida nesta rotação
+                          </span>
+                        </div>
+                        <h4 className="text-xs sm:text-base font-black text-white mt-1">{rotationData.featuredTheme.name}</h4>
+                        <p className="text-[10px] sm:text-xs text-slate-300 line-clamp-1">{rotationData.featuredTheme.description}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Banner Exclusivo do Tema Selecionado */}
+                  {framesViewMode === 'night_terrors' && (
+                    <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-purple-500/50 shadow-2xl bg-slate-950 group">
+                      <img
+                        src="/frames/night_terrors/banner.png"
+                        alt="Night Terrors"
+                        className="w-full h-28 sm:h-40 md:h-44 object-cover object-center group-hover:scale-[1.02] transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent p-3.5 sm:p-5 flex flex-col justify-end">
+                        <span className="text-[9px] sm:text-[10px] font-black px-2.5 py-0.5 rounded-full bg-purple-600 text-white w-max uppercase shadow-md flex items-center gap-1">
+                          Night Terrors 👁️
+                        </span>
+                        <h3 className="text-sm sm:text-base md:text-lg font-black text-white mt-1.5">
+                          Coleção Oficial: Night Terrors
+                        </h3>
+                        <p className="text-[10px] sm:text-xs text-slate-300">
+                          Entidades abissais que espreitam na calada da noite, mandíbulas famintas e olhares hipnóticos.
                         </p>
                       </div>
                     </div>
+                  )}
 
-                    <div className="flex items-center gap-2 self-start sm:self-center flex-wrap sm:flex-nowrap">
-                      {/* Timer Regressivo */}
-                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/40 border border-amber-500/40 text-amber-300 font-extrabold text-xs shadow-inner">
-                        <Clock className="w-3.5 h-3.5 text-amber-400 animate-spin [animation-duration:8s]" />
-                        <span className="tracking-wider">{formatRemainingRotationTime(rotationData.msRemaining)}</span>
-                      </div>
-
-                      {/* Alternador: Vitrine Atual vs Coleção Completa */}
-                      <div className="flex bg-slate-950/80 p-0.5 rounded-xl border border-slate-800 text-[11px] font-bold">
-                        <button
-                          type="button"
-                          onClick={() => setFramesViewMode('rotation')}
-                          className={`px-2.5 py-1 rounded-lg transition-all ${
-                            framesViewMode === 'rotation'
-                              ? 'bg-amber-500 text-black font-extrabold shadow-sm'
-                              : 'text-slate-400 hover:text-white'
-                          }`}
-                        >
-                          Vitrine ({rotationData.rotatingFrames.length})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFramesViewMode('all')}
-                          className={`px-2.5 py-1 rounded-lg transition-all ${
-                            framesViewMode === 'all'
-                              ? 'bg-amber-500 text-black font-extrabold shadow-sm'
-                              : 'text-slate-400 hover:text-white'
-                          }`}
-                        >
-                          Todas ({allFrameItems.length})
-                        </button>
+                  {framesViewMode === 'dark_folklore' && (
+                    <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-emerald-500/50 shadow-2xl bg-slate-950 group">
+                      <img
+                        src="/frames/dark_folklore/banner.png"
+                        alt="Dark Folklore"
+                        className="w-full h-28 sm:h-40 md:h-44 object-cover object-center group-hover:scale-[1.02] transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent p-3.5 sm:p-5 flex flex-col justify-end">
+                        <span className="text-[9px] sm:text-[10px] font-black px-2.5 py-0.5 rounded-full bg-emerald-600 text-black w-max uppercase shadow-md flex items-center gap-1 font-bold">
+                          Dark Folklore 🦋
+                        </span>
+                        <h3 className="text-sm sm:text-base md:text-lg font-black text-white mt-1.5">
+                          Coleção Oficial: Dark Folklore
+                        </h3>
+                        <p className="text-[10px] sm:text-xs text-slate-300">
+                          Lendas sombrias e místicas da floresta negra, mariposas etéreas e damas da meia-noite.
+                        </p>
                       </div>
                     </div>
-                  </div>
+                  )}
+
+                  {framesViewMode === 'fall_floragers' && (
+                    <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-amber-500/50 shadow-2xl bg-slate-950 group">
+                      <img
+                        src="/frames/fall_floragers/banner.png"
+                        alt="Fall Floragers"
+                        className="w-full h-28 sm:h-40 md:h-44 object-cover object-center group-hover:scale-[1.02] transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent p-3.5 sm:p-5 flex flex-col justify-end">
+                        <span className="text-[9px] sm:text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-500 text-black w-max uppercase shadow-md flex items-center gap-1 font-bold">
+                          Fall Floragers 🌸
+                        </span>
+                        <h3 className="text-sm sm:text-base md:text-lg font-black text-white mt-1.5">
+                          Coleção Oficial: Fall Floragers
+                        </h3>
+                        <p className="text-[10px] sm:text-xs text-slate-300">
+                          Espíritos guardiões silvestres da colheita e primavera, botões desabrochando e pétalas mágicas.
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Card Destaque: OFERTA RELÂMPAGO DO CICLO (se houver e vitrine ativa) */}
                   {framesViewMode === 'rotation' && rotationData.flashDeal && !unlockedItems.includes(rotationData.flashDeal.id) && (
@@ -1064,11 +1206,31 @@ export function NexusShopModal({ isOpen, onClose }) {
                         )}
                       </div>
 
-                      <div className="min-w-0">
-                        <h4 className="text-xs font-extrabold text-white group-hover:text-amber-300 transition-colors truncate">
-                          {item.name}
-                        </h4>
-                        <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 leading-snug line-clamp-2">{item.description}</p>
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4 className="text-xs font-extrabold text-white group-hover:text-amber-300 transition-colors truncate">
+                            {item.name}
+                          </h4>
+                          {item.themeName && (
+                            <span className={`text-[8px] sm:text-[9px] font-black px-1.5 py-0.2 rounded border truncate ${
+                              item.theme === 'night_terrors'
+                                ? 'bg-purple-950/60 text-purple-300 border-purple-500/40'
+                                : item.theme === 'dark_folklore'
+                                ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
+                                : item.theme === 'fall_floragers'
+                                ? 'bg-amber-950/60 text-amber-300 border-amber-500/40'
+                                : 'bg-slate-800 text-slate-300 border-slate-700'
+                            }`}>
+                              {item.themeName}
+                            </span>
+                          )}
+                          {item.isAnimated && (
+                            <span className="text-[8px] font-black px-1 py-0.2 rounded bg-cyan-950/60 text-cyan-300 border border-cyan-500/40 uppercase">
+                              GIF
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] sm:text-[11px] text-slate-400 leading-snug line-clamp-2">{item.description}</p>
                       </div>
                     </div>
 

@@ -1,10 +1,66 @@
+// Temas e Coleções Oficiais de Molduras
+export const FRAME_THEMES = [
+  {
+    id: 'night_terrors',
+    name: 'Night Terrors',
+    badge: 'Night Terrors 👁️',
+    description: 'Entidades abissais que espreitam na calada da noite, mandíbulas famintas e olhares hipnóticos.',
+    banner: '/frames/night_terrors/banner.png',
+    accentColor: 'from-purple-950/80 via-slate-900 to-rose-950/70',
+    borderColor: 'border-purple-500/50'
+  },
+  {
+    id: 'dark_folklore',
+    name: 'Dark Folklore',
+    badge: 'Dark Folklore 🦋',
+    description: 'Lendas sombrias e místicas da floresta negra, mariposas etéreas e damas da meia-noite.',
+    banner: '/frames/dark_folklore/banner.png',
+    accentColor: 'from-slate-950 via-emerald-950/40 to-slate-900',
+    borderColor: 'border-emerald-500/50'
+  },
+  {
+    id: 'fall_floragers',
+    name: 'Fall Floragers',
+    badge: 'Fall Floragers 🌸',
+    description: 'Espíritos guardiões silvestres da colheita e primavera, botões desabrochando e pétalas mágicas.',
+    banner: '/frames/fall_floragers/banner.png',
+    accentColor: 'from-amber-950/50 via-slate-900 to-emerald-950/40',
+    borderColor: 'border-amber-500/50'
+  }
+];
+
 // Mapa de molduras animadas em GIF nativas
 export const FRAME_ANIMATED_ASSETS = {
   frame_beta: '/frames/beta.gif',
   frame_espirito: '/frames/Espirito.gif',
   frame_rosas: '/frames/Rosas.gif',
-  frame_espectro: '/frames/espectro.gif',
+  frame_espectro: '/frames/night_terrors/espectro.gif',
   frame_fogo: '/frames/fogo.gif',
+
+  // Coleção Dark Folklore
+  frame_chifres_demoniacos: '/frames/dark_folklore/chifres_demoniacos.gif',
+  frame_damas_da_noite: '/frames/dark_folklore/damas_da_noite.gif',
+  frame_mariposa_fantasma: '/frames/dark_folklore/mariposa_fantasma.gif',
+
+  // Coleção Fall Floragers
+  frame_coelho_primavera: '/frames/fall_floragers/coelho_primavera.gif',
+  frame_florescer: '/frames/fall_floragers/florescer.gif',
+  frame_primavera: '/frames/fall_floragers/primavera.gif',
+
+  // Coleção Night Terrors
+  frame_dentes: '/frames/night_terrors/dentes.gif',
+  frame_olho_abismo: '/frames/night_terrors/olho_abismo.gif',
+
+  // Compatibilidade com slugs diretos
+  chifres_demoniacos: '/frames/dark_folklore/chifres_demoniacos.gif',
+  damas_da_noite: '/frames/dark_folklore/damas_da_noite.gif',
+  mariposa_fantasma: '/frames/dark_folklore/mariposa_fantasma.gif',
+  coelho_primavera: '/frames/fall_floragers/coelho_primavera.gif',
+  florescer: '/frames/fall_floragers/florescer.gif',
+  primavera: '/frames/fall_floragers/primavera.gif',
+  dentes: '/frames/night_terrors/dentes.gif',
+  espectro: '/frames/night_terrors/espectro.gif',
+  olho_abismo: '/frames/night_terrors/olho_abismo.gif'
 };
 
 // Mapa de molduras em CSS / Bordas estilizadas nativas
@@ -94,10 +150,135 @@ export function getFrameStyle(frameKey) {
 
 // Catálogo Oficial da Loja Nexus e Itens de Personalização
 export const SHOP_CATALOG = [
-  // --- MOLDURAS ANIMADAS DE ALTA DEFINIÇÃO (GIFS) ---
+  // --- COLEÇÃO NIGHT TERRORS (TERROR NOTURNO) ---
+  {
+    id: 'frame_dentes',
+    category: 'frames',
+    theme: 'night_terrors',
+    themeName: 'Night Terrors',
+    themeBanner: '/frames/night_terrors/banner.png',
+    name: 'Mandíbula do Pesadelo',
+    description: 'Presas aterradoras que cercam seu avatar com uma mordida sombria',
+    price: 420,
+    icon: '🦷',
+    image: '/frames/night_terrors/dentes.gif',
+    isAnimated: true
+  },
+  {
+    id: 'frame_espectro',
+    category: 'frames',
+    theme: 'night_terrors',
+    themeName: 'Night Terrors',
+    themeBanner: '/frames/night_terrors/banner.png',
+    name: 'Espectro dos Pesadelos',
+    description: 'Entidade espectral que emerge dos terrores noturnos com distorção dimensional',
+    price: 350,
+    icon: '👁️‍🗨️',
+    image: '/frames/night_terrors/espectro.gif',
+    isAnimated: true
+  },
+  {
+    id: 'frame_olho_abismo',
+    category: 'frames',
+    theme: 'night_terrors',
+    themeName: 'Night Terrors',
+    themeBanner: '/frames/night_terrors/banner.png',
+    name: 'Olho do Abismo',
+    description: 'Olhares cósmicos hipnóticos que fitam a escuridão absoluta do vácuo',
+    price: 450,
+    icon: '👁️',
+    image: '/frames/night_terrors/olho_abismo.gif',
+    isAnimated: true
+  },
+
+  // --- COLEÇÃO DARK FOLKLORE (LENDAS ANCESTRAIS) ---
+  {
+    id: 'frame_chifres_demoniacos',
+    category: 'frames',
+    theme: 'dark_folklore',
+    themeName: 'Dark Folklore',
+    themeBanner: '/frames/dark_folklore/banner.png',
+    name: 'Chifres Demoníacos',
+    description: 'Chifres ancestrais corrompidos emitindo fumaça e poder místico',
+    price: 390,
+    icon: '😈',
+    image: '/frames/dark_folklore/chifres_demoniacos.gif',
+    isAnimated: true
+  },
+  {
+    id: 'frame_damas_da_noite',
+    category: 'frames',
+    theme: 'dark_folklore',
+    themeName: 'Dark Folklore',
+    themeBanner: '/frames/dark_folklore/banner.png',
+    name: 'Damas da Noite',
+    description: 'Flores noturnas encantadas com pétalas sombrias e névoa envenenada',
+    price: 410,
+    icon: '🥀',
+    image: '/frames/dark_folklore/damas_da_noite.gif',
+    isAnimated: true
+  },
+  {
+    id: 'frame_mariposa_fantasma',
+    category: 'frames',
+    theme: 'dark_folklore',
+    themeName: 'Dark Folklore',
+    themeBanner: '/frames/dark_folklore/banner.png',
+    name: 'Mariposa Fantasma',
+    description: 'Mariposas bioluminescentes que dançam ao redor do avatar guiando espíritos',
+    price: 440,
+    icon: '🦋',
+    image: '/frames/dark_folklore/mariposa_fantasma.gif',
+    isAnimated: true
+  },
+
+  // --- COLEÇÃO FALL FLORAGERS (ESPÍRITOS SILVESTRES) ---
+  {
+    id: 'frame_coelho_primavera',
+    category: 'frames',
+    theme: 'fall_floragers',
+    themeName: 'Fall Floragers',
+    themeBanner: '/frames/fall_floragers/banner.png',
+    name: 'Coelho da Primavera',
+    description: 'Espírito sagrado dos bosques com orelhas mágicas e folhas vivas',
+    price: 360,
+    icon: '🐰',
+    image: '/frames/fall_floragers/coelho_primavera.gif',
+    isAnimated: true
+  },
+  {
+    id: 'frame_florescer',
+    category: 'frames',
+    theme: 'fall_floragers',
+    themeName: 'Fall Floragers',
+    themeBanner: '/frames/fall_floragers/banner.png',
+    name: 'Florescer Místico',
+    description: 'Encanto primaveril com botões de flores e pólen místico cintilante',
+    price: 390,
+    icon: '🌸',
+    image: '/frames/fall_floragers/florescer.gif',
+    isAnimated: true
+  },
+  {
+    id: 'frame_primavera',
+    category: 'frames',
+    theme: 'fall_floragers',
+    themeName: 'Fall Floragers',
+    themeBanner: '/frames/fall_floragers/banner.png',
+    name: 'Primavera Silvestre',
+    description: 'Aura suave da floresta com folhagens vivas e pétalas douradas fluindo',
+    price: 370,
+    icon: '🍃',
+    image: '/frames/fall_floragers/primavera.gif',
+    isAnimated: true
+  },
+
+  // --- MOLDURAS ANIMADAS CLÁSSICAS (GIFS) ---
   {
     id: 'frame_beta',
     category: 'frames',
+    theme: 'classics',
+    themeName: 'Clássicas',
     name: 'Moldura BETA TESTER',
     description: 'Moldura holográfica animada exclusiva para testadores beta oficiais',
     price: 0,
@@ -109,6 +290,8 @@ export const SHOP_CATALOG = [
   {
     id: 'frame_espirito',
     category: 'frames',
+    theme: 'classics',
+    themeName: 'Clássicas',
     name: 'Espírito Espectral',
     description: 'Moldura mística animada com aura de espíritos e almas',
     price: 350,
@@ -119,6 +302,8 @@ export const SHOP_CATALOG = [
   {
     id: 'frame_rosas',
     category: 'frames',
+    theme: 'classics',
+    themeName: 'Clássicas',
     name: 'Rosas Carmesim',
     description: 'Moldura animada de rosas góticas flutuantes',
     price: 300,
@@ -127,18 +312,10 @@ export const SHOP_CATALOG = [
     isAnimated: true
   },
   {
-    id: 'frame_espectro',
-    category: 'frames',
-    name: 'Espectro Cósmico',
-    description: 'Moldura animada com distorção de energia dimensional',
-    price: 250,
-    icon: '🔮',
-    image: '/frames/espectro.gif',
-    isAnimated: true
-  },
-  {
     id: 'frame_fogo',
     category: 'frames',
+    theme: 'classics',
+    themeName: 'Clássicas',
     name: 'Chamas Infernais',
     description: 'Moldura animada de fogo ardente em alta definição',
     price: 280,

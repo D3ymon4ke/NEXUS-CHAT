@@ -1,3 +1,5 @@
+import { FRAME_THEMES } from './shopCatalog';
+
 /**
  * shopRotation.js
  * Motor de Rotação da Loja Nexus (Ciclos de 3 dias / 72 horas)
@@ -66,6 +68,7 @@ function createPRNG(seed) {
   };
 }
 
+
 /**
  * Calcula o estado completo da rotação de 3 dias para a lista de molduras
  * 
@@ -82,6 +85,16 @@ export function calculateFrameRotation(allFrames = [], customOffset = null, cust
   const naturalCycleIndex = Math.floor((now - ROTATION_EPOCH) / ROTATION_CYCLE_MS);
   const cycleIndex = naturalCycleIndex + offset;
 
+  // Determinar o Tema em Destaque do Ciclo (Night Terrors, Dark Folklore, Fall Floragers)
+  const themeKeys = ['night_terrors', 'dark_folklore', 'fall_floragers'];
+  const themeIndex = Math.abs(cycleIndex) % themeKeys.length;
+  const featuredThemeKey = themeKeys[themeIndex];
+  const featuredTheme = (FRAME_THEMES && FRAME_THEMES.find(t => t.id === featuredThemeKey)) || {
+    id: featuredThemeKey,
+    name: featuredThemeKey.replace(/_/g, ' ').toUpperCase(),
+    banner: `/frames/${featuredThemeKey}/banner.png`
+  };
+
   // Próxima troca no calendário natural
   const nextRotationTimestamp = (naturalCycleIndex + 1) * ROTATION_CYCLE_MS + ROTATION_EPOCH;
   const msRemaining = Math.max(0, nextRotationTimestamp - now);
@@ -91,6 +104,7 @@ export function calculateFrameRotation(allFrames = [], customOffset = null, cust
       cycleIndex,
       nextRotationTimestamp,
       msRemaining,
+      featuredTheme,
       rotatingFrames: [],
       flashDeal: null,
       weeklyDeal: null,
@@ -112,7 +126,12 @@ export function calculateFrameRotation(allFrames = [], customOffset = null, cust
     return false;
   });
 
-  const regularFrames = validFrames.filter(f => !newFrames.some(nf => nf.id === f.id));
+  // Molduras pertencentes ao Tema em Destaque deste ciclo
+  const featuredThemeFrames = validFrames.filter(f => f.theme === featuredThemeKey);
+
+  const regularFrames = validFrames.filter(
+    f => !newFrames.some(nf => nf.id === f.id) && !featuredThemeFrames.some(ftf => ftf.id === f.id)
+  );
 
   // Inicializar o PRNG determinístico para este ciclo
   const rng = createPRNG(cycleIndex * 7919 + 42);
@@ -124,11 +143,21 @@ export function calculateFrameRotation(allFrames = [], customOffset = null, cust
     [shuffledRegular[i], shuffledRegular[j]] = [shuffledRegular[j], shuffledRegular[i]];
   }
 
-  // Tamanho desejado da vitrine de molduras por ciclo (5 a 7 molduras)
-  const targetVitrineCount = Math.min(validFrames.length, Math.max(5, Math.min(7, validFrames.length)));
+  // Tamanho desejado da vitrine de molduras por ciclo (8 a 10 molduras ativas)
+  const targetVitrineCount = Math.min(validFrames.length, Math.max(8, Math.min(10, validFrames.length)));
 
-  // Novas molduras ganham vaga prioritária na vitrine com selo de NOVIDADE!
+  // Montar o Pool da Vitrine:
+  // 1. Molduras novas ganham vaga prioritária
+  // 2. Molduras do Tema em Destaque do ciclo ganham presença garantida
+  // 3. Molduras regulares sorteadas completam a vitrine
   const selectedPool = [...newFrames];
+
+  for (const f of featuredThemeFrames) {
+    if (!selectedPool.some(p => p.id === f.id)) {
+      selectedPool.push(f);
+    }
+  }
+
   for (const frame of shuffledRegular) {
     if (selectedPool.length >= targetVitrineCount) break;
     if (!selectedPool.some(p => p.id === frame.id)) {
@@ -159,6 +188,7 @@ export function calculateFrameRotation(allFrames = [], customOffset = null, cust
 
   const rotatingFrames = selectedPool.map((frame, idx) => {
     const isNew = newFrames.some(nf => nf.id === frame.id);
+    const isThemeFeatured = frame.theme === featuredThemeKey;
     const basePrice = typeof frame.price === 'number' ? frame.price : 200;
 
     // Se o item for gratuito ou exclusivo (ex: frame_beta), não altera preço
@@ -204,6 +234,8 @@ export function calculateFrameRotation(allFrames = [], customOffset = null, cust
       tag = `🔥 PROMO -${discountPercent}%`;
     } else if (isNew) {
       tag = 'NOVIDADE 🔥';
+    } else if (isThemeFeatured) {
+      tag = `${featuredTheme.name.toUpperCase()} ⭐`;
     } else if (dynamicBasePrice < basePrice) {
       tag = 'EM BAIXA 📉';
     }
@@ -217,6 +249,7 @@ export function calculateFrameRotation(allFrames = [], customOffset = null, cust
       isFlashDeal: isFlash,
       isWeeklyDeal: isWeekly,
       isNewItem: isNew,
+      isThemeFeatured,
       rotationTag: tag
     };
 
@@ -234,6 +267,8 @@ export function calculateFrameRotation(allFrames = [], customOffset = null, cust
     if (!a.isNewItem && b.isNewItem) return 1;
     if (a.isWeeklyDeal && !b.isWeeklyDeal) return -1;
     if (!a.isWeeklyDeal && b.isWeeklyDeal) return 1;
+    if (a.isThemeFeatured && !b.isThemeFeatured) return -1;
+    if (!a.isThemeFeatured && b.isThemeFeatured) return 1;
     return 0;
   });
 
@@ -241,6 +276,7 @@ export function calculateFrameRotation(allFrames = [], customOffset = null, cust
     cycleIndex,
     nextRotationTimestamp,
     msRemaining,
+    featuredTheme,
     rotatingFrames,
     flashDeal: flashDealItem,
     weeklyDeal: weeklyDealItem,
