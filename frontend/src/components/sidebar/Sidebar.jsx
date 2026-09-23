@@ -160,6 +160,7 @@ const ConversationRow = React.memo(function ConversationRow({
   isOnline,
   activeMasterIdentity,
   activeAction,
+  currentUserId,
   timeString,
   previewContent,
   onSelect,
@@ -186,6 +187,7 @@ const ConversationRow = React.memo(function ConversationRow({
     : conv.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${conv.id}`;
 
   const hasUnread = conv.unread_count > 0 && !isActive;
+  const isOwnPreview = conv.last_message?.sender_id && conv.last_message.sender_id === currentUserId;
 
   return (
     <div
@@ -194,7 +196,7 @@ const ConversationRow = React.memo(function ConversationRow({
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
       onTouchMove={onTouchMove}
-      className={`group p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-all border relative overflow-hidden select-none ${
+      className={`group min-h-[68px] p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-all border relative overflow-hidden select-none active:scale-[0.985] ${
         activeMasterIdentity
           ? 'bg-gradient-to-r from-rose-950/40 via-slate-900 to-slate-900 border-rose-500/50 shadow-md'
           : isBelmont
@@ -361,7 +363,7 @@ const ConversationRow = React.memo(function ConversationRow({
                 )}
               </span>
             ) : previewContent ? (
-              <span>{previewContent}</span>
+              <span><span className="sr-only">Última mensagem: </span>{isOwnPreview ? 'Você: ' : ''}{previewContent}</span>
             ) : isBelmont ? (
               <span className="text-amber-400/80">Sala permanente para todos os membros</span>
             ) : (
@@ -1536,6 +1538,7 @@ export function Sidebar({
                 isOnline={isOnline}
                 activeMasterIdentity={activeMasterIdentity}
                 activeAction={activeAction}
+                currentUserId={user?.id}
                 timeString={timeString}
                 previewContent={previewContent}
                 onSelect={() => {

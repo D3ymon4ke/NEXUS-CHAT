@@ -94,6 +94,8 @@ Acesse `http://localhost:3000` no seu navegador.
 - Super DM organizado em duas etapas: identidade e destinatário.
 - Proteção contra selecionar a mesma conta como identidade e destinatário.
 - Barra de identidade administrativa compatível com notch e seletor em largura total no celular.
+- Preview da última mensagem reconciliado por data entre cache, API e eventos em tempo real, sem regressão para mensagens antigas.
+- Hub mobile com retomada rápida da conversa recente, contador de pendências e alvos de toque maiores.
 ## ✅ Validação local
 
 ```bash

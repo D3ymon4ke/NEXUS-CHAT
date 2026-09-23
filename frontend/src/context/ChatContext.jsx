@@ -58,6 +58,33 @@ export const sortConversationsList = (convList = [], pinnedIds = []) => {
   });
 };
 
+const getMessageTimestamp = (message) => {
+  const timestamp = new Date(message?.created_at || message?.createdAt || 0).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+// Evita que uma resposta HTTP atrasada sobrescreva previews que já chegaram por realtime.
+export const reconcileConversations = (serverList = [], localList = []) => {
+  const localById = new Map((Array.isArray(localList) ? localList : []).filter(Boolean).map((conv) => [conv.id, conv]));
+
+  return (Array.isArray(serverList) ? serverList : []).map((serverConv) => {
+    const localConv = localById.get(serverConv?.id);
+    if (!localConv) return serverConv;
+
+    const serverMessageTime = getMessageTimestamp(serverConv.last_message);
+    const localMessageTime = getMessageTimestamp(localConv.last_message);
+
+    return localMessageTime > serverMessageTime
+      ? {
+          ...serverConv,
+          last_message: localConv.last_message,
+          updated_at: localConv.updated_at || serverConv.updated_at,
+          unread_count: Math.max(serverConv.unread_count || 0, localConv.unread_count || 0)
+        }
+      : serverConv;
+  });
+};
+
 export const mergeAndDeduplicateMessages = (currentList = [], incomingList = []) => {
   const current = Array.isArray(currentList) ? currentList : [];
   const incoming = Array.isArray(incomingList) ? incomingList : [];
@@ -432,7 +459,8 @@ export function ChatProvider({ children }) {
         });
 
         const currentPins = getStoredPins(currentUser?.id);
-        const sorted = sortConversationsList(res.conversations, currentPins);
+        const reconciled = reconcileConversations(res.conversations, conversationsRef.current);
+        const sorted = sortConversationsList(reconciled, currentPins);
         setConversations(sorted);
 
         // Salvar no IndexedDB persistente
@@ -449,6 +477,19 @@ export function ChatProvider({ children }) {
       setLoadingConversations(false);
     }
   }, []);
+
+  // Mantém o preview mais recente disponível após reload/PWA sem depender de uma nova requisição.
+  useEffect(() => {
+    if (!user?.id || !Array.isArray(conversations) || conversations.length === 0) return;
+    const timeoutId = window.setTimeout(() => {
+      try {
+        localStorage.setItem(`nexus_cached_conversations_${user.id}`, JSON.stringify(conversations));
+      } catch (e) {}
+      nexusStorage.saveConversations(conversations);
+    }, 180);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [conversations, user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -1712,6 +1753,20 @@ export function ChatProvider({ children }) {
       nexusStorage.saveMessages(activeConversationId, updated);
       return updated;
     });
+    setConversations((prev) =>
+      sortConversationsList(
+        prev.map((conversation) =>
+          conversation.id === activeConversationId
+            ? {
+                ...conversation,
+                last_message: optimisticMessage,
+                updated_at: optimisticMessage.created_at
+              }
+            : conversation
+        ),
+        pinnedConversationIdsRef.current
+      )
+    );
     setReplyingTo(null);
     sounds.playSend();
 

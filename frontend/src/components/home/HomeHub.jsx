@@ -186,6 +186,11 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
 
   const belmontConv = (conversations || []).find((c) => c.id === BELMONT_ID || c.is_permanent);
   const belmontUnreadCount = belmontConv?.unread_count || 0;
+  const unreadCount = (conversations || []).reduce((total, conversation) => total + (conversation?.unread_count || 0), 0);
+  const recentConversation = (conversations || []).find((conversation) => conversation?.last_message && conversation.id !== BELMONT_ID) || belmontConv;
+  const recentConversationName = recentConversation?.type === 'direct'
+    ? recentConversation.direct_user?.display_name || recentConversation.direct_user?.username || 'Conversa direta'
+    : recentConversation?.name || 'Belmont Conference';
 
   const isAdmin = user?.role === 'admin' || user?.username === 'damon';
 
@@ -329,7 +334,7 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
   const hasRecentPatches = (patchNotes || []).some((p) => isWithin24Hours(p.created_at));
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-gradient-to-b from-background-darker via-background-dark to-background-darker overflow-y-auto relative select-none box-border">
+    <div className="flex-1 flex flex-col h-full bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.14),transparent_34%),linear-gradient(to_bottom,#070b16,#0b1020_45%,#070b16)] overflow-y-auto relative select-none box-border">
       {/* Background Decorativo Glow */}
       <div className="absolute top-0 right-1/4 w-96 h-96 bg-brand-600/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute top-1/2 left-10 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -339,7 +344,7 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
         {onBack && (
           <button
             onClick={onBack}
-            className="md:hidden flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900/90 border border-slate-700/80 text-slate-200 font-bold text-xs shadow-lg active:scale-95 transition-all"
+            className="md:hidden min-h-11 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-2xl bg-slate-900/90 border border-slate-700/80 text-slate-200 font-bold text-xs shadow-lg active:scale-95 transition-all"
           >
             <ChevronLeft className="w-4 h-4 text-amber-400" />
             <span>Voltar para Lista de Conversas</span>
@@ -418,10 +423,10 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
             </div>
 
             {/* Ações de Acesso Rápido em Linha Compacta */}
-            <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 sm:gap-2 w-full md:w-auto">
+            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full md:w-auto">
               <button
                 onClick={handleGoToConversations}
-                className="px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 text-black font-extrabold text-xs shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap relative group"
+                className="min-h-11 px-3 sm:px-4 py-2 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 text-black font-extrabold text-xs shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap relative group"
                 title="Acessar lista de conversas e escolher onde entrar"
               >
                 <Crown className="w-3.5 h-3.5 flex-shrink-0" />
@@ -438,7 +443,7 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
               {onOpenCasino && (
                 <button
                   onClick={onOpenCasino}
-                  className="px-3 sm:px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-900/60 to-slate-900/90 hover:from-purple-800/80 text-white font-bold text-xs border border-purple-500/50 backdrop-blur-sm transition-all flex items-center justify-center gap-1 active:scale-95 shadow-md shadow-purple-500/20"
+                  className="min-h-11 px-3 sm:px-3.5 py-2 rounded-2xl bg-gradient-to-r from-purple-900/60 to-slate-900/90 hover:from-purple-800/80 text-white font-bold text-xs border border-purple-500/50 backdrop-blur-sm transition-all flex items-center justify-center gap-1 active:scale-95 shadow-md shadow-purple-500/20"
                 >
                   <span className="text-xs">🎰</span> <span className="truncate">Cassino</span>
                 </button>
@@ -446,7 +451,7 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
               {onOpenShop && (
                 <button
                   onClick={onOpenShop}
-                  className="px-3 sm:px-3.5 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-white font-bold text-xs border border-slate-700/80 backdrop-blur-sm transition-all flex items-center justify-center gap-1 active:scale-95"
+                  className="min-h-11 px-3 sm:px-3.5 py-2 rounded-2xl bg-slate-900/80 hover:bg-slate-800 text-white font-bold text-xs border border-slate-700/80 backdrop-blur-sm transition-all flex items-center justify-center gap-1 active:scale-95"
                 >
                   <ShoppingBag className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" /> <span className="truncate">Loja</span>
                 </button>
@@ -454,7 +459,7 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
               {onOpenWallet && (
                 <button
                   onClick={onOpenWallet}
-                  className="px-3 sm:px-3.5 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-white font-bold text-xs border border-slate-700/80 backdrop-blur-sm transition-all flex items-center justify-center gap-1 active:scale-95"
+                  className="min-h-11 px-3 sm:px-3.5 py-2 rounded-2xl bg-slate-900/80 hover:bg-slate-800 text-white font-bold text-xs border border-slate-700/80 backdrop-blur-sm transition-all flex items-center justify-center gap-1 active:scale-95"
                 >
                   <Coins className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" /> <span className="truncate">Carteira</span>
                 </button>
@@ -463,6 +468,39 @@ export function HomeHub({ onOpenChat, onOpenConversations, onOpenShop, onOpenWal
           </div>
         </div>
 
+        {/* Resumo acionável para a abertura do app no celular */}
+        <section className="grid grid-cols-[1fr_auto] gap-2.5 rounded-3xl border border-indigo-400/20 bg-slate-950/65 p-3 shadow-xl backdrop-blur-xl sm:p-4">
+          <button
+            type="button"
+            onClick={() => {
+              if (recentConversation?.id) {
+                setActiveConversationId(recentConversation.id);
+                onOpenChat?.(recentConversation.id);
+              } else {
+                handleGoToConversations();
+              }
+            }}
+            className="min-h-[64px] min-w-0 rounded-2xl border border-slate-700/70 bg-gradient-to-r from-indigo-500/15 to-cyan-500/5 p-3 text-left transition-all active:scale-[0.98]"
+          >
+            <span className="mb-1 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-indigo-300">
+              <Radio className="h-3.5 w-3.5" /> Continuar conversa
+            </span>
+            <span className="block truncate text-sm font-extrabold text-white">{recentConversationName}</span>
+            <span className="block truncate text-[11px] text-slate-400">
+              {recentConversation?.last_message?.content || 'Abra suas conversas e fale com seus amigos'}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={handleGoToConversations}
+            className="flex min-h-[64px] min-w-[72px] flex-col items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3 text-amber-300 transition-all active:scale-95"
+            aria-label={`${unreadCount} mensagens não lidas`}
+          >
+            <MessageSquare className="h-5 w-5" />
+            <span className="mt-1 text-lg font-black leading-none">{unreadCount > 99 ? '99+' : unreadCount}</span>
+            <span className="text-[9px] font-bold uppercase tracking-wide">pendentes</span>
+          </button>
+        </section>
         {/* BANNER DESTAQUE: ATUALIZAÇÃO DA LOJA - NOVAS MOLDURAS DISPONÍVEIS */}
         {onOpenShop && (
           <div

@@ -83,7 +83,13 @@ async function getUserConversations(req, res) {
           let lastMsg = null;
           const cachedMsgs = getCachedMessages(conv.id);
           if (cachedMsgs && cachedMsgs.length > 0) {
-            lastMsg = cachedMsgs[cachedMsgs.length - 1];
+            // Confirmações podem chegar fora de ordem; escolhe a mensagem realmente mais recente.
+            lastMsg = cachedMsgs.reduce((latest, message) => {
+              if (!latest) return message;
+              const latestTime = new Date(latest.created_at || latest.createdAt || 0).getTime();
+              const messageTime = new Date(message.created_at || message.createdAt || 0).getTime();
+              return messageTime >= latestTime ? message : latest;
+            }, null);
           } else if (isConfigured && supabase) {
             const { data } = await supabase
               .from('messages')
