@@ -1155,7 +1155,7 @@ export function Sidebar({
       </div>
 
       {/* Lista de Conversas & Super DM Card */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+      <div className="flex-1 overflow-y-auto px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 space-y-1.5">
         {/* CARD SUPER DM & ALTERNADOR DE CONTAS (VISÍVEL QUANDO NA ABA MASTER) */}
         {filterTab === 'master' && (
           <div className="space-y-2.5 mb-3">
@@ -1184,28 +1184,32 @@ export function Sidebar({
             )}
 
             {/* CARD SUPER DM MASTER */}
-            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-rose-950/50 via-slate-900 to-red-950/40 border border-rose-500/40 shadow-xl space-y-3 animate-fadeIn">
-              <div className="flex items-center gap-2">
-                <span className="text-base">🎭</span>
+            <div className="relative overflow-hidden p-4 rounded-[1.5rem] bg-gradient-to-br from-rose-950/80 via-slate-950 to-purple-950/60 border border-rose-400/40 shadow-[0_18px_50px_rgba(159,18,57,.2)] space-y-4 animate-fadeIn ring-1 ring-white/5">
+              <div className="relative flex items-center gap-3">
+                <span className="w-10 h-10 rounded-2xl bg-rose-500/15 border border-rose-400/30 flex items-center justify-center text-lg shadow-inner flex-shrink-0">🎭</span>
                 <div>
-                  <h4 className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                  <h4 className="text-sm font-black text-white flex items-center gap-1.5">
                     <span>Super DM Secreta</span>
                     <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 uppercase font-extrabold">
                       Master
                     </span>
                   </h4>
-                  <p className="text-[10px] text-slate-400">
-                    Escolha a identidade e o destinatário para responder diretamente sem desconectar.
+                  <p className="text-[11px] text-slate-400 leading-relaxed mt-0.5">
+                    Abra uma conversa usando outra identidade, sem encerrar sua sessão administrativa.
                   </p>
                 </div>
               </div>
 
               <div>
-                <label className="text-[10px] text-slate-400 font-bold block mb-1">1. Responder como (Identidade)</label>
+                <label className="text-xs text-slate-200 font-extrabold flex items-center gap-2 mb-2"><span className="w-6 h-6 rounded-lg bg-rose-500/20 border border-rose-500/30 text-rose-300 flex items-center justify-center text-[10px]">1</span>Escolha a identidade</label>
                 <select
                   value={superDmIdentityUser}
-                  onChange={(e) => setSuperDmIdentityUser(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-rose-500"
+                  onChange={(e) => {
+                    const nextIdentity = e.target.value;
+                    setSuperDmIdentityUser(nextIdentity);
+                    if (superDmTargetConv === `user:${nextIdentity}`) setSuperDmTargetConv('');
+                  }}
+                  className="w-full min-h-12 px-3.5 py-3 rounded-2xl bg-slate-950/80 border border-slate-700/80 text-base sm:text-sm text-white focus:border-rose-400 focus:ring-2 focus:ring-rose-500/15 shadow-inner"
                 >
                   <option value="">Selecione a identidade...</option>
                   {(allUsersList.length > 0 ? allUsersList : allProfiles || []).map((u) => (
@@ -1217,11 +1221,11 @@ export function Sidebar({
               </div>
 
               <div>
-                <label className="text-[10px] text-slate-400 font-bold block mb-1">2. Enviar para (Destinatário)</label>
+                <label className="text-xs text-slate-200 font-extrabold flex items-center gap-2 mb-2"><span className="w-6 h-6 rounded-lg bg-purple-500/20 border border-purple-500/30 text-purple-300 flex items-center justify-center text-[10px]">2</span>Escolha o destinatário</label>
                 <select
                   value={superDmTargetConv}
                   onChange={(e) => setSuperDmTargetConv(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-background-dark border border-slate-700 text-xs text-white focus:border-rose-500 font-medium"
+                  className="w-full min-h-12 px-3.5 py-3 rounded-2xl bg-slate-950/80 border border-slate-700/80 text-base sm:text-sm text-white focus:border-purple-400 focus:ring-2 focus:ring-purple-500/15 font-medium shadow-inner"
                 >
                   <option value="">Selecione o destinatário...</option>
 
@@ -1253,7 +1257,7 @@ export function Sidebar({
                   type="button"
                   onClick={handleStartSuperDm}
                   disabled={!superDmTargetConv || !superDmIdentityUser || startingSuperDm}
-                  className={`py-2 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-lg transition-all ${
+                  className={`mobile-touch-target min-h-12 py-3 px-4 rounded-2xl text-xs font-extrabold flex items-center justify-center gap-2 shadow-lg transition-all ${
                     superDmTargetConv && superDmIdentityUser
                       ? 'bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 hover:from-rose-500 text-white shadow-rose-600/30 active:scale-95'
                       : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
@@ -1270,7 +1274,7 @@ export function Sidebar({
                     const found = (allUsersList.length > 0 ? allUsersList : allProfiles || []).find((u) => u.id === superDmIdentityUser);
                     if (found) impersonateUser(found);
                   }}
-                  className={`py-2 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-lg transition-all ${
+                  className={`mobile-touch-target min-h-12 py-3 px-4 rounded-2xl text-xs font-extrabold flex items-center justify-center gap-2 shadow-lg transition-all ${
                     superDmIdentityUser
                       ? 'bg-purple-600/40 hover:bg-purple-600/60 text-purple-200 border border-purple-500/50 active:scale-95'
                       : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'

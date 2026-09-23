@@ -87,6 +87,13 @@ Acesse `http://localhost:3000` no seu navegador.
 - Teclado virtual sincronizado com `Visual Viewport`, reduzindo saltos no Safari e Chrome móvel.
 - Menus de emoji e mensagens temporárias respeitam a safe area inferior.
 - Balões de mensagem se ajustam a telas estreitas sem overflow horizontal.
+## ✨ Interface mobile e administração
+
+- Login em formato bottom sheet com identidade visual Belmont/Nexus, campos de alto contraste e navegação tátil.
+- Feedbacks de erro e sucesso acessíveis para leitores de tela.
+- Super DM organizado em duas etapas: identidade e destinatário.
+- Proteção contra selecionar a mesma conta como identidade e destinatário.
+- Barra de identidade administrativa compatível com notch e seletor em largura total no celular.
 ## ✅ Validação local
 
 ```bash

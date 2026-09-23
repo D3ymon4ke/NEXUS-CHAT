@@ -166,8 +166,8 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-xl animate-fadeIn select-none">
-      <div className="glass-modal w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-3xl p-5 sm:p-7 shadow-2xl border-t sm:border border-slate-700/80 relative overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+    <div className="auth-backdrop fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn select-none">
+      <div className="auth-card glass-modal w-full sm:max-w-md rounded-t-[2rem] sm:rounded-[2rem] px-4 pt-3 sm:p-7 shadow-2xl border-t sm:border border-white/10 relative overflow-x-hidden flex flex-col max-h-[94dvh] sm:max-h-[90vh] overflow-y-auto pb-[max(1.25rem,env(safe-area-inset-bottom))]">
         {/* Barra superior de puxar (Mobile Handle) */}
         <div className="flex justify-center pt-1 pb-2 sm:hidden">
           <div className="w-12 h-1.5 rounded-full bg-slate-700/80" />
@@ -181,27 +181,33 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
         <button
           type="button"
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white bg-slate-800/60 hover:bg-slate-800 transition z-20"
+          className="mobile-touch-target absolute top-3 right-3 sm:top-4 sm:right-4 rounded-2xl text-slate-400 hover:text-white bg-slate-900/70 hover:bg-slate-800 transition z-20 flex items-center justify-center border border-white/5"
           title="Fechar"
         >
           <X className="w-4 h-4" />
         </button>
 
         {/* Header do Modal */}
-        <div className="flex flex-col items-center text-center mb-4 relative z-10">
+        <div className="flex flex-col items-center text-center mb-5 relative z-10 pt-1 sm:pt-0">
           <div className="relative mb-2.5">
-            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-brand-600 via-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-brand-500/30 border border-brand-400/30">
+            <div className="w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] rounded-[1.35rem] bg-gradient-to-tr from-brand-600 via-indigo-600 to-purple-600 flex items-center justify-center shadow-[0_16px_45px_rgba(99,102,241,.35)] border border-white/20 ring-4 ring-brand-500/10">
               {isBetaInvite ? (
                 <span className="text-3xl">🧪</span>
               ) : (
-                <MessageSquare className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+                <img src="/logov2.gif" alt="Nexus Chat" className="w-11 h-11 sm:w-12 sm:h-12 object-contain drop-shadow-lg" />
               )}
             </div>
             <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-slate-900 ring-2 ring-emerald-500/40" />
           </div>
 
-          <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">Nexus Chat</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Mensagens e conexões em tempo real</p>
+          <span className="text-[10px] font-black uppercase tracking-[0.24em] text-brand-300 mb-1">Belmont Network</span>
+          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Nexus Chat</h2>
+          <p className="text-xs sm:text-sm text-slate-400 mt-1">Seu espaço privado para conversar com amigos.</p>
+          <div className="mt-3 flex items-center justify-center gap-2 text-[10px] font-bold text-slate-300">
+            <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">● Tempo real</span>
+            <span className="px-2.5 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-200">🔒 Privado</span>
+            <span className="px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-200">📱 Mobile</span>
+          </div>
 
           {/* Banner de Convite de Testador Beta */}
           {isBetaInvite && (
@@ -249,7 +255,7 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
         ) : (
           <>
             {/* Tabs de Navegação Mobile-Friendly */}
-            <div className="flex bg-background-surface/90 p-1 rounded-2xl mb-4 border border-slate-700/60 relative z-10 overflow-x-auto no-scrollbar gap-1">
+            <div className="sticky top-0 flex bg-slate-950/90 p-1.5 rounded-2xl mb-5 border border-white/10 relative z-20 overflow-x-auto no-scrollbar gap-1 shadow-xl backdrop-blur-xl">
               {savedAccounts.length > 0 && (
                 <button
                   type="button"
@@ -260,7 +266,7 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
                     setError('');
                     setSuccessMsg('');
                   }}
-                  className={`flex-1 min-w-[85px] py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1 ${
+                  className={`flex-1 min-w-[85px] min-h-11 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1 ${
                     tab === 'saved'
                       ? 'bg-gradient-to-r from-brand-600 to-indigo-600 text-white shadow-md'
                       : 'text-slate-400 hover:text-slate-200'
@@ -280,7 +286,7 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
                   setError('');
                   setSuccessMsg('');
                 }}
-                className={`flex-1 min-w-[70px] py-2 text-xs font-bold rounded-xl transition-all ${
+                className={`flex-1 min-w-[70px] min-h-11 py-2.5 text-xs font-bold rounded-xl transition-all ${
                   tab === 'login'
                     ? 'bg-gradient-to-r from-brand-600 to-indigo-600 text-white shadow-md'
                     : 'text-slate-400 hover:text-slate-200'
@@ -298,7 +304,7 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
                   setError('');
                   setSuccessMsg('');
                 }}
-                className={`flex-1 min-w-[80px] py-2 text-xs font-bold rounded-xl transition-all ${
+                className={`flex-1 min-w-[80px] min-h-11 py-2.5 text-xs font-bold rounded-xl transition-all ${
                   tab === 'register'
                     ? 'bg-gradient-to-r from-brand-600 to-indigo-600 text-white shadow-md'
                     : 'text-slate-400 hover:text-slate-200'
@@ -316,7 +322,7 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
                   setError('');
                   setSuccessMsg('');
                 }}
-                className={`flex-1 min-w-[75px] py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1 ${
+                className={`flex-1 min-w-[75px] min-h-11 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1 ${
                   tab === 'demo'
                     ? 'bg-indigo-600 text-white shadow-md'
                     : 'text-indigo-400 hover:text-indigo-300'
@@ -328,14 +334,14 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
 
             {/* Mensagens de Erro e Sucesso */}
             {error && (
-              <div className="mb-3.5 p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2 animate-shake">
+              <div role="alert" aria-live="assertive" className="mb-3.5 p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2 animate-shake">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 <span className="leading-tight flex-1">{error}</span>
               </div>
             )}
 
             {successMsg && (
-              <div className="mb-3.5 p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
+              <div role="status" aria-live="polite" className="mb-3.5 p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 flex-shrink-0" />
                 <span className="flex-1">{successMsg}</span>
               </div>
@@ -491,7 +497,7 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
                       placeholder="seu.email@exemplo.com"
-                      className="w-full pl-10 pr-4 py-3 rounded-2xl bg-background-surface border border-slate-700 text-slate-100 placeholder-slate-500 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
+                      className="premium-input w-full pl-11 pr-4 py-3.5 rounded-2xl text-slate-100 placeholder-slate-500 text-base sm:text-sm transition-all"
                     />
                   </div>
                 </div>
@@ -537,7 +543,7 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
                           value={displayName}
                           onChange={(e) => setDisplayName(e.target.value)}
                           placeholder="Ex: Carlos Silva"
-                          className="w-full pl-10 pr-4 py-3 rounded-2xl bg-background-surface border border-slate-700 text-slate-100 placeholder-slate-500 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
+                          className="premium-input w-full pl-11 pr-4 py-3.5 rounded-2xl text-slate-100 placeholder-slate-500 text-base sm:text-sm transition-all"
                         />
                       </div>
                     </div>
@@ -553,7 +559,7 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
                           value={username}
                           onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
                           placeholder="Ex: carlossilva"
-                          className="w-full pl-10 pr-4 py-3 rounded-2xl bg-background-surface border border-slate-700 text-slate-100 placeholder-slate-500 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
+                          className="premium-input w-full pl-11 pr-4 py-3.5 rounded-2xl text-slate-100 placeholder-slate-500 text-base sm:text-sm transition-all"
                         />
                       </div>
                     </div>
@@ -579,7 +585,7 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
                       placeholder={tab === 'login' ? 'seu.email@exemplo.com ou @usuario' : 'seu.email@exemplo.com'}
-                      className="w-full pl-10 pr-4 py-3 rounded-2xl bg-background-surface border border-slate-700 text-slate-100 placeholder-slate-500 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
+                      className="premium-input w-full pl-11 pr-4 py-3.5 rounded-2xl text-slate-100 placeholder-slate-500 text-base sm:text-sm transition-all"
                     />
                   </div>
                 </div>
@@ -608,7 +614,7 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full pl-10 pr-11 py-3 rounded-2xl bg-background-surface border border-slate-700 text-slate-100 placeholder-slate-500 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
+                      className="premium-input w-full pl-11 pr-12 py-3.5 rounded-2xl text-slate-100 placeholder-slate-500 text-base sm:text-sm transition-all"
                     />
                     <button
                       type="button"
@@ -651,7 +657,7 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Repita sua senha"
-                        className="w-full pl-10 pr-11 py-3 rounded-2xl bg-background-surface border border-slate-700 text-slate-100 placeholder-slate-500 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
+                        className="premium-input w-full pl-11 pr-12 py-3.5 rounded-2xl text-slate-100 placeholder-slate-500 text-base sm:text-sm transition-all"
                       />
                       <button
                         type="button"
@@ -692,7 +698,7 @@ export function AuthModal({ isOpen, onClose, onOpenTutorial }) {
         )}
 
         {/* Footer do Modal */}
-        <div className="mt-4 pt-3 border-t border-slate-800/80 text-center flex items-center justify-between text-[11px] text-slate-400 relative z-10">
+        <div className="mt-5 pt-4 border-t border-slate-800/80 text-center flex flex-wrap items-center justify-center sm:justify-between gap-3 text-[11px] text-slate-400 relative z-10">
           <div className="flex items-center gap-1.5">
             <Shield className="w-3.5 h-3.5 text-brand-400" />
             <span>Supabase Auth Seguro</span>

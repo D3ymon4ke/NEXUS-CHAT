@@ -30,8 +30,8 @@ export function GhostAdminBar() {
   };
 
   return (
-    <div className="fixed top-2 sm:top-3 left-1/2 -translate-x-1/2 z-[9999] w-[95%] max-w-2xl select-none animate-slideDown pointer-events-auto">
-      <div className="relative rounded-2xl bg-gradient-to-r from-purple-950/95 via-slate-900/95 to-indigo-950/95 border border-purple-500/70 shadow-[0_10px_35px_rgba(168,85,247,0.35)] backdrop-blur-xl p-2 sm:p-2.5 flex items-center justify-between gap-2 sm:gap-3 ring-1 ring-purple-400/40">
+    <div className="fixed top-[max(0.5rem,env(safe-area-inset-top))] sm:top-3 left-1/2 -translate-x-1/2 z-[9999] w-[calc(100%_-_1rem)] max-w-2xl select-none animate-slideDown pointer-events-auto">
+      <div className="relative rounded-[1.35rem] bg-gradient-to-r from-purple-950/95 via-slate-950/95 to-indigo-950/95 border border-purple-400/60 shadow-[0_14px_45px_rgba(88,28,135,0.42)] backdrop-blur-2xl p-2.5 sm:p-3 flex items-center justify-between gap-2 sm:gap-3 ring-1 ring-white/10">
         {/* Lado Esquerdo: Tag Modo Fantasma & Perfil Ativo */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-purple-500/20 text-purple-300 flex items-center justify-center border border-purple-500/50 flex-shrink-0 relative">
@@ -68,7 +68,7 @@ export function GhostAdminBar() {
             <button
               type="button"
               onClick={() => setIsOpenSwitcher((prev) => !prev)}
-              className="px-2 sm:px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 text-purple-200 border border-purple-500/40 text-[11px] font-extrabold flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+              className="mobile-touch-target sm:min-h-0 sm:min-w-0 px-2.5 sm:px-3 sm:py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 text-purple-200 border border-purple-500/40 text-[11px] font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95"
               title="Trocar para outra conta instantaneamente"
             >
               <ArrowRightLeft className="w-3 h-3 text-purple-400" />
@@ -82,7 +82,7 @@ export function GhostAdminBar() {
                   className="fixed inset-0 z-40"
                   onClick={() => setIsOpenSwitcher(false)}
                 />
-                <div className="absolute right-0 top-full mt-2 w-64 max-h-80 overflow-y-auto rounded-2xl bg-slate-900 border border-purple-500/50 shadow-2xl p-1.5 z-50 space-y-1 backdrop-blur-2xl animate-fadeIn">
+                <div className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-[calc(max(0.5rem,env(safe-area-inset-top))_+_4.75rem)] sm:top-full mt-2 w-auto sm:w-72 max-h-[65dvh] sm:max-h-80 overflow-y-auto rounded-[1.35rem] bg-slate-950/98 border border-purple-500/50 shadow-2xl p-2 z-50 space-y-1 backdrop-blur-2xl animate-fadeIn">
                   <div className="px-2.5 py-1.5 text-[10px] font-extrabold text-purple-300 uppercase tracking-wider border-b border-slate-800 flex items-center justify-between">
                     <span>👑 Alternar Identidade</span>
                     <span className="text-[9px] text-slate-400">Total: {allProfiles?.length || 0}</span>
@@ -155,7 +155,7 @@ export function GhostAdminBar() {
           <button
             type="button"
             onClick={handleExit}
-            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-600/25 hover:bg-rose-600/40 text-rose-200 border border-rose-500/50 text-[11px] font-extrabold flex items-center gap-1 transition-all shadow-sm active:scale-95"
+            className="mobile-touch-target sm:min-h-0 sm:min-w-0 px-2.5 sm:px-3 sm:py-2 rounded-xl bg-rose-600/25 hover:bg-rose-600/40 text-rose-200 border border-rose-500/50 text-[11px] font-extrabold flex items-center justify-center gap-1 transition-all shadow-sm active:scale-95"
             title="Sair do Modo Fantasma e voltar ao Damon"
           >
             <LogOut className="w-3 h-3 text-rose-300" />
