@@ -24,52 +24,53 @@ export function useMobileKeyboard() {
     if (typeof window === 'undefined') return;
 
     const vv = window.visualViewport;
+    let frameId = null;
+    let lastState = { open: false, height: 0 };
 
-    const handleViewportChange = () => {
-      // Previne que o Safari desloque o body para cima
-      if (window.scrollY !== 0) {
-        window.scrollTo(0, 0);
-      }
+    const updateViewport = () => {
+      if (window.scrollY !== 0) window.scrollTo(0, 0);
 
       if (!vv) {
-        // Fallback para navegadores sem visualViewport
         const heightDiff = window.screen.height - window.innerHeight;
         const isOpen = heightDiff > 140;
-        setIsKeyboardOpen(isOpen);
-        setKeyboardHeight(isOpen ? heightDiff : 0);
-        document.documentElement.style.setProperty('--keyboard-height', `${isOpen ? heightDiff : 0}px`);
+        const nextHeight = isOpen ? heightDiff : 0;
+        if (lastState.open !== isOpen) setIsKeyboardOpen(isOpen);
+        if (lastState.height !== nextHeight) setKeyboardHeight(nextHeight);
+        lastState = { open: isOpen, height: nextHeight };
+        document.documentElement.style.setProperty('--keyboard-height', `${nextHeight}px`);
         document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
+        document.documentElement.style.setProperty('--viewport-offset-top', '0px');
         return;
       }
 
-      // Medição exata da altura visível acima do teclado
       const currentVisualHeight = vv.height;
-      const totalScreenHeight = window.innerHeight;
-      const calculatedKeyboardHeight = Math.max(0, totalScreenHeight - currentVisualHeight);
+      const viewportOffsetTop = Math.max(0, vv.offsetTop || 0);
+      const calculatedKeyboardHeight = Math.max(0, window.innerHeight - currentVisualHeight - viewportOffsetTop);
       const isOpen = calculatedKeyboardHeight > 100;
 
-      setIsKeyboardOpen(isOpen);
-      setKeyboardHeight(calculatedKeyboardHeight);
+      if (lastState.open !== isOpen) setIsKeyboardOpen(isOpen);
+      if (Math.abs(lastState.height - calculatedKeyboardHeight) > 1) {
+        setKeyboardHeight(calculatedKeyboardHeight);
+      }
+      lastState = { open: isOpen, height: calculatedKeyboardHeight };
 
-      // Seta variáveis CSS no :root para layout ultra-responsivo
       document.documentElement.style.setProperty('--app-height', `${currentVisualHeight}px`);
       document.documentElement.style.setProperty('--keyboard-height', `${calculatedKeyboardHeight}px`);
+      document.documentElement.style.setProperty('--viewport-offset-top', `${viewportOffsetTop}px`);
       document.documentElement.style.setProperty('--is-keyboard-open', isOpen ? '1' : '0');
-
-      // Se o Safari tentar deslocar o offset top do visual viewport, reposiciona
-      if (vv.offsetTop > 0) {
-        window.scrollTo(0, 0);
-      }
     };
 
-    // Chamada inicial
+    const handleViewportChange = () => {
+      if (frameId) cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(updateViewport);
+    };
+
     handleViewportChange();
 
     if (vv) {
       vv.addEventListener('resize', handleViewportChange, { passive: true });
       vv.addEventListener('scroll', handleViewportChange, { passive: true });
     }
-
     window.addEventListener('resize', handleViewportChange, { passive: true });
     window.addEventListener('orientationchange', handleViewportChange, { passive: true });
 
@@ -80,6 +81,7 @@ export function useMobileKeyboard() {
       }
       window.removeEventListener('resize', handleViewportChange);
       window.removeEventListener('orientationchange', handleViewportChange);
+      if (frameId) cancelAnimationFrame(frameId);
     };
   }, []);
 

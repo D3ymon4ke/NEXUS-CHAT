@@ -858,7 +858,7 @@ export function MessageInput() {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="p-2 sm:p-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-background-hover transition-colors flex items-center justify-center flex-shrink-0"
+              className="mobile-touch-target p-2.5 rounded-2xl text-slate-400 hover:text-slate-200 hover:bg-background-hover transition-colors flex items-center justify-center flex-shrink-0 active:scale-95"
               title="Anexar imagem ou arquivo"
               aria-label="Anexar arquivo"
             >
@@ -897,7 +897,7 @@ export function MessageInput() {
                 ? "Digite uma mensagem, /cafe ou /enquete..."
                 : "Digite uma mensagem ou /cafe..."
             }
-            className="w-full bg-transparent px-2.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-24 sm:max-h-32 leading-relaxed min-w-0"
+            className="w-full bg-transparent pl-3.5 pr-2 sm:px-4 py-2.5 text-base sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-28 sm:max-h-32 leading-6 sm:leading-relaxed min-w-0"
           />
 
           {/* Botões de Ação: Fantasma (1x1), Café (Grupos), Enquete (Admin) & Emojis */}
@@ -908,7 +908,7 @@ export function MessageInput() {
                 <button
                   type="button"
                   onClick={() => setShowGhostMenu(!showGhostMenu)}
-                  className={`p-1 sm:p-1.5 transition-all rounded-lg relative ${
+                  className={`mobile-touch-target sm:min-w-0 sm:min-h-0 p-2 sm:p-1.5 transition-all rounded-xl relative flex items-center justify-center ${
                     ghostMode
                       ? 'text-rose-400 bg-rose-500/20 ring-1 ring-rose-500 animate-pulse'
                       : 'text-slate-400 hover:text-rose-400'
@@ -1108,7 +1108,7 @@ export function MessageInput() {
             <button
               type="button"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className="p-1 sm:p-1.5 text-slate-400 hover:text-yellow-400 transition-colors flex-shrink-0"
+              className="mobile-touch-target sm:min-w-0 sm:min-h-0 p-2 sm:p-1.5 text-slate-400 hover:text-yellow-400 transition-colors flex items-center justify-center flex-shrink-0"
               title="Emojis e Figurinhas Animadas"
               aria-label="Emojis"
             >
@@ -1116,7 +1116,7 @@ export function MessageInput() {
             </button>
 
             {showEmojiPicker && (
-              <div className="fixed sm:absolute bottom-16 sm:bottom-full left-2 right-2 sm:left-auto sm:right-0 mb-2 sm:mb-3 w-auto sm:w-96 max-w-md bg-background-surface/95 border border-slate-700 rounded-2xl shadow-2xl p-2.5 z-30 backdrop-blur-md animate-fadeIn mx-auto">
+              <div className="fixed sm:absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] sm:bottom-full left-2 right-2 sm:left-auto sm:right-0 mb-2 sm:mb-3 w-auto sm:w-96 max-w-md max-h-[min(68dvh,32rem)] overflow-hidden bg-background-surface/95 border border-slate-700 rounded-2xl shadow-2xl p-2.5 z-30 backdrop-blur-md animate-fadeIn mx-auto">
                 {/* Abas Emojis vs Figurinhas Animadas + Atalho /nexus */}
                 <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 gap-1.5">
                   <div className="flex gap-1 bg-background-dark p-0.5 rounded-xl border border-slate-800 text-xs">
@@ -1220,7 +1220,7 @@ export function MessageInput() {
           type="button"
           onClick={handleSend}
           disabled={(!content.trim() && attachments.length === 0) || uploading}
-          className={`p-2 sm:p-2.5 rounded-2xl text-white shadow-lg transition-all flex items-center justify-center flex-shrink-0 active:scale-95 ${
+          className={`mobile-touch-target p-2.5 rounded-2xl text-white shadow-lg transition-all flex items-center justify-center flex-shrink-0 active:scale-95 ${
             editingMessage
               ? 'bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black shadow-amber-500/20'
               : content.trim() || attachments.length > 0

@@ -267,7 +267,7 @@ function MessageBubbleComponent({
       )}
 
       {/* 2. Coluna Principal do Balão */}
-      <div className={`flex flex-col min-w-0 ${isOwn ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-[75%]`}>
+      <div className={`flex flex-col min-w-0 ${isOwn ? 'items-end' : 'items-start'} max-w-[calc(100%_-_2.75rem)] sm:max-w-[75%]`}>
         {/* Nome do Remetente e Badges (Em mensagens recebidas quando showSenderInfo) */}
         {!isOwn && showSenderInfo && !isDeleted && (
           <div

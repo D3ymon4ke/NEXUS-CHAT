@@ -540,7 +540,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
       {showScrollBottom && (
         <button
           onClick={() => scrollToBottom(true)}
-          className="absolute bottom-20 right-6 p-2 rounded-full bg-brand-600 hover:bg-brand-500 text-white shadow-xl border border-white/10 transition-all hover:scale-110 z-20"
+          className="mobile-touch-target absolute bottom-[5.5rem] right-3 sm:right-6 p-2.5 rounded-full bg-brand-600 hover:bg-brand-500 text-white shadow-xl border border-white/10 transition-all hover:scale-110 z-20"
           title="Rolar para o final"
         >
           <ChevronDown className="w-5 h-5" />

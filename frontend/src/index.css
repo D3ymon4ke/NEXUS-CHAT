@@ -37,6 +37,7 @@ html, body {
   padding: 0;
   overflow: hidden;
   display: flex;
+  transform: translateY(var(--viewport-offset-top, 0px));
   flex-direction: column;
 }
 
@@ -57,6 +58,25 @@ html, body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #3e4859;
+}
+
+/* Ergonomia mobile: alvos principais confortáveis sem inflar controles compactos. */
+.mobile-touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
 }
 
 /* Mobile Safe Areas (Notch, Dynamic Island e Home Bar do iOS / Android) */

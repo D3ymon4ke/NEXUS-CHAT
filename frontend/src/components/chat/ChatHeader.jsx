@@ -108,7 +108,7 @@ export function ChatHeader({ onBack, onSearchToggle, isSearching, onOpenProfile 
               e.stopPropagation();
               onBack?.();
             }}
-            className="md:hidden p-1.5 -ml-1 text-slate-400 hover:text-white rounded-lg hover:bg-background-surface transition-colors flex-shrink-0"
+            className="mobile-touch-target md:hidden -ml-1 text-slate-300 hover:text-white rounded-xl hover:bg-background-surface transition-colors flex items-center justify-center flex-shrink-0 active:scale-95"
             title="Voltar para a lista"
             aria-label="Voltar"
           >
@@ -268,7 +268,7 @@ export function ChatHeader({ onBack, onSearchToggle, isSearching, onOpenProfile 
 
           <button
             onClick={onSearchToggle}
-            className={`p-1.5 sm:p-2 rounded-xl transition-colors ${
+            className={`mobile-touch-target sm:min-w-0 sm:min-h-0 p-2 rounded-xl transition-colors flex items-center justify-center ${
               isSearching ? 'text-brand-400 bg-background-surface' : 'hover:text-slate-200 hover:bg-background-surface'
             }`}
             title="Pesquisar mensagens"
@@ -280,7 +280,7 @@ export function ChatHeader({ onBack, onSearchToggle, isSearching, onOpenProfile 
           <div className="relative">
             <button
               onClick={() => setShowMenu(!showMenu)}
-              className="p-1.5 sm:p-2 rounded-xl hover:text-slate-200 hover:bg-background-surface transition-colors"
+              className="mobile-touch-target sm:min-w-0 sm:min-h-0 p-2 rounded-xl hover:text-slate-200 hover:bg-background-surface transition-colors flex items-center justify-center"
               title="Mais opções da conversa"
               aria-label="Mais opções"
             >
@@ -390,7 +390,7 @@ export function ChatHeader({ onBack, onSearchToggle, isSearching, onOpenProfile 
 
       {/* Modal de Confirmação para Limpar ou Apagar */}
       {confirmAction && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+        <div className="safe-modal-overlay fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center animate-fadeIn">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl p-5 sm:p-6 max-w-sm w-full shadow-2xl space-y-4">
             <div className="flex items-center gap-3">
               <div className={`p-3 rounded-2xl ${

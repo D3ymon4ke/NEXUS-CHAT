@@ -79,6 +79,14 @@ Acesse `http://localhost:3000` no seu navegador.
 - **Selecionar texto:** arraste sobre o texto normalmente. A seleção não abre ações nem dispara o gesto de resposta.
 - **Cancelar resposta:** use o botão de fechar na faixa de citação ou pressione `Esc` no computador.
 
+## 📱 Experiência mobile-first
+
+- Viewport compatível com notch, Dynamic Island, rotação e zoom de acessibilidade.
+- Campo de mensagem com fonte de 16 px no celular para evitar zoom automático no iOS.
+- Botões principais com área mínima de toque de 44 × 44 px.
+- Teclado virtual sincronizado com `Visual Viewport`, reduzindo saltos no Safari e Chrome móvel.
+- Menus de emoji e mensagens temporárias respeitam a safe area inferior.
+- Balões de mensagem se ajustam a telas estreitas sem overflow horizontal.
 ## ✅ Validação local
 
 ```bash
