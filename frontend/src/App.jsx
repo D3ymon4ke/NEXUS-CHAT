@@ -197,7 +197,7 @@ function ChatDashboard() {
 
   return (
     <div
-      className="fixed inset-0 w-full max-w-full flex flex-col bg-background-darker overflow-hidden select-none"
+      className="fixed inset-0 w-full max-w-full flex flex-col bg-background-darker overflow-hidden"
       style={{ height: 'var(--app-height, 100dvh)' }}
     >
       {/* Barra Flutuante de Modo Fantasma (Ativa quando Administrador personifica qualquer usuário) */}

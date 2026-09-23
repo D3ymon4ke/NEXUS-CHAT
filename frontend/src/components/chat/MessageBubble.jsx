@@ -121,11 +121,15 @@ function MessageBubbleComponent({
     }
   })();
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
     if (message.content && !isDeleted) {
-      navigator.clipboard.writeText(message.content);
-      toast.success('Mensagem copiada!', { duration: 1500 });
-      setShowMenu(false);
+      try {
+        await navigator.clipboard.writeText(message.content);
+        toast.success('Mensagem copiada!', { duration: 1500 });
+        setShowMenu(false);
+      } catch (error) {
+        toast.error('Não foi possível copiar a mensagem.');
+      }
     }
   };
 
@@ -143,6 +147,7 @@ function MessageBubbleComponent({
 
   const handleTouchStart = (e) => {
     if (isDeleted || !onReply) return;
+    if (e.target.closest('button, a, input, textarea, [role="button"]')) return;
     touchStartRef.current = {
       x: e.touches[0].clientX,
       y: e.touches[0].clientY
@@ -153,6 +158,7 @@ function MessageBubbleComponent({
 
   const handleTouchMove = (e) => {
     if (isDeleted || !onReply) return;
+    if (window.getSelection?.()?.toString()) return;
     const currentX = e.touches[0].clientX;
     const currentY = e.touches[0].clientY;
     const dx = currentX - touchStartRef.current.x;
@@ -196,6 +202,20 @@ function MessageBubbleComponent({
     hasVibratedRef.current = false;
   };
 
+  const handleBubbleClick = () => {
+    if (window.getSelection?.()?.toString()) return;
+    setShowActions((prev) => !prev);
+  };
+
+  const handleContextMenu = (event) => {
+    if (isDeleted) return;
+    if (window.getSelection?.()?.toString()) return;
+    event.preventDefault();
+    setShowActions(true);
+    setShowMenu(true);
+    setShowEmojiPicker(false);
+  };
+
   return (
     <div
       onTouchStart={handleTouchStart}
@@ -207,7 +227,7 @@ function MessageBubbleComponent({
         transition: isDragging ? 'none' : 'transform 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
         touchAction: 'pan-y'
       }}
-      className={`group relative flex my-1.5 pt-1.5 sm:pt-1 w-full max-w-full min-w-0 items-end gap-1.5 sm:gap-2.5 overflow-visible select-none touch-pan-y animate-fadeIn ${
+      className={`group relative flex my-1.5 pt-1.5 sm:pt-1 w-full max-w-full min-w-0 items-end gap-1.5 sm:gap-2.5 overflow-visible touch-pan-y animate-fadeIn ${
         isOwn ? 'justify-end' : 'justify-start'
       }`}
     >
@@ -448,8 +468,10 @@ function MessageBubbleComponent({
 
         {/* Corpo do Balão da Mensagem */}
         <div
-          onClick={() => setShowActions((prev) => !prev)}
-          className={`relative transition-all cursor-pointer ${
+          onClick={handleBubbleClick}
+          onDoubleClick={() => !isDeleted && onReply?.(message)}
+          onContextMenu={handleContextMenu}
+          className={`relative transition-all cursor-pointer select-text ${
             !isDeleted && (message.type === 'ghost' || (message.content && message.content.includes('"ghost_message"')))
               ? 'p-0 bg-transparent border-0 shadow-none'
               : `px-3.5 py-2 rounded-2xl shadow-sm ${customBubble}`
@@ -591,7 +613,7 @@ function MessageBubbleComponent({
                   message.content?.includes('/storage/v1/object/public/chat-media/'))) &&
               (!message.attachments || message.attachments.length === 0 || message.attachments.some((a) => a.file_url === message.content))
             ) && (
-              <div className="text-sm">
+              <div className="text-sm select-text">
                 <FormattedText text={message.content} isOwn={isOwn} />
               </div>
             )

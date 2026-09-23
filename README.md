@@ -33,7 +33,7 @@ chat/
 │   ├── .env.example
 │   └── package.json
 │
-├── frontend/             # Interface Next.js / React + Tailwind CSS (Deploy na Vercel)
+├── frontend/             # Interface React + Vite + Tailwind CSS (Deploy na Vercel)
 │   ├── src/
 │   │   ├── components/   # Chat, Sidebar, Modais, Auth, Configurações
 │   │   ├── context/      # AuthContext, SocketContext, ChatContext
@@ -71,6 +71,21 @@ npm install
 npm run dev
 ```
 Acesse `http://localhost:3000` no seu navegador.
+
+## 💬 Interações com mensagens
+
+- **Responder diretamente:** toque no balão e use o ícone de resposta. No celular, deslize a mensagem para a esquerda. No computador, também é possível dar duplo clique.
+- **Mais ações:** use o botão de três pontos; no computador, o clique direito abre o menu diretamente.
+- **Selecionar texto:** arraste sobre o texto normalmente. A seleção não abre ações nem dispara o gesto de resposta.
+- **Cancelar resposta:** use o botão de fechar na faixa de citação ou pressione `Esc` no computador.
+
+## ✅ Validação local
+
+```bash
+npm run build
+```
+
+O comando valida o frontend e gera a saída de produção em `frontend/dist` de forma compatível com Windows, Linux e Vercel.
 
 ---
 

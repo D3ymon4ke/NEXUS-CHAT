@@ -423,7 +423,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         style={{ overflowX: 'hidden', touchAction: 'pan-y' }}
-        className="flex-1 min-h-0 min-w-0 w-full max-w-full overflow-y-auto overflow-x-hidden touch-pan-y overscroll-x-none overscroll-contain px-2.5 sm:px-4 py-3 sm:py-4 space-y-1 relative"
+        className="flex-1 min-h-0 min-w-0 w-full max-w-full overflow-y-auto overflow-x-hidden touch-pan-y overscroll-x-none overscroll-contain px-2.5 sm:px-4 pt-8 pb-4 space-y-1 relative"
       >
         {/* Botão de carregar mensagens anteriores (paginação sob demanda) */}
         {hasMoreMessages && displayMessages.length > 0 && (

@@ -95,6 +95,12 @@ export function MessageInput() {
     }
   }, [editingMessage]);
 
+  // Responder deve levar o usuário direto ao campo, inclusive após swipe no celular.
+  useEffect(() => {
+    if (!replyingTo || editingMessage) return;
+    requestAnimationFrame(() => textareaRef.current?.focus({ preventScroll: true }));
+  }, [replyingTo, editingMessage]);
+
   // Salvar rascunho automaticamente conforme o usuário digita (estilo Telegram)
   useEffect(() => {
     if (!activeConversation?.id || editingMessage) return;
@@ -655,8 +661,11 @@ export function MessageInput() {
             <span className="text-slate-400 truncate min-w-0">{replyingTo.content || 'Anexo'}</span>
           </div>
           <button
+            type="button"
             onClick={() => setReplyingTo(null)}
             className="p-1 text-slate-400 hover:text-white rounded-lg flex-shrink-0"
+            aria-label="Cancelar resposta"
+            title="Cancelar resposta"
           >
             <X className="w-4 h-4" />
           </button>
