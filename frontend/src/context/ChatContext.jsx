@@ -256,6 +256,7 @@ export function ChatProvider({ children }) {
   const pinnedConversationIdsRef = useRef(pinnedConversationIds);
   const userRef = useRef(user);
   const conversationsRef = useRef(conversations);
+  const conversationSnapshotsRef = useRef(new Map());
 
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
@@ -271,6 +272,9 @@ export function ChatProvider({ children }) {
 
   useEffect(() => {
     conversationsRef.current = conversations;
+    conversations.forEach((conversation) => {
+      if (conversation?.id) conversationSnapshotsRef.current.set(conversation.id, conversation);
+    });
   }, [conversations]);
 
   // Sincronizar pinos locais e inscrever no Web Push quando o usuário mudar
@@ -345,6 +349,9 @@ export function ChatProvider({ children }) {
     if (!activeConversationId) return null;
     const found = conversations.find(c => c && c.id === activeConversationId);
     if (found) return found;
+
+    const snapshot = conversationSnapshotsRef.current.get(activeConversationId);
+    if (snapshot) return snapshot;
 
     if (activeConversationId === BELMONT_ID) {
       return {
@@ -460,6 +467,10 @@ export function ChatProvider({ children }) {
 
         const currentPins = getStoredPins(currentUser?.id);
         const reconciled = reconcileConversations(res.conversations, conversationsRef.current);
+        const activeSnapshot = conversationsRef.current.find((conversation) => conversation?.id === activeConversationIdRef.current);
+        if (activeSnapshot && !reconciled.some((conversation) => conversation?.id === activeSnapshot.id)) {
+          reconciled.push(activeSnapshot);
+        }
         const sorted = sortConversationsList(reconciled, currentPins);
         setConversations(sorted);
 

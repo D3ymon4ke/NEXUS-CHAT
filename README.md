@@ -97,6 +97,7 @@ Acesse `http://localhost:3000` no seu navegador.
 - Preview da última mensagem reconciliado por data entre cache, API e eventos em tempo real, sem regressão para mensagens antigas.
 - Hub mobile com retomada rápida da conversa recente, contador de pendências e alvos de toque maiores.
 - Histórico legado normalizado para impedir falhas ao abrir conversas antigas com anexos, reações ou conteúdos em formatos anteriores.
+- Conversa ativa preservada durante revalidações silenciosas para impedir tela de carregamento infinito.
 ## ✅ Validação local
 
 ```bash
