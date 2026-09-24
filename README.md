@@ -98,6 +98,7 @@ Acesse `http://localhost:3000` no seu navegador.
 - Hub mobile com retomada rápida da conversa recente, contador de pendências e alvos de toque maiores.
 - Histórico legado normalizado para impedir falhas ao abrir conversas antigas com anexos, reações ou conteúdos em formatos anteriores.
 - Conversa ativa preservada durante revalidações silenciosas para impedir tela de carregamento infinito.
+- Escala compacta de chat no celular: balões, tipografia, avatares e espaçamento ajustados sem reduzir áreas interativas.
 ## ✅ Validação local
 
 ```bash

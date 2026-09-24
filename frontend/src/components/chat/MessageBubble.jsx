@@ -244,7 +244,7 @@ function MessageBubbleComponent({
         transition: isDragging ? 'none' : 'transform 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
         touchAction: 'pan-y'
       }}
-      className={`group relative flex my-1.5 pt-1.5 sm:pt-1 w-full max-w-full min-w-0 items-end gap-1.5 sm:gap-2.5 overflow-visible touch-pan-y animate-fadeIn ${
+      className={`group relative flex my-0.5 sm:my-1 pt-0.5 sm:pt-1 w-full max-w-full min-w-0 items-end gap-1 sm:gap-2.5 overflow-visible touch-pan-y animate-fadeIn ${
         isOwn ? 'justify-end' : 'justify-start'
       }`}
     >
@@ -265,7 +265,7 @@ function MessageBubbleComponent({
       {!isOwn && (
         <div
           onClick={() => onOpenProfile && onOpenProfile(sender)}
-          className="relative inline-flex items-center justify-center cursor-pointer flex-shrink-0 group-hover:scale-105 transition-transform mb-1 w-8 h-8 sm:w-9 sm:h-9"
+          className="relative inline-flex items-center justify-center cursor-pointer flex-shrink-0 group-hover:scale-105 transition-transform mb-0.5 w-7 h-7 sm:mb-1 sm:w-9 sm:h-9"
           title={`Ver perfil de ${sender.display_name || sender.username || 'Usuário'}`}
         >
           <img
@@ -284,7 +284,7 @@ function MessageBubbleComponent({
       )}
 
       {/* 2. Coluna Principal do Balão */}
-      <div className={`flex flex-col min-w-0 ${isOwn ? 'items-end' : 'items-start'} max-w-[calc(100%_-_2.75rem)] sm:max-w-[75%]`}>
+      <div className={`flex flex-col min-w-0 ${isOwn ? 'items-end' : 'items-start'} max-w-[82%] sm:max-w-[75%]`}>
         {/* Nome do Remetente e Badges (Em mensagens recebidas quando showSenderInfo) */}
         {!isOwn && showSenderInfo && !isDeleted && (
           <div
@@ -491,7 +491,7 @@ function MessageBubbleComponent({
           className={`relative transition-all cursor-pointer select-text ${
             !isDeleted && (message.type === 'ghost' || (message.content && message.content.includes('"ghost_message"')))
               ? 'p-0 bg-transparent border-0 shadow-none'
-              : `px-3.5 py-2 rounded-2xl shadow-sm ${customBubble}`
+              : `px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-[14px] sm:rounded-2xl shadow-sm ${customBubble}`
           }`}>
           {/* Citação da Resposta (Reply Quote) */}
           {!isDeleted && message.reply_to && (
@@ -502,7 +502,7 @@ function MessageBubbleComponent({
                   onJumpToReply(message.reply_to?.id || message.reply_to_id);
                 }
               }}
-              className={`mb-1.5 p-2 rounded-lg border-l-2 text-xs flex flex-col cursor-pointer hover:opacity-90 active:scale-[0.99] transition-all ${
+              className={`mb-1 p-1.5 sm:mb-1.5 sm:p-2 rounded-lg border-l-2 text-[11px] sm:text-xs flex flex-col cursor-pointer hover:opacity-90 active:scale-[0.99] transition-all ${
                 isOwn
                   ? 'bg-black/25 border-white/70 text-white/90 hover:bg-black/35'
                   : 'bg-background-dark/60 border-brand-500 text-slate-300 hover:bg-background-dark/80'
@@ -630,7 +630,7 @@ function MessageBubbleComponent({
                   message.content?.includes('/storage/v1/object/public/chat-media/'))) &&
               (!message.attachments || message.attachments.length === 0 || message.attachments.some((a) => a.file_url === message.content))
             ) && (
-              <div className="text-sm select-text">
+              <div className="text-[13px] sm:text-sm leading-[1.35] sm:leading-normal select-text">
                 <FormattedText text={message.content} isOwn={isOwn} />
               </div>
             )
@@ -638,7 +638,7 @@ function MessageBubbleComponent({
 
           {/* Rodapé do Balão: Timestamp + Status + Indicador de Editada (Apenas para mensagens regulares) */}
           {!(!isDeleted && (message.type === 'ghost' || (message.content && message.content.includes('"ghost_message"')))) && (
-            <div className="flex items-center justify-end gap-1 mt-1 text-[10px] opacity-75 select-none float-right ml-2 -mb-0.5">
+            <div className="flex items-center justify-end gap-1 mt-0.5 sm:mt-1 text-[9px] sm:text-[10px] opacity-75 select-none float-right ml-2 -mb-0.5">
               {!isDeleted && message.is_pinned && (
                 <Pin className="w-2.5 h-2.5 fill-current rotate-45 mr-0.5" />
               )}
@@ -702,7 +702,7 @@ function MessageBubbleComponent({
       {isOwn && (
         <div
           onClick={() => onOpenProfile && onOpenProfile(sender?.id ? sender : currentUser)}
-          className="relative inline-flex items-center justify-center cursor-pointer flex-shrink-0 group-hover:scale-105 transition-transform mb-1 w-8 h-8 sm:w-9 sm:h-9"
+          className="relative inline-flex items-center justify-center cursor-pointer flex-shrink-0 group-hover:scale-105 transition-transform mb-0.5 w-7 h-7 sm:mb-1 sm:w-9 sm:h-9"
           title={`${sender?.display_name || sender?.username || currentUser?.display_name || 'Eu'}`}
         >
           <img

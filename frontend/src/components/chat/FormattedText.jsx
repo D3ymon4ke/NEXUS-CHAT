@@ -39,7 +39,7 @@ function CodeBlock({ language, code }) {
   }, [code, language]);
 
   return (
-    <div className="my-2 rounded-xl overflow-hidden bg-[#1e1e2e]/90 border border-white/10 text-xs font-mono select-text shadow-lg">
+    <div className="my-1.5 sm:my-2 rounded-xl overflow-hidden bg-[#1e1e2e]/90 border border-white/10 text-[11px] sm:text-xs font-mono select-text shadow-lg">
       <div className="flex items-center justify-between px-3 py-1.5 bg-black/40 border-b border-white/10 text-[11px] text-slate-400">
         <span className="font-semibold uppercase tracking-wider text-brand-400">{language || 'código'}</span>
         <button
@@ -146,7 +146,7 @@ function FormattedTextComponent({ text = '', isOwn = false }) {
               if (/^[-*]\s+/.test(line)) {
                 const itemText = line.replace(/^[-*]\s+/, '');
                 return (
-                  <div key={lIdx} className="flex items-start gap-2 text-sm pl-1">
+                  <div key={lIdx} className="flex items-start gap-1.5 sm:gap-2 text-[13px] sm:text-sm pl-1 leading-[1.35] sm:leading-relaxed">
                     <span className="text-brand-400 font-bold">•</span>
                     <span>{renderInlineFormatting(itemText, isOwn)}</span>
                   </div>
@@ -155,7 +155,7 @@ function FormattedTextComponent({ text = '', isOwn = false }) {
 
               // Linha normal
               return (
-                <p key={lIdx} className="text-sm leading-relaxed break-words">
+                <p key={lIdx} className="text-[13px] sm:text-sm leading-[1.35] sm:leading-relaxed break-words">
                   {renderInlineFormatting(line, isOwn)}
                 </p>
               );

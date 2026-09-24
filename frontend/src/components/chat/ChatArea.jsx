@@ -424,7 +424,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         style={{ overflowX: 'hidden', touchAction: 'pan-y' }}
-        className="flex-1 min-h-0 min-w-0 w-full max-w-full overflow-y-auto overflow-x-hidden touch-pan-y overscroll-x-none overscroll-contain px-2.5 sm:px-4 pt-8 pb-4 space-y-1 relative"
+        className="flex-1 min-h-0 min-w-0 w-full max-w-full overflow-y-auto overflow-x-hidden touch-pan-y overscroll-x-none overscroll-contain px-2 sm:px-4 pt-5 sm:pt-8 pb-3 sm:pb-4 space-y-0.5 sm:space-y-1 relative"
       >
         {/* Botão de carregar mensagens anteriores (paginação sob demanda) */}
         {hasMoreMessages && displayMessages.length > 0 && (
@@ -475,7 +475,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
             return (
               <React.Fragment key={msg.id || msg.tempId || index}>
                 {showDateSeparator && (
-                  <div className="flex items-center justify-center my-4">
+                  <div className="flex items-center justify-center my-2.5 sm:my-4">
                     <span className="px-3 py-1 rounded-full text-[11px] font-medium bg-background-surface/80 text-slate-400 border border-slate-800 shadow-sm">
                       {formatDateSeparator(msg.created_at)}
                     </span>
