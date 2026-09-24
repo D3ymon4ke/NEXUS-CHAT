@@ -96,6 +96,7 @@ Acesse `http://localhost:3000` no seu navegador.
 - Barra de identidade administrativa compatível com notch e seletor em largura total no celular.
 - Preview da última mensagem reconciliado por data entre cache, API e eventos em tempo real, sem regressão para mensagens antigas.
 - Hub mobile com retomada rápida da conversa recente, contador de pendências e alvos de toque maiores.
+- Histórico legado normalizado para impedir falhas ao abrir conversas antigas com anexos, reações ou conteúdos em formatos anteriores.
 ## ✅ Validação local
 
 ```bash

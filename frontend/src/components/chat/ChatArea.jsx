@@ -182,36 +182,14 @@ export function ChatArea({ onBack, onOpenProfile }) {
     }, 2500);
   };
 
-  if (!activeConversation) {
-    if (activeConversationId) {
-      return (
-        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-background-darker/60 select-none">
-          <div className="w-8 h-8 rounded-full border-2 border-brand-500/30 border-t-brand-400 animate-spin mb-3" />
-          <span className="text-xs text-slate-400 font-medium">Carregando conversa...</span>
-        </div>
-      );
-    }
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-background-darker/60 backdrop-blur select-none">
-        <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-brand-600/30 to-purple-600/30 border border-brand-500/20 flex items-center justify-center mb-4 shadow-xl">
-          <MessageSquare className="w-10 h-10 text-brand-400" />
-        </div>
-        <h3 className="text-xl font-bold text-white mb-2">Nenhuma conversa selecionada</h3>
-        <p className="text-sm text-slate-400 max-w-sm">
-          Escolha uma conversa na barra lateral ou inicie um novo chat para começar a trocar mensagens em tempo real.
-        </p>
-      </div>
-    );
-  }
-
   // Cálculo de correspondências da busca dentro da conversa
   const matchingMessages = React.useMemo(() => {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase().trim();
     return messages.filter((m) => {
       if (m.is_deleted) return false;
-      const contentMatch = m.content && m.content.toLowerCase().includes(q);
-      const attMatch = m.attachments && m.attachments.some((a) => (a.file_name || a.name || '').toLowerCase().includes(q));
+      const contentMatch = typeof m?.content === 'string' && m.content.toLowerCase().includes(q);
+      const attMatch = Array.isArray(m?.attachments) && m.attachments.some((a) => String(a?.file_name || a?.name || '').toLowerCase().includes(q));
       return contentMatch || attMatch;
     });
   }, [messages, searchQuery]);
@@ -275,6 +253,29 @@ export function ChatArea({ onBack, onOpenProfile }) {
   };
 
   const wallpaperClass = WALLPAPER_STYLES[user?.equipped_wallpaper] || 'bg-background-darker';
+
+  // Mantém a ordem dos hooks estável durante a transição lista → conversa.
+  if (!activeConversation) {
+    if (activeConversationId) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-background-darker/60 select-none">
+          <div className="w-8 h-8 rounded-full border-2 border-brand-500/30 border-t-brand-400 animate-spin mb-3" />
+          <span className="text-xs text-slate-400 font-medium">Carregando conversa...</span>
+        </div>
+      );
+    }
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-background-darker/60 backdrop-blur select-none">
+        <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-brand-600/30 to-purple-600/30 border border-brand-500/20 flex items-center justify-center mb-4 shadow-xl">
+          <MessageSquare className="w-10 h-10 text-brand-400" />
+        </div>
+        <h3 className="text-xl font-bold text-white mb-2">Nenhuma conversa selecionada</h3>
+        <p className="text-sm text-slate-400 max-w-sm">
+          Escolha uma conversa na barra lateral ou inicie um novo chat para começar a trocar mensagens em tempo real.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={`flex-1 flex flex-col h-full min-h-0 min-w-0 w-full max-w-full overflow-hidden relative ${wallpaperClass}`}>

@@ -63,7 +63,23 @@ const BADGE_LABELS = {
   badge_diamond: { icon: '💎', label: 'Diamante', color: 'text-sky-300 bg-sky-500/20 border-sky-500/40' },
   badge_chat_master: { icon: '🔥', label: 'Chat Master', color: 'text-rose-300 bg-rose-500/20 border-rose-500/40' }
 };
-
+const normalizeLegacyMessage = (value) => {
+  const message = value && typeof value === 'object' ? value : {};
+  const reply = message.reply_to && typeof message.reply_to === 'object' ? message.reply_to : null;
+  return {
+    ...message,
+    content: typeof message.content === 'string' ? message.content : message.content == null ? '' : String(message.content),
+    attachments: Array.isArray(message.attachments) ? message.attachments.filter(Boolean) : [],
+    reactions: Array.isArray(message.reactions) ? message.reactions.filter((reaction) => reaction && reaction.emoji) : [],
+    sender: message.sender && typeof message.sender === 'object' ? message.sender : {},
+    reply_to: reply
+      ? {
+          ...reply,
+          content: typeof reply.content === 'string' ? reply.content : reply.content == null ? '' : String(reply.content)
+        }
+      : null
+  };
+};
 function MessageBubbleComponent({
   message,
   isOwn,
@@ -77,6 +93,7 @@ function MessageBubbleComponent({
   onOpenProfile,
   onJumpToReply
 }) {
+  message = normalizeLegacyMessage(message);
   const { user: currentUser } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
