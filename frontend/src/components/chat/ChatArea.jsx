@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useChat } from '../../context/ChatContext';
 import { useAuth } from '../../context/AuthContext';
 import { ChatHeader } from './ChatHeader';
@@ -11,7 +11,7 @@ import { format, isToday, isYesterday } from 'date-fns';
 import { ChevronDown, ChevronUp, MessageSquare, ShieldCheck, Sparkles, Search, X, WifiOff } from 'lucide-react';
 import { useMobileKeyboard } from '../../hooks/useMobileKeyboard';
 
-export function ChatArea({ onBack, onOpenProfile }) {
+export function ChatArea({ onBack, onOpenProfile, isVisible = true }) {
   const { user } = useAuth();
   const {
     activeConversation,
@@ -65,7 +65,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
         return;
       }
     }
-    messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
+    el?.scrollTo({ top: el.scrollHeight, left: 0, behavior: smooth ? 'smooth' : 'auto' });
   };
 
   // Quando o teclado virtual abre, ancora suavemente as mensagens acima do teclado sem cortes
@@ -102,12 +102,17 @@ export function ChatArea({ onBack, onOpenProfile }) {
     touchStartYRef.current = null;
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el || el.clientHeight === 0) return;
     isInitialLoadForConvRef.current = true;
+    prevScrollSnapshotRef.current = null;
+    setShowScrollBottom(false);
     scrollToBottom(false);
-  }, [activeConversation?.id]);
+  }, [activeConversation?.id, isVisible]);
 
   useEffect(() => {
+    if (!scrollContainerRef.current?.clientHeight || loadingMessages) return;
     if (isInitialLoadForConvRef.current) {
       isInitialLoadForConvRef.current = false;
       scrollToBottom(false);
@@ -126,7 +131,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
     if (!showScrollBottom) {
       scrollToBottom(true);
     }
-  }, [messages.length]);
+  }, [messages.length, activeConversation?.id, isVisible, loadingMessages]);
 
   // Travar rigorosamente qualquer deslocamento horizontal indesejado
   useEffect(() => {
@@ -175,7 +180,11 @@ export function ChatArea({ onBack, onOpenProfile }) {
     }
     const el = document.getElementById(`msg-${msgId}`);
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const container = scrollContainerRef.current;
+      if (container) {
+        const offset = el.getBoundingClientRect().top - container.getBoundingClientRect().top;
+        container.scrollTo({ top: container.scrollTop + offset - container.clientHeight / 2 + el.clientHeight / 2, behavior: 'smooth' });
+      }
     }
     setTimeout(() => {
       setHighlightMessageId((c) => (c === msgId ? null : c));
@@ -549,7 +558,7 @@ export function ChatArea({ onBack, onOpenProfile }) {
       )}
 
       {/* Input de Mensagem */}
-      <MessageInput />
+      <MessageInput isVisible={isVisible} />
 
       {/* Lightbox / Visualizador de Imagens */}
       <ImageViewerModal

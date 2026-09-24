@@ -43,6 +43,8 @@ export function useMobileKeyboard() {
         return;
       }
 
+      // Não confundir pinch-to-zoom com abertura do teclado.
+      if (Math.abs(vv.scale - 1) > 0.05) return;
       const currentVisualHeight = vv.height;
       const viewportOffsetTop = Math.max(0, vv.offsetTop || 0);
       const calculatedKeyboardHeight = Math.max(0, window.innerHeight - currentVisualHeight - viewportOffsetTop);

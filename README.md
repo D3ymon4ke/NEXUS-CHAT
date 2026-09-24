@@ -136,3 +136,13 @@ O comando valida o frontend e gera a saída de produção em `frontend/dist` de 
    - `VITE_SUPABASE_URL`: URL do seu projeto Supabase
    - `VITE_SUPABASE_ANON_KEY`: Chave anônima pública do Supabase
 3. Clique em **Deploy**.
+
+## Patch de estabilidade mobile — 24/09/2026
+
+- Compositor recalculado antes da pintura ao abrir/reabrir conversa e após alteração de largura; campos ocultos não são medidos.
+- Rolagem e busca limitadas ao painel de mensagens, sem deslocar os ancestrais. Inicialização considera visibilidade e conclusão do carregamento, não apenas quantidade de mensagens.
+- Tipografia protegida de inflação automática; pinch-to-zoom não altera a altura global do aplicativo.
+- Fallback de conversas rejeita erros de consulta em vez de apresentar uma lista incompleta como sucesso. Históricos diferentes com o mesmo contato são preservados por ID.
+- Respostas de listagem obsoletas ou de outra conta são descartadas. Evento DELETE sem ID não limpa todas as mensagens da tela.
+- Validação: build Vite e testes simulados do fallback (falha de participantes, falha de conversas, dois históricos para um contato). Validação visual em dispositivo real ainda necessária.
+- Obsidian: sincronização pendente; o vault `C:\Users\deymo\Documents\Segundo Cerebro` não está disponível neste ambiente.

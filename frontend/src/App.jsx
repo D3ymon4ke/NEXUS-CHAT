@@ -248,6 +248,7 @@ function ChatDashboard() {
         >
           {activeConversationId ? (
             <ChatArea
+              isVisible={mobileView === 'chat'}
               onBack={handleMobileBack}
               onOpenProfile={(u) => setTargetUserProfile(u)}
             />

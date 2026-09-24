@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
@@ -37,7 +37,7 @@ const EMOJI_CATEGORIES = [
   { name: 'Símbolos', emojis: ['✅', '❌', '⚠️', '💎', '📌', '🔔', '💬', '📢', '💻', '📱', '🔒', '🔑'] }
 ];
 
-export function MessageInput() {
+export function MessageInput({ isVisible = true }) {
   const { user, updateProfile } = useAuth();
   const {
     activeConversation,
@@ -124,13 +124,26 @@ export function MessageInput() {
     } catch (e) {}
   }, [activeConversation?.id]);
 
-  // Ajuste automático de altura do textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
-    }
-  }, [content]);
+  // Não medir campos ocultos; recalcular ao reabrir e ao mudar a largura.
+  useLayoutEffect(() => {
+    const field = textareaRef.current;
+    if (!field) return;
+    const resize = () => {
+      if (!field.getClientRects().length) return;
+      field.style.height = 'auto';
+      field.style.height = `${Math.max(36, Math.min(field.scrollHeight, 120))}px`;
+    };
+    resize();
+    let width = field.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (field.clientWidth !== width) {
+        width = field.clientWidth;
+        resize();
+      }
+    });
+    observer.observe(field);
+    return () => observer.disconnect();
+  }, [content, activeConversation?.id, isVisible]);
 
   // Suporte a colar imagens com Ctrl+V
   useEffect(() => {

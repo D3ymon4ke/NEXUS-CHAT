@@ -442,15 +442,18 @@ export function ChatProvider({ children }) {
   }, [pinnedConversationIds]);
 
   // Carregar conversas do usuário (estável e sem dependência circular)
+  const conversationRequestRef = useRef(0);
   const loadConversations = useCallback(async (isSilent = true) => {
     const currentUser = userRef.current;
     if (!currentUser?.id) return;
+    const requestId = ++conversationRequestRef.current;
     try {
       // SWR: Apenas exibe spinner se o usuário não tiver NENHUMA conversa na memória
       if ((!conversationsRef.current || conversationsRef.current.length === 0) && !isSilent) {
         setLoadingConversations(true);
       }
       const res = await apiRequest('/conversations', { user: currentUser });
+      if (requestId !== conversationRequestRef.current || userRef.current?.id !== currentUser.id) return;
       if (res && res.success && Array.isArray(res.conversations)) {
         // Pré-carregar perfis no cache em memória para renderização instantânea em 0ms
         res.conversations.forEach((c) => {
@@ -485,7 +488,9 @@ export function ChatProvider({ children }) {
     } catch (err) {
       console.error('Erro ao carregar conversas:', err);
     } finally {
-      setLoadingConversations(false);
+      if (requestId === conversationRequestRef.current && userRef.current?.id === currentUser.id) {
+        setLoadingConversations(false);
+      }
     }
   }, []);
 
@@ -1171,9 +1176,8 @@ export function ChatProvider({ children }) {
         (payload) => {
           if (payload.old?.id) {
             setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
-          } else {
-            setMessages([]);
           }
+          // Eventos DELETE sem chave primária não identificam qual mensagem remover.
           if (loadConversations) loadConversations();
         }
       )

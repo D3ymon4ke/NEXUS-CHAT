@@ -130,11 +130,12 @@ export async function apiRequest(endpoint, options = {}) {
         };
 
         // 1. Obter IDs das conversas das quais o usuário participa
-        const { data: myParticipations } = await supabase
+        const { data: myParticipations, error: participationError } = await supabase
           .from('conversation_participants')
           .select('*')
           .eq('user_id', currentUser.id);
 
+        if (participationError) throw participationError;
         const convIds = (myParticipations || []).map(p => p.conversation_id);
         if (!convIds.includes(BELMONT_ID)) {
           convIds.push(BELMONT_ID);
@@ -149,7 +150,7 @@ export async function apiRequest(endpoint, options = {}) {
         }
 
         // 2. Buscar todas as conversas e todos os participantes com seus perfis
-        const { data: rawConvs } = await supabase
+        const { data: rawConvs, error: conversationsError } = await supabase
           .from('conversations')
           .select(`
             *,
@@ -168,6 +169,8 @@ export async function apiRequest(endpoint, options = {}) {
             )
           `)
           .in('id', convIds);
+
+        if (conversationsError) throw conversationsError;
 
         // 3. Enriquecer com direct_user e last_message
         const enriched = await Promise.all(
@@ -235,10 +238,10 @@ export async function apiRequest(endpoint, options = {}) {
 
         // Deduplicar e garantir integridade total:
         // 1. Belmont apenas uma vez
-        // 2. Não permitir conversas diretas duplicadas com o mesmo contato (manter a mais recente)
+        // 2. Conversas distintas com o mesmo contato têm históricos próprios e devem permanecer.
         // 3. Garantir IDs únicos
         const seenIds = new Set();
-        const seenDirectUserIds = new Set();
+
         const deduplicated = [];
 
         for (const c of enriched) {
@@ -246,13 +249,7 @@ export async function apiRequest(endpoint, options = {}) {
           if (seenIds.has(c.id)) continue;
           seenIds.add(c.id);
 
-          if (c.type === 'direct' && c.direct_user?.id) {
-            if (seenDirectUserIds.has(c.direct_user.id)) {
-              // Já mantivemos a conversa mais recente com este contato
-              continue;
-            }
-            seenDirectUserIds.add(c.direct_user.id);
-          }
+
           deduplicated.push(c);
         }
 
